@@ -7,6 +7,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <stdlib.h>
 #include <cstring>
 
@@ -22,7 +23,7 @@ class shell{
     double cD; // = .292;
     string name;
 
-    double max = 10;
+    double max = 25;
     double min = 0;
     double precision = .01;
     double x0 = 0, y0 = 0;
@@ -38,7 +39,7 @@ class shell{
     [0:1] x [1:2] y [2:3] t [3:4] v_x [4:5] v_y
     */
 
-    vector<double> standardOut0;
+    vector<double> stdOut0;
 
     /*trajectories output
     [0           ]trajx 0        [1           ]trajy 1
@@ -56,7 +57,17 @@ class shell{
     */
 
     public:
-    vector<double> standardData;
+    vector<double> stdData;
+
+    //For convenience purposes
+    unordered_map<string, unsigned int> stdDataIndex = {
+        {"distance"        ,  0}, {"launch angle"     ,  1}, {"impact angle-R" ,  2},
+        {"impact angle-D " ,  3}, {"impact velocity"  ,  4}, {"raw pen"        ,  5},
+        {"effective pen-H" ,  6}, {"effective pen -HN",  7}, {"impact angle-DD",  8},
+        {"effective pen-D" ,  9}, {"effective pen -DN", 10}, {"time to target" , 11},
+        {"time to target-A", 12}
+    }; 
+    
     unsigned int size;
 
     double calcNormalizationR(double angle){ //Input in radians
@@ -97,9 +108,9 @@ class shell{
         memset(oneVector.data(), 1, sizeof(double) * size);
 
         trajectories.resize(2 * size);
-        standardData.resize(13 * size);
+        stdData.resize(13 * size);
 
-        standardOut0.resize(size * 4);
+        stdOut0.resize(size * 4);
         temp.resize(size * 7);
     }
     
@@ -109,41 +120,41 @@ class shell{
         for(int i=0; i < size; i++){
             angle = i * precision + min;
             angleR = angle * M_PI / 180;
-            standardData[i + size] = angle;
-            standardOut0[i + 3 * size] = cos(angleR) * v0;
-            standardOut0[i + 4 * size] = sin(angleR) * v0;
+            stdData[i + size] = angle;
+            stdOut0[i + 3 * size] = cos(angleR) * v0;
+            stdOut0[i + 4 * size] = sin(angleR) * v0;
         }
     }
 
-    void postProcessStandard(){
+    void postProcessStd(){
         //Copies first section - [0]x->[0]distance
-        copy(standardOut0.begin(), standardOut0.begin() + size, standardData.begin());
+        copy(stdOut0.begin(), stdOut0.begin() + size, stdData.begin());
         //Copies 11th section - [2]t->[10]ttt
-        //copy(standardOut0.begin() + 2 * size, standardOut0.begin() + 3 * size, standardData.begin() + 11 * size);
+        //copy(stdOut0.begin() + 2 * size, stdOut0.begin() + 3 * size, stdData.begin() + 11 * size);
 
         double iAR, iADR, iV, rP;
         #pragma omp parallel for private(iAR, iADR, iV, rP)
         for(int i=0; i<size; i++){
             //Calculate [2]IA , [7]IA_D
-            iAR = atan(standardOut0[i+size*3]/standardOut0[i+size*2]);
-            standardData[i+size*2] = iAR;
-            standardData[i+size*3] = iAR / M_PI * 180;
+            iAR = atan(stdOut0[i+size*3]/stdOut0[i+size*2]);
+            stdData[i+size*2] = iAR;
+            stdData[i+size*3] = iAR / M_PI * 180;
             iADR = M_PI / 2 + iAR;
-            standardData[i+size*8] = iADR / M_PI * 180;
+            stdData[i+size*8] = iADR / M_PI * 180;
 
             //Calculate [3]iV,  [4]rP
-            iV = sqrt(pow(standardOut0[i+size*3],2) + pow(standardOut0[i+size*2],2));
-            standardData[i+size*4] = iV;
+            iV = sqrt(pow(stdOut0[i+size*3],2) + pow(stdOut0[i+size*2],2));
+            stdData[i+size*4] = iV;
             rP = pow(iV, 1.1) * pPPC;
-            standardData[i+size*5] = rP;
+            stdData[i+size*5] = rP;
             //Calculate [5]EPH  [8]EPV
-            standardData[i+size*6] = cos(iAR) * rP;
-            standardData[i+size*9] = cos(iADR) * rP;
+            stdData[i+size*6] = cos(iAR) * rP;
+            stdData[i+size*9] = cos(iADR) * rP;
 
-            standardData[i+size*7] = cos(calcNormalizationR(iAR)) * rP;
-            standardData[i+size*10] = cos(calcNormalizationR(iADR)) * rP;
+            stdData[i+size*7] = cos(calcNormalizationR(iAR)) * rP;
+            stdData[i+size*10] = cos(calcNormalizationR(iADR)) * rP;
 
-            standardData[i+size*12] = standardData[i+size*11] / 3.1;
+            stdData[i+size*12] = stdData[i+size*11] / 3.1;
         }
 
     }
@@ -152,8 +163,8 @@ class shell{
         //printf("%d ", i);
         //printf("%f %f %f %f\n", x, y, v_x, v_y);
         double T, p, rho, t, x, y, v_x, v_y;
-        v_x = standardOut0[i+size*3];
-        v_y = standardOut0[i+size*4];
+        v_x = stdOut0[i+size*3];
+        v_y = stdOut0[i+size*4];
         x = x0;
         y = y0;
         t = 0;
@@ -174,12 +185,12 @@ class shell{
             trajectories[2*i  ].push_back(x);
             trajectories[2*i+1].push_back(y);
         }
-        standardOut0[i       ] = x;
-        standardOut0[i+size  ] = y;
-        //standardOut0[i+size*2] = t;
-        standardData[i+size*11] = t;
-        standardOut0[i+size*2] = v_x;
-        standardOut0[i+size*3] = v_y;
+        stdOut0[i       ] = x;
+        stdOut0[i+size  ] = y;
+        //stdOut0[i+size*2] = t;
+        stdData[i+size*11] = t;
+        stdOut0[i+size*2] = v_x;
+        stdOut0[i+size*3] = v_y;
     }
 
 
@@ -225,7 +236,7 @@ class shell{
         }
     }
 
-    void calculateStandard(){
+    void calculateStd(){
         setArrays();
         preProcessAV();
 
@@ -237,19 +248,19 @@ class shell{
             //printf("i %d \n", i);
         }
         
-        postProcessStandard();
+        postProcessStd();
     }
 
-    void printStandardOut(){
+    void printStdOut(){
         for(int i=0; i<size; i++){
-            printf("%f %f %f %f %f\n", standardOut0[i], standardOut0[i+size], 
-            standardOut0[i+size*2], standardOut0[i+size*3], standardOut0[i+size*4]);
+            printf("%f %f %f %f %f\n", stdOut0[i], stdOut0[i+size], 
+            stdOut0[i+size*2], stdOut0[i+size*3], stdOut0[i+size*4]);
         }
     }
-    void printStandardData(){
+    void printStdData(){
         for(int i=0; i<size; i++){
             for(int j=0; j<13; j++){
-                printf("%f ", standardData[i + size * j]);
+                printf("%f ", stdData[i + size * j]);
             }
             printf("\n");
         }
@@ -275,18 +286,18 @@ class postPen: public shell{
     bool nChangeTrajectory = true;
     
     void initializeArrs(){
-        postPenSize = size * angles.size();
+        postPenSize = size * angles->size();
         postPenData.resize(6 * postPenSize);
         velocities.resize(4 * postPenSize);
 
         #pragma omp parallel for
-        for(int i=0; i<angles.size(); i++){
-            printf("%f\n", angles[i]);
-            for(int j=0; j<size; j++){
-                printf("%f\n", standardData[j]);
-            }
-            fill(postPenData.begin() + i * size, postPenData.begin() + (i + 1) * size, angles[i]);
-            copy(standardData.begin(), standardData.begin() + size, postPenData.begin() + postPenSize + i * size);
+        for(int i=0; i<angles->size(); i++){
+            //printf("%f\n", angles[i]);
+            //for(int j=0; j<size; j++){
+            //    printf("%f\n", stdData[j]);
+            //}
+            fill(postPenData.begin() + i * size, postPenData.begin() + (i + 1) * size, angles->at(i));
+            copy(stdData.begin(), stdData.begin() + size, postPenData.begin() + postPenSize + i * size);
         }
     }
 
@@ -294,12 +305,12 @@ class postPen: public shell{
         unsigned int distIndex, anglesIndex;
         double hAngle, vAngle, cAngle, nCAngle, aAngle, pPV, ePenetration, hFAngle, vFAngle;
         #pragma omp parallel for private(distIndex, anglesIndex, hAngle, vAngle, cAngle, nCAngle, aAngle, pPV, ePenetration, hFAngle, vFAngle)
-        for(int i=0; i < size * angles.size(); i++){
+        for(int i=0; i < size * angles->size(); i++){
             distIndex = i % size;
             anglesIndex = i / size;
 
-            hAngle = angles[anglesIndex] /180*M_PI;
-            vAngle = standardData[distIndex+size*2];
+            hAngle = angles->at(anglesIndex) /180*M_PI;
+            vAngle = stdData[distIndex+size*2];
             cAngle = acos(cos(hAngle) * cos(vAngle));
 
             if(includeNormalization){
@@ -308,10 +319,12 @@ class postPen: public shell{
                 nCAngle = cAngle;
             }
                         
-            ePenetration = standardData[distIndex+size*5]*cos(nCAngle);
+            ePenetration = stdData[distIndex+size*5]*cos(nCAngle);
+
+            //printf("%f %f %f\n", stdData[distIndex], stdData[distIndex+size*5], ePenetration);
 
             if(ePenetration > thickness){
-                pPV = (1-exp(1-ePenetration/thickness)) * standardData[distIndex+size*4];
+                pPV = (1-exp(1-ePenetration/thickness)) * stdData[distIndex+size*4];
             }else{
                 pPV = 0;
             }
@@ -355,9 +368,9 @@ class postPen: public shell{
                 x = x + dtf*v_x;
                 z = z + dtf*v_z;
                 y = y + dtf*v_y;
-                if(i == 100){
-                    printf("%f %f %f %f\n", x, y, z, t);
-                }
+                //if(i == 100){
+                //    printf("%f %f %f %f\n", x, y, z, t);
+                //}
                 //printf("%f ", x);
                 T = t0 - L*y;
                 p = p0*pow((1-L*y/t0),(g*M/(R*L)));
@@ -386,7 +399,7 @@ class postPen: public shell{
 
     public:
     unsigned int postPenSize;
-    vector<double> angles;
+    vector<double> *angles;
     vector<double> postPenData;
 
     postPen(double v0, double caliber, double krupp, double mass,
@@ -398,18 +411,27 @@ class postPen: public shell{
         }
     }
 
-    void calculateStandard(){
-        completed = true;
-        shell::calculateStandard();
-        printf("Completed\n");
+    void calculateStd(){
+        shell::calculateStd();
+        //printf("Completed\n");
+    }
+
+    void setAngles(vector<double> *angles){
+        this->angles = angles;
     }
 
     void setAngles(vector<double> angles){
-        this->angles = angles;
+        this->angles = &angles;
+    }
 
+    void editPostPen(double dtf){
+        if(dtf){
+            this->dtf = dtf;
+        }
     }
 
     void calculatePostPen(double thickness){
+
         initializeArrs();
         calcVelocities(thickness);
 
@@ -427,6 +449,7 @@ class postPen: public shell{
             }
             printf("\n");
         }
+        printf("Completed Print\n");
     }
 
 };
@@ -435,14 +458,19 @@ int main(){
     //shell test(780, .460, 2574, 1460, 6, .033, .292, 76, "Yamato");
     //shell test(780, .460, 2574, 1460, 6, .292, "Yamato");
     postPen test(780, .460, 2574, 1460, 6, .292, "Yamato", 76, .033);
-    test.calculateStandard();
-    test.printStandardData();
+    test.calculateStd();
+    //test.printstdData();
     vector<double> angle;
     angle.push_back(0);
     angle.push_back(10);
     angle.push_back(20);
+    angle.push_back(30);
+    angle.push_back(40);
+    angle.push_back(50);
+    angle.push_back(60);
     test.setAngles(angle);
-    test.calculatePostPen(100);
+    test.calculatePostPen(400);
+    test.printPostPen();
     //test.printTrajectory(2499);
 
 }
