@@ -23,7 +23,7 @@ class shell{
     double cD; // = .292;
     string name;
 
-    double max = 25;
+    double max = 5;
     double min = 0;
     double precision = .01;
     double x0 = 0, y0 = 0;
@@ -62,7 +62,7 @@ class shell{
     //For convenience purposes
     const unordered_map<string, unsigned int> stdDataIndex = {
         {"distance"   ,  0}, {"launchA",  1}, {"impactA-HR",  2},
-        {"impactA-HD ",  3}, {"impactV",  4}, {"rawPen"    ,  5},
+        {"impactA-HD" ,  3}, {"impactV",  4}, {"rawPen"    ,  5},
         {"ePen-H"     ,  6}, {"ePen-HN",  7}, {"impactA-DD",  8},
         {"ePen-D"     ,  9}, {"ePen-DN", 10}, {"tToTarget" , 11},
         {"tToTarget-A", 12}
@@ -127,7 +127,7 @@ class shell{
     
     void preProcessAV(){
         double angle, angleR;
-        #pragma omp parallel for schedule(static)
+        #pragma omp parallel for private(angle, angleR)
         for(int i=0; i < size; i++){
             angle = i * precision + min;
             angleR = angle * M_PI / 180;
@@ -135,6 +135,11 @@ class shell{
             stdOut0[i       ] = cos(angleR) * v0;
             stdOut0[i + size] = sin(angleR) * v0;
         }
+
+        /*for(int i=0; i<size; i++){
+            printf("%f %f\n", stdOut0[i], stdOut0[i + size]);
+        }*/
+        //exit(0);
     }
 
     void postProcessStd(){
@@ -143,15 +148,18 @@ class shell{
         //Copies 11th section - [2]t->[10]ttt
         //copy(stdOut0.begin() + 2 * size, stdOut0.begin() + 3 * size, stdData.begin() + 11 * size);
 
+        printStdData();
+        printf("%d\n", stdDataSizeIndex["impactA-HD"]);
+
         double iAR, iADR, iV, rP;
-        #pragma omp parallel for private(iAR, iADR, iV, rP)
+        #pragma omp parallel for private(iAR, iADR, iV, rP) schedule(static)
         for(int i=0; i<size; i++){
             //Calculate [2]IA , [7]IA_D
             iAR = atan(stdOut0[i + size]/stdOut0[i]);
-            stdData[i+ stdDataSizeIndex["impactA-HR"]] = iAR;
-            stdData[i+ stdDataSizeIndex["impactA-HD"]] = iAR / M_PI * 180;
+            stdData[i+stdDataSizeIndex["impactA-HR"]] = iAR;
+            stdData[i+stdDataSizeIndex["impactA-HD"]] = iAR / M_PI * 180;
             iADR = M_PI / 2 + iAR;
-            stdData[i+ stdDataSizeIndex["impactA-DD"]] = iADR / M_PI * 180;
+            stdData[i+stdDataSizeIndex["impactA-DD"]] = iADR / M_PI * 180;
 
             //Calculate [3]iV,  [4]rP
             iV = sqrt(pow(stdOut0[i+size],2) + pow(stdOut0[i],2));
@@ -196,13 +204,8 @@ class shell{
             trajectories[2*i  ].push_back(x);
             trajectories[2*i+1].push_back(y);
         }
-        //stdOut0[i       ] = x;
         stdData[i+stdDataSizeIndex["distance"]] = x;
-        //stdOut0[i+size  ] = y;
-        //stdOut0[i+size*2] = t;
         stdData[i+stdDataSizeIndex["tToTarget"]] = t;
-        //stdData[i] = x;
-        //stdData[i+size*11] = t;
         stdOut0[i] = v_x;
         stdOut0[i+size] = v_y;
     }
@@ -256,7 +259,7 @@ class shell{
 
         //printf("%d\n", size);
         omp_set_num_threads(6);
-        #pragma omp parallel for
+        #pragma omp parallel for schedule(static)
         for(int i=0; i<size; i++){
             singleTraj(i);
             //printf("i %d \n", i);
@@ -324,7 +327,7 @@ class postPen: public shell{
             anglesIndex = i / size;
 
             hAngle = angles->at(anglesIndex) /180*M_PI;
-            vAngle = stdData[distIndex+size*2];
+            vAngle = stdData[distIndex+stdDataSizeIndex["impactA-HR"]];
             cAngle = acos(cos(hAngle) * cos(vAngle));
 
             if(includeNormalization){
@@ -333,12 +336,12 @@ class postPen: public shell{
                 nCAngle = cAngle;
             }
                         
-            ePenetration = stdData[distIndex+size*5]*cos(nCAngle);
+            ePenetration = stdData[distIndex+stdDataSizeIndex["rawPen"]]*cos(nCAngle);
 
             //printf("%f %f %f\n", stdData[distIndex], stdData[distIndex+size*5], ePenetration);
 
             if(ePenetration > thickness){
-                pPV = (1-exp(1-ePenetration/thickness)) * stdData[distIndex+size*4];
+                pPV = (1-exp(1-ePenetration/thickness)) * stdData[distIndex+stdDataSizeIndex["impactV"]];
             }else{
                 pPV = 0;
             }
@@ -489,7 +492,7 @@ int main(){
 
     test.setAngles(&angle);
     test.calculatePostPen(400);
-    //test.printPostPen();
+    test.printPostPen();
     //test.printTrajectory(2499);
 
 }
