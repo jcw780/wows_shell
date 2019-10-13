@@ -271,7 +271,7 @@ class shell{
     }
     void printStdData(){
         for(int i=0; i<size; i++){
-            for(int j=0; j<13; j++){
+            for(int j=0; j<stdDataIndex.size(); j++){
                 printf("%f ", stdData[i + size * j]);
             }
             printf("\n");
