@@ -36,7 +36,7 @@ class shell{
     vector<double> temp;
 
     /*standardOut1 - indicies refer to multiples of size
-    [0:1] x [1:2] y [2:3] t [3:4] v_x [4:5] v_y
+    [0:1) v_x [1:2) v_y
     */
 
     vector<double> stdOut0;
@@ -112,7 +112,7 @@ class shell{
         trajectories.resize(2 * size);
         stdData.resize(13 * size);
 
-        stdOut0.resize(size * 4);
+        stdOut0.resize(size * 2);
         temp.resize(size * 7);
 
         
@@ -127,13 +127,13 @@ class shell{
     
     void preProcessAV(){
         double angle, angleR;
-        #pragma omp parallel for
+        #pragma omp parallel for schedule(static)
         for(int i=0; i < size; i++){
             angle = i * precision + min;
             angleR = angle * M_PI / 180;
             stdData[i + stdDataSizeIndex["launchA"]] = angle;
-            stdOut0[i + 3 * size] = cos(angleR) * v0;
-            stdOut0[i + 4 * size] = sin(angleR) * v0;
+            stdOut0[i       ] = cos(angleR) * v0;
+            stdOut0[i + size] = sin(angleR) * v0;
         }
     }
 
@@ -147,14 +147,14 @@ class shell{
         #pragma omp parallel for private(iAR, iADR, iV, rP)
         for(int i=0; i<size; i++){
             //Calculate [2]IA , [7]IA_D
-            iAR = atan(stdOut0[i+size*3]/stdOut0[i+size*2]);
+            iAR = atan(stdOut0[i + size]/stdOut0[i]);
             stdData[i+ stdDataSizeIndex["impactA-HR"]] = iAR;
             stdData[i+ stdDataSizeIndex["impactA-HD"]] = iAR / M_PI * 180;
             iADR = M_PI / 2 + iAR;
             stdData[i+ stdDataSizeIndex["impactA-DD"]] = iADR / M_PI * 180;
 
             //Calculate [3]iV,  [4]rP
-            iV = sqrt(pow(stdOut0[i+size*3],2) + pow(stdOut0[i+size*2],2));
+            iV = sqrt(pow(stdOut0[i+size],2) + pow(stdOut0[i],2));
             stdData[i+stdDataSizeIndex["impactV"]] = iV;
             rP = pow(iV, 1.1) * pPPC;
             stdData[i+stdDataSizeIndex["rawPen"]] = rP;
@@ -174,8 +174,8 @@ class shell{
         //printf("%d ", i);
         //printf("%f %f %f %f\n", x, y, v_x, v_y);
         double T, p, rho, t, x, y, v_x, v_y;
-        v_x = stdOut0[i+size*3];
-        v_y = stdOut0[i+size*4];
+        v_x = stdOut0[i];
+        v_y = stdOut0[i+size];
         x = x0;
         y = y0;
         t = 0;
@@ -198,11 +198,13 @@ class shell{
         }
         //stdOut0[i       ] = x;
         stdData[i+stdDataSizeIndex["distance"]] = x;
-        stdOut0[i+size  ] = y;
+        //stdOut0[i+size  ] = y;
         //stdOut0[i+size*2] = t;
         stdData[i+stdDataSizeIndex["tToTarget"]] = t;
-        stdOut0[i+size*2] = v_x;
-        stdOut0[i+size*3] = v_y;
+        //stdData[i] = x;
+        //stdData[i+size*11] = t;
+        stdOut0[i] = v_x;
+        stdOut0[i+size] = v_y;
     }
 
 
