@@ -36,7 +36,7 @@ class shell{
     vector<double> temp;
 
     /*standardOut1 - indicies refer to multiples of size
-    [0:1] x [1:2] y [2:3] t [3:4] v_x [4:5] v_y
+    [0:1) v_x [1:2) v_y
     */
 
     vector<double> stdOut0;
@@ -110,25 +110,25 @@ class shell{
         trajectories.resize(2 * size);
         stdData.resize(13 * size);
 
-        stdOut0.resize(size * 4);
+        stdOut0.resize(size * 2);
         temp.resize(size * 7);
     }
     
     void preProcessAV(){
         double angle, angleR;
-        #pragma omp parallel for
+        #pragma omp parallel for schedule(static)
         for(int i=0; i < size; i++){
             angle = i * precision + min;
             angleR = angle * M_PI / 180;
             stdData[i + size] = angle;
-            stdOut0[i + 3 * size] = cos(angleR) * v0;
-            stdOut0[i + 4 * size] = sin(angleR) * v0;
+            stdOut0[i       ] = cos(angleR) * v0;
+            stdOut0[i + size] = sin(angleR) * v0;
         }
     }
 
     void postProcessStd(){
         //Copies first section - [0]x->[0]distance
-        copy(stdOut0.begin(), stdOut0.begin() + size, stdData.begin());
+        //copy(stdOut0.begin(), stdOut0.begin() + size, stdData.begin());
         //Copies 11th section - [2]t->[10]ttt
         //copy(stdOut0.begin() + 2 * size, stdOut0.begin() + 3 * size, stdData.begin() + 11 * size);
 
@@ -136,14 +136,14 @@ class shell{
         #pragma omp parallel for private(iAR, iADR, iV, rP)
         for(int i=0; i<size; i++){
             //Calculate [2]IA , [7]IA_D
-            iAR = atan(stdOut0[i+size*3]/stdOut0[i+size*2]);
+            iAR = atan(stdOut0[i + size]/stdOut0[i]);
             stdData[i+size*2] = iAR;
             stdData[i+size*3] = iAR / M_PI * 180;
             iADR = M_PI / 2 + iAR;
             stdData[i+size*8] = iADR / M_PI * 180;
 
             //Calculate [3]iV,  [4]rP
-            iV = sqrt(pow(stdOut0[i+size*3],2) + pow(stdOut0[i+size*2],2));
+            iV = sqrt(pow(stdOut0[i+size],2) + pow(stdOut0[i],2));
             stdData[i+size*4] = iV;
             rP = pow(iV, 1.1) * pPPC;
             stdData[i+size*5] = rP;
@@ -163,8 +163,8 @@ class shell{
         //printf("%d ", i);
         //printf("%f %f %f %f\n", x, y, v_x, v_y);
         double T, p, rho, t, x, y, v_x, v_y;
-        v_x = stdOut0[i+size*3];
-        v_y = stdOut0[i+size*4];
+        v_x = stdOut0[i];
+        v_y = stdOut0[i+size];
         x = x0;
         y = y0;
         t = 0;
@@ -185,12 +185,10 @@ class shell{
             trajectories[2*i  ].push_back(x);
             trajectories[2*i+1].push_back(y);
         }
-        stdOut0[i       ] = x;
-        stdOut0[i+size  ] = y;
-        //stdOut0[i+size*2] = t;
+        stdData[i] = x;
         stdData[i+size*11] = t;
-        stdOut0[i+size*2] = v_x;
-        stdOut0[i+size*3] = v_y;
+        stdOut0[i] = v_x;
+        stdOut0[i+size] = v_y;
     }
 
 
@@ -468,7 +466,7 @@ int main(){
     angle.push_back(40);
     angle.push_back(50);
     angle.push_back(60);
-    test.setAngles(angle);
+    test.setAngles(&angle);
     test.calculatePostPen(400);
     test.printPostPen();
     //test.printTrajectory(2499);
