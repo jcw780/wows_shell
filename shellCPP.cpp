@@ -2,7 +2,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <omp.h>
-#include "constant.h"
+//#include "constant.h"
 
 #include <iostream>
 #include <string>
@@ -14,6 +14,16 @@
 using namespace std;
 
 class shell{
+    protected:
+    double C = 0.5561613;
+    double g = 9.81;
+    double t0 = 288;
+    double L = 0.0065;
+    double p0 = 101325;
+    double R = 8.31447;
+    double M = 0.0289644;
+    double cw_1 = 1;
+
     private:
     double v0; // = 780;
     double caliber; // = .460;
@@ -60,7 +70,7 @@ class shell{
     vector<double> stdData;
 
     //For convenience purposes
-    unordered_map<string, unsigned int> stdDataIndex = {
+    const unordered_map<string, unsigned int> stdDataIndex = {
         {"distance"        ,  0}, {"launch angle"     ,  1}, {"impact angle-R" ,  2},
         {"impact angle-D " ,  3}, {"impact velocity"  ,  4}, {"raw pen"        ,  5},
         {"effective pen-H" ,  6}, {"effective pen -HN",  7}, {"impact angle-DD",  8},
