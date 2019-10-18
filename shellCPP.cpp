@@ -11,7 +11,6 @@
 #include <stdlib.h>
 #include <cstring>
 
-using namespace std;
 
 double operator"" _kg (long double input){return input;}
 double operator"" _lbs(long double input){return input * 0.453592;}
@@ -36,7 +35,7 @@ class shell{
     double mass; // = 1460;
     double normalization; // = 6;
     double cD; // = .292;
-    string name;
+    std::string name;
 
     double max = 5;
     double min = 0;
@@ -46,60 +45,20 @@ class shell{
 
     double k, cw_2, pPPC, normalizationR;
 
-    vector<double> oneVector;
-    vector<double> temp;
+    std::vector<double> oneVector;
+    std::vector<double> temp;
 
     /*standardOut1 - indicies refer to multiples of size
     [0:1) v_x [1:2) v_y
     */
 
-    vector<double> stdOut0;
-
-    /*standard output - Indicies refer to multiples of size [Num Colums of 12
-    [0 : 1)-distance,          [1 : 2)-launch angle,      [2 : 3)-impact angle - R
-    [3 : 4)-impact angle - D,  [4 : 5)-impact velocity,   [5 : 6)-raw pen,           
-    [6 : 7)-effectivepenH,     [7 : 8)-effectivepenH w/N, [8 : 9)-IA_d,              
-    [9 :10)-effectivepenD,     [10:11)-effectivepenD w/N, [11:12)-ttt,          
-    [12:13)-ttta
-    */
-
-    void setArrays(){
-        size = (unsigned int) (max - min) / precision;
-        oneVector.resize(size);
-        memset(oneVector.data(), 1, sizeof(double) * size);
-
-        trajectories.resize(2 * size);
-        stdData.resize(13 * size);
-
-        stdOut0.resize(size * 2);
-        temp.resize(size * 7);
-
-        
-        for(const auto &[k, v] : stdDataIndex){
-            stdDataSizeIndex[k] = v * size; 
-        }
-
-        for(const auto &[k, v] : stdDataSizeIndex){
-            cout << k << " " << v << endl;
-        }
-    }
-    
-    void preProcessAV(){
-        double angle, angleR;
-        #pragma omp parallel for private(angle, angleR)
-        for(unsigned int i=0; i < size; i++){
-            angle = i * precision + min;
-            angleR = angle * M_PI / 180;
-            stdData[i + stdDataSizeIndex["launchA"]] = angle;
-            stdOut0[i       ] = cos(angleR) * v0;
-            stdOut0[i + size] = sin(angleR) * v0;
-        }
-
-    }
+    std::vector<double> stdOut0;
 
     void singleTraj(unsigned int i){
         //printf("%d ", i);
         //printf("%f %f %f %f\n", x, y, v_x, v_y);
+        trajectories[2*i].reserve(64);
+        trajectories[2*i+1].reserve(64);
         double T, p, rho, t, x, y, v_x, v_y;
         v_x = stdOut0[i];
         v_y = stdOut0[i+size];
@@ -123,8 +82,8 @@ class shell{
             trajectories[2*i  ].push_back(x);
             trajectories[2*i+1].push_back(y);
         }
-        stdData[i+stdDataSizeIndex["distance"]] = x;
-        stdData[i+stdDataSizeIndex["tToTarget"]] = t;
+        stdData[i+stdDataSizeIndex[distance]] = x;
+        stdData[i+stdDataSizeIndex[tToTarget]] = t;
         stdOut0[i] = v_x;
         stdOut0[i+size] = v_y;
     }
@@ -137,20 +96,37 @@ class shell{
     ...
     [size * 2 - 2]trajx size - 1 [size * 2 - 1]trajy size - 1
     */
-    vector<vector<double>> trajectories;
+    std::vector<std::vector<double>> trajectories;
 
-    vector<double> stdData;
+    /*standard output - Indicies refer to multiples of size [Num Colums of 12
+    [0 : 1)-distance,          [1 : 2)-launch angle,      [2 : 3)-impact angle - R
+    [3 : 4)-impact angle - D,  [4 : 5)-impact velocity,   [5 : 6)-raw pen,           
+    [6 : 7)-effectivepenH,     [7 : 8)-effectivepenH w/N, [8 : 9)-IA_d,              
+    [9 :10)-effectivepenD,     [10:11)-effectivepenD w/N, [11:12)-ttt,          
+    [12:13)-ttta
+    */
+    std::vector<double> stdData;
 
     //For convenience purposes
+    /*
     const unordered_map<string, unsigned int> stdDataIndex = {
         {"distance"   ,  0}, {"launchA",  1}, {"impactA-HR",  2},
         {"impactA-HD" ,  3}, {"impactV",  4}, {"rawPen"    ,  5},
         {"ePen-H"     ,  6}, {"ePen-HN",  7}, {"impactA-DD",  8},
         {"ePen-D"     ,  9}, {"ePen-DN", 10}, {"tToTarget" , 11},
         {"tToTarget-A", 12}
-    }; 
+    }; */
 
-    unordered_map<string, unsigned int> stdDataSizeIndex;
+    enum stdDataIndex{
+        distance  , launchA, impactAHR, 
+        impactAHD , impactV, rawPen   , 
+        ePenH     , ePenHN , impactADD, 
+        ePenD     , ePenDN , tToTarget, 
+        tToTargetA};
+
+    std::vector<unsigned int> stdDataSizeIndex;
+
+    //unordered_map<string, unsigned int> stdDataSizeIndex;
 
     unsigned int size;
 
@@ -178,7 +154,7 @@ class shell{
     }
 
     shell(double v0, double caliber, double krupp, double mass,
-    double normalization, double cD, string name, double threshold, double fuseTime){
+    double normalization, double cD, std::string name, double threshold, double fuseTime){
         this->fuseTime = fuseTime;
 
         this->v0 = v0;
@@ -195,7 +171,7 @@ class shell{
         normalizationR = normalization / 180 * M_PI;
         //assignShellValues(v0, caliber, krupp, mass, normalization, cD, name);
         if(!threshold){
-            threshold = caliber / 6;   
+            this->threshold = caliber / 6;   
         }
     }
 
@@ -221,43 +197,65 @@ class shell{
     }
 
     void calculateStd(){
-        setArrays();
-        preProcessAV();
 
+        size = (unsigned int) (max - min) / precision;
+        oneVector.resize(size);
+        memset(oneVector.data(), 1, sizeof(double) * size);
+
+        trajectories.resize(2 * size);
+        stdData.resize(13 * size);
+
+        stdOut0.resize(size * 2);
+        temp.resize(size * 7);
+
+        stdDataSizeIndex.resize(13);
+        for(unsigned int i=0; i<13; i++){
+            stdDataSizeIndex[i] = i * size;
+        }
+
+        double angle, angleR;
+        #pragma omp parallel for private(angle, angleR)
+        for(unsigned int i=0; i < size; i++){
+            angle = i * precision + min;
+            angleR = angle * M_PI / 180;
+            stdData[i + stdDataSizeIndex[launchA]] = angle;
+            stdOut0[i       ] = cos(angleR) * v0;
+            stdOut0[i + size] = sin(angleR) * v0;
+        }
         //printf("%d\n", size);
         omp_set_num_threads(6);
-        #pragma omp parallel for schedule(static)
+        #pragma omp parallel for schedule(dynamic, 4)
         for(unsigned int i=0; i<size; i++){
             singleTraj(i);
             //printf("i %d \n", i);
         }
 
-        printStdData();
-        printf("%d\n", stdDataSizeIndex["impactA-HD"]);
+        //printStdData();
+        //printf("%d\n", stdDataSizeIndex[impactAHD]);
 
         double iAR, iADR, iV, rP;
-        #pragma omp parallel for private(iAR, iADR, iV, rP) schedule(static)
+        #pragma omp parallel for private(iAR, iADR, iV, rP) schedule(static, 8)
         for(unsigned int i=0; i<size; i++){
             //Calculate [2]IA , [7]IA_D
             iAR = atan(stdOut0[i + size]/stdOut0[i]);
-            stdData[i+stdDataSizeIndex["impactA-HR"]] = iAR;
-            stdData[i+stdDataSizeIndex["impactA-HD"]] = iAR / M_PI * 180;
+            stdData[i+stdDataSizeIndex[impactAHR]] = iAR;
+            stdData[i+stdDataSizeIndex[impactAHD]] = iAR / M_PI * 180;
             iADR = M_PI / 2 + iAR;
-            stdData[i+stdDataSizeIndex["impactA-DD"]] = iADR / M_PI * 180;
+            stdData[i+stdDataSizeIndex[impactADD]] = iADR / M_PI * 180;
 
             //Calculate [3]iV,  [4]rP
             iV = sqrt(pow(stdOut0[i+size],2) + pow(stdOut0[i],2));
-            stdData[i+stdDataSizeIndex["impactV"]] = iV;
+            stdData[i+stdDataSizeIndex[impactV]] = iV;
             rP = pow(iV, 1.1) * pPPC;
-            stdData[i+stdDataSizeIndex["rawPen"]] = rP;
+            stdData[i+stdDataSizeIndex[rawPen]] = rP;
             //Calculate [5]EPH  [8]EPV
-            stdData[i+stdDataSizeIndex["ePen-H"]] = cos(iAR) * rP;
-            stdData[i+stdDataSizeIndex["ePen-D"]] = cos(iADR) * rP;
+            stdData[i+stdDataSizeIndex[ePenH]] = cos(iAR) * rP;
+            stdData[i+stdDataSizeIndex[ePenD]] = cos(iADR) * rP;
 
-            stdData[i+stdDataSizeIndex["ePen-HN"]] = cos(calcNormalizationR(iAR)) * rP;
-            stdData[i+stdDataSizeIndex["ePen-DN"]] = cos(calcNormalizationR(iADR)) * rP;
+            stdData[i+stdDataSizeIndex[ePenHN]] = cos(calcNormalizationR(iAR)) * rP;
+            stdData[i+stdDataSizeIndex[ePenDN]] = cos(calcNormalizationR(iADR)) * rP;
 
-            stdData[i+stdDataSizeIndex["tToTarget-A"]] = stdData[i+stdDataSizeIndex["tToTarget"]] / 3.1;
+            stdData[i+stdDataSizeIndex[tToTargetA]] = stdData[i+stdDataSizeIndex[tToTarget]] / 3.1;
         }
     }
 
@@ -269,7 +267,7 @@ class shell{
     }
     void printStdData(){
         for(unsigned int i=0; i<size; i++){
-            for(unsigned int j=0; j<stdDataIndex.size(); j++){
+            for(unsigned int j=0; j<stdDataSizeIndex.size(); j++){
                 printf("%f ", stdData[i + size * j]);
             }
             printf("\n");
@@ -287,17 +285,11 @@ class shell{
     double threshold, fuseTime, dtf = 0.0001;
     double xf0 = 0, yf0 = 0;
     bool completed = false;
-    vector<double> velocities;
+    std::vector<double> velocities;
     
     bool includeNormalization = true;
     bool nChangeTrajectory = true;
     
-    void initializeArrs(){
-    }
-
-    void calcVelocities(const double thickness){
-    }
-
     void printVelocities(){
         printf("Velocities\n");
         for(unsigned int i=0; i<postPenSize; i++){
@@ -312,9 +304,9 @@ class shell{
         //printf("%d ", i);
         //printf("%f %f %f %f\n", x, y, v_x, v_y);
         double T, p, rho, t, x, y, z, v_x, v_y, v_z;
-        v_x = velocities[i           ];
-        v_z = velocities[i + postPenSize * 2];
-        v_y = velocities[i + postPenSize    ];
+        v_x = velocities[i];
+        v_z = velocities[i+postPenSize*2];
+        v_y = velocities[i+postPenSize];
         //printf("%d %f %f %f\n", i, v_x, v_y, v_z);
         x = xf0;
         y = yf0;
@@ -339,33 +331,33 @@ class shell{
                 v_y = v_y - dtf*(g - k*rho*(cw_1*v_y*v_y+cw_2*fabs(v_y))*signum(v_y));
                 t = t + dtf;
             }
-            postPenData[i + postPenSize * 2] = x;
-            postPenData[i + postPenSize * 3] = y;
-            postPenData[i + postPenSize * 4] = z;
-            if(velocities[i + postPenSize * 3] > threshold){
-                postPenData[i + postPenSize * 5] = x;
+            postPenData[i+postPenSize*2] = x;
+            postPenData[i+postPenSize*3] = y;
+            postPenData[i+postPenSize*4] = z;
+            if(velocities[i+postPenSize*3] > threshold){
+                postPenData[i+postPenSize*5] = x;
             }else{
-                postPenData[i + postPenSize * 5] = -1;
+                postPenData[i+postPenSize*5] = -1;
             }
         }else{
-            postPenData[i + postPenSize * 2] = 0;
-            postPenData[i + postPenSize * 3] = 0;
-            postPenData[i + postPenSize * 4] = 0;
-            postPenData[i + postPenSize * 5] = 0;
+            postPenData[i+postPenSize*2] = 0;
+            postPenData[i+postPenSize*3] = 0;
+            postPenData[i+postPenSize*4] = 0;
+            postPenData[i+postPenSize*5] = 0;
         }
     }
 
     public:
     unsigned int postPenSize;
-    vector<double> *angles;
-    vector<double> postPenData;
+    std::vector<double> *angles;
+    std::vector<double> postPenData;
 
 
-    void setAngles(vector<double> *angles){
+    void setAngles(std::vector<double> *angles){
         this->angles = angles;
     }
 
-    void setAngles(vector<double> angles){
+    void setAngles(std::vector<double> angles){
         this->angles = &angles;
     }
 
@@ -398,7 +390,7 @@ class shell{
             anglesIndex = i / size;
 
             hAngle = angles->at(anglesIndex) /180*M_PI;
-            vAngle = stdData[distIndex+stdDataSizeIndex["impactA-HR"]];
+            vAngle = stdData[distIndex+stdDataSizeIndex[impactAHR]];
             cAngle = acos(cos(hAngle) * cos(vAngle));
 
             if(includeNormalization){
@@ -407,12 +399,12 @@ class shell{
                 nCAngle = cAngle;
             }
                         
-            ePenetration = stdData[distIndex+stdDataSizeIndex["rawPen"]]*cos(nCAngle);
+            ePenetration = stdData[distIndex+stdDataSizeIndex[rawPen]]*cos(nCAngle);
 
             //printf("%f %f %f\n", stdData[distIndex], stdData[distIndex+size*5], ePenetration);
 
             if(ePenetration > thickness){
-                pPV = (1-exp(1-ePenetration/thickness)) * stdData[distIndex+stdDataSizeIndex["impactV"]];
+                pPV = (1-exp(1-ePenetration/thickness)) * stdData[distIndex+stdDataSizeIndex[impactV]];
             }else{
                 pPV = 0;
             }
@@ -451,8 +443,8 @@ int main(){
     //shell test(780, .460, 2574, 1460, 6, .292, "Yamato");
     shell test(780, .460, 2574, 1460, 6, .292, "Yamato", 76, .033);
     test.calculateStd();
-    test.printStdData();
-    vector<double> angle;
+    //test.printStdData();
+    std::vector<double> angle;
     angle.push_back(0);
     angle.push_back(10);
     angle.push_back(20);
@@ -461,13 +453,14 @@ int main(){
     angle.push_back(50);
     angle.push_back(60);
 
+    /*
     for(unsigned int i=0; i<angle.size(); i++){
         printf("%f\n", angle[i]);
-    }
+    }*/
 
     test.setAngles(&angle);
     test.calculatePostPen(400);
-    test.printPostPen();
+    //test.printPostPen();
     //test.printTrajectory(2499);
 
 }
