@@ -16,9 +16,7 @@ using namespace vecmathlib;
 #include <unordered_map>
 #include <stdlib.h>
 #include <cstring>
-
 #include <chrono>
-
 
 double operator"" _kg (long double input){return input;}
 double operator"" _lbs(long double input){return input * 0.453592;}
@@ -128,10 +126,10 @@ class shell{
     }; */
 
     enum stdDataIndex{
-        distance  , launchA, impactAHR, 
-        impactAHD , impactV, rawPen   , 
-        ePenH     , ePenHN , impactADD, 
-        ePenD     , ePenDN , tToTarget, 
+        distance   , launchA, impactAHR, 
+        impactAHD  , impactV, rawPen   , 
+        ePenH      , ePenHN , impactADD, 
+        ePenD      , ePenDN , tToTarget, 
         tToTargetA};
 
     std::vector<unsigned int> stdDataSizeIndex;
@@ -269,7 +267,7 @@ class shell{
         for(; i<size; i++){
             angle = i * precision + min;
             angleR = angle * M_PI / 180;
-            stdData[i + stdDataSizeIndex[launchA]] = angle;
+            stdData[i + sizeAligned*launchA] = angle;
             stdOut0[i       ] = cos(angleR) * v0;
             stdOut0[i + sizeAligned] = sin(angleR) * v0;
         }
@@ -297,29 +295,29 @@ class shell{
         for(i=0;i<size - (size % float64_vec::size); i+=float64_vec::size){
             //Calculate [2]IA , [7]IA_D
             iARSIMD = atan(float64_vec(stdOut0.data()+i+sizeAligned)/float64_vec(stdOut0.data()+i));
-            storea(iARSIMD, stdData.data()+i+stdDataSizeIndex[impactAHR]);
-            storea(iARSIMD * float64_vec(180 / M_PI), stdData.data()+i+stdDataSizeIndex[impactAHD]);
+            storea(iARSIMD, stdData.data()+i+sizeAligned*impactAHR);
+            storea(iARSIMD * float64_vec(180 / M_PI), stdData.data()+i+sizeAligned*impactAHD);
 
             iADRSIMD = float64_vec(M_PI / 2) + iARSIMD;
-            storea(iADRSIMD * float64_vec(180 / M_PI), stdData.data()+i+stdDataSizeIndex[impactADD]);
+            storea(iADRSIMD * float64_vec(180 / M_PI), stdData.data()+i+sizeAligned*impactADD);
 
             //Calculate [3]iV,  [4]rP
             iVSIMD = sqrt(float64_vec(stdOut0.data()+i+sizeAligned) * float64_vec(stdOut0.data()+i+sizeAligned) 
             + float64_vec(stdOut0.data()+i) * float64_vec(stdOut0.data()+i));
-            storea(iVSIMD, stdData.data()+i+stdDataSizeIndex[impactV]);
+            storea(iVSIMD, stdData.data()+i+sizeAligned*impactV);
 
             //std::cout<<"PostProcesses3"<<std::endl;
             rPSIMD = pow(iVSIMD, float64_vec(1.1)) * float64_vec(pPPC);
-            storea(rPSIMD, stdData.data()+i+stdDataSizeIndex[rawPen]);
+            storea(rPSIMD, stdData.data()+i+sizeAligned*rawPen);
 
             //Calculate [5]EPH  [8]EPV
-            storea(cos(iARSIMD)* rPSIMD , stdData.data()+i+stdDataSizeIndex[ePenH]);
-            storea(cos(iADRSIMD)* rPSIMD, stdData.data()+i+stdDataSizeIndex[ePenD]);
+            storea(cos(iARSIMD)* rPSIMD , stdData.data()+i+sizeAligned*ePenH);
+            storea(cos(iADRSIMD)* rPSIMD, stdData.data()+i+sizeAligned*ePenD);
             
-            storea(cos(calcNormalizationRSIMD(iARSIMD)) * rPSIMD, stdData.data()+i+stdDataSizeIndex[ePenHN] );
-            storea(cos(calcNormalizationRSIMD(iADRSIMD)) * rPSIMD, stdData.data()+i+stdDataSizeIndex[ePenDN]);
+            storea(cos(calcNormalizationRSIMD(iARSIMD)) * rPSIMD , stdData.data()+i+sizeAligned*ePenHN);
+            storea(cos(calcNormalizationRSIMD(iADRSIMD)) * rPSIMD, stdData.data()+i+sizeAligned*ePenDN);
 
-            storea(float64_vec(stdData.data()+i+stdDataSizeIndex[tToTarget])/float64_vec(3.1), stdData.data()+i+stdDataSizeIndex[tToTargetA]);
+            storea(float64_vec(stdData.data()+i+sizeAligned*tToTarget)/float64_vec(3.1), stdData.data()+i+sizeAligned*tToTargetA);
         }
         //std::cout<<size - (size % float64_vec::size)<<std::endl;
         //std::cout<<i<<std::endl;
@@ -328,24 +326,24 @@ class shell{
         for(; i<size; i++){
             //Calculate [2]IA , [7]IA_D
             iAR = atan(stdOut0[i + sizeAligned]/stdOut0[i]);
-            stdData[i+stdDataSizeIndex[impactAHR]] = iAR;
-            stdData[i+stdDataSizeIndex[impactAHD]] = iAR / M_PI * 180;
+            stdData[i+sizeAligned*impactAHR] = iAR;
+            stdData[i+sizeAligned*impactAHD] = iAR / M_PI * 180;
             iADR = M_PI / 2 + iAR;
-            stdData[i+stdDataSizeIndex[impactADD]] = iADR / M_PI * 180;
+            stdData[i+sizeAligned*impactADD] = iADR / M_PI * 180;
 
             //Calculate [3]iV,  [4]rP
             iV = sqrt(pow(stdOut0[i+sizeAligned],2) + pow(stdOut0[i],2));
-            stdData[i+stdDataSizeIndex[impactV]] = iV;
+            stdData[i+sizeAligned*impactV] = iV;
             rP = pow(iV, 1.1) * pPPC;
-            stdData[i+stdDataSizeIndex[rawPen]] = rP;
+            stdData[i+sizeAligned*rawPen] = rP;
             //Calculate [5]EPH  [8]EPV
-            stdData[i+stdDataSizeIndex[ePenH]] = cos(iAR) * rP;
-            stdData[i+stdDataSizeIndex[ePenD]] = cos(iADR) * rP;
+            stdData[i+sizeAligned*ePenH] = cos(iAR) * rP;
+            stdData[i+sizeAligned*ePenD] = cos(iADR) * rP;
 
-            stdData[i+stdDataSizeIndex[ePenHN]] = cos(calcNormalizationR(iAR)) * rP;
-            stdData[i+stdDataSizeIndex[ePenDN]] = cos(calcNormalizationR(iADR)) * rP;
+            stdData[i+sizeAligned*ePenHN] = cos(calcNormalizationR(iAR)) * rP;
+            stdData[i+sizeAligned*ePenDN] = cos(calcNormalizationR(iADR)) * rP;
 
-            stdData[i+stdDataSizeIndex[tToTargetA]] = stdData[i+stdDataSizeIndex[tToTarget]] / 3.1;
+            stdData[i+sizeAligned*tToTargetA] = stdData[i+sizeAligned*tToTarget] / 3.1;
         }
     }
 
