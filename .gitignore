@@ -33,3 +33,6 @@
 
 # Assembler View
 *.s
+
+#Included Library
+vecmathlib/

@@ -2,7 +2,11 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <omp.h>
+//#include <immintrin.h>
+//#include <x86intrin.h>
 //#include "constant.h"
+
+#include "vecmathlib/vecmathlib.h"
 
 #include <iostream>
 #include <string>
@@ -10,6 +14,8 @@
 #include <unordered_map>
 #include <stdlib.h>
 #include <cstring>
+
+#include <chrono>
 
 
 double operator"" _kg (long double input){return input;}
@@ -37,9 +43,9 @@ class shell{
     double cD; // = .292;
     std::string name;
 
-    double max = 5;
+    double max = 25;
     double min = 0;
-    double precision = .01;
+    double precision = .1;
     double x0 = 0, y0 = 0;
     double dt = .01;
 
@@ -110,10 +116,10 @@ class shell{
     //For convenience purposes
     /*
     const unordered_map<string, unsigned int> stdDataIndex = {
-        {"distance"   ,  0}, {"launchA",  1}, {"impactA-HR",  2},
-        {"impactA-HD" ,  3}, {"impactV",  4}, {"rawPen"    ,  5},
-        {"ePen-H"     ,  6}, {"ePen-HN",  7}, {"impactA-DD",  8},
-        {"ePen-D"     ,  9}, {"ePen-DN", 10}, {"tToTarget" , 11},
+        {"distance"   ,  0}, {"launchA",  1}, {"impactAHR",  2},
+        {"impactAHD"  ,  3}, {"impactV",  4}, {"rawPen"   ,  5},
+        {"ePenH"      ,  6}, {"ePenHN" ,  7}, {"impactADD",  8},
+        {"ePenD"      ,  9}, {"ePenDN" , 10}, {"tToTarget", 11},
         {"tToTarget-A", 12}
     }; */
 
@@ -212,7 +218,7 @@ class shell{
         for(unsigned int i=0; i<13; i++){
             stdDataSizeIndex[i] = i * size;
         }
-
+        
         double angle, angleR;
         #pragma omp parallel for private(angle, angleR)
         for(unsigned int i=0; i < size; i++){
@@ -234,7 +240,7 @@ class shell{
         //printf("%d\n", stdDataSizeIndex[impactAHD]);
 
         double iAR, iADR, iV, rP;
-        #pragma omp parallel for private(iAR, iADR, iV, rP) schedule(static, 8)
+        #pragma omp parallel for private(iAR, iADR, iV, rP) schedule(static)
         for(unsigned int i=0; i<size; i++){
             //Calculate [2]IA , [7]IA_D
             iAR = atan(stdOut0[i + size]/stdOut0[i]);
@@ -280,6 +286,8 @@ class shell{
         }
 
     }
+
+    //Post-Penetration 
 
     private:
     double threshold, fuseTime, dtf = 0.0001;
@@ -442,7 +450,20 @@ int main(){
     //shell test(780, .460, 2574, 1460, 6, .033, .292, 76, "Yamato");
     //shell test(780, .460, 2574, 1460, 6, .292, "Yamato");
     shell test(780, .460, 2574, 1460, 6, .292, "Yamato", 76, .033);
-    test.calculateStd();
+    //std::chrono::microseconds t1, t2;
+    double total = 0;
+
+    unsigned int runs = 1000;
+    for(int i=0; i<runs; i++){
+        auto t1 = std::chrono::high_resolution_clock::now();
+        test.calculateStd();
+        auto t2 = std::chrono::high_resolution_clock::now();
+        total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>( t2 - t1 ).count();
+        //std::cout << duration;
+    }
+    std::cout << total / runs / 1000000000;
+    //test.calculateStd();
+
     //test.printStdData();
     std::vector<double> angle;
     angle.push_back(0);
