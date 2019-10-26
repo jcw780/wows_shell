@@ -6,7 +6,13 @@
 //#include <x86intrin.h>
 //#include "constant.h"
 
+#define USE_SIMD
+
+#ifdef USE_SIMD
 #include "vecmathlib/vecmathlib.h"
+#include "alignmentAllocator.h"
+using namespace vecmathlib;
+#endif
 
 #include <iostream>
 #include <string>
@@ -14,15 +20,14 @@
 #include <unordered_map>
 #include <stdlib.h>
 #include <cstring>
-
 #include <chrono>
-
 
 double operator"" _kg (long double input){return input;}
 double operator"" _lbs(long double input){return input * 0.453592;}
 
 double operator"" _mps(long double input){return input;}
 double operator"" _fps(long double input){return input * 0.3048;}
+
 
 class shell{
     private:
@@ -54,11 +59,12 @@ class shell{
     std::vector<double> oneVector;
     std::vector<double> temp;
 
+    unsigned int alignmentRequired = float64_vec::size * 8;
     /*standardOut1 - indicies refer to multiples of size
     [0:1) v_x [1:2) v_y
     */
 
-    std::vector<double> stdOut0;
+    std::vector<double, AlignmentAllocator<double, 256>> stdOut0;
 
     void singleTraj(unsigned int i){
         //printf("%d ", i);
@@ -67,7 +73,7 @@ class shell{
         trajectories[2*i+1].reserve(64);
         double T, p, rho, t, x, y, v_x, v_y;
         v_x = stdOut0[i];
-        v_y = stdOut0[i+size];
+        v_y = stdOut0[i+sizeAligned];
         x = x0;
         y = y0;
         t = 0;
@@ -91,7 +97,7 @@ class shell{
         stdData[i+stdDataSizeIndex[distance]] = x;
         stdData[i+stdDataSizeIndex[tToTarget]] = t;
         stdOut0[i] = v_x;
-        stdOut0[i+size] = v_y;
+        stdOut0[i+sizeAligned] = v_y;
     }
 
 
@@ -111,7 +117,7 @@ class shell{
     [9 :10)-effectivepenD,     [10:11)-effectivepenD w/N, [11:12)-ttt,          
     [12:13)-ttta
     */
-    std::vector<double> stdData;
+    std::vector<double, AlignmentAllocator<double, float64_vec::size * 8>> stdData;
 
     //For convenience purposes
     /*
@@ -124,10 +130,10 @@ class shell{
     }; */
 
     enum stdDataIndex{
-        distance  , launchA, impactAHR, 
-        impactAHD , impactV, rawPen   , 
-        ePenH     , ePenHN , impactADD, 
-        ePenD     , ePenDN , tToTarget, 
+        distance   , launchA, impactAHR, 
+        impactAHD  , impactV, rawPen   , 
+        ePenH      , ePenHN , impactADD, 
+        ePenD      , ePenDN , tToTarget, 
         tToTargetA};
 
     std::vector<unsigned int> stdDataSizeIndex;
@@ -135,6 +141,7 @@ class shell{
     //unordered_map<string, unsigned int> stdDataSizeIndex;
 
     unsigned int size;
+    unsigned int sizeAligned; 
 
     double calcNormalizationR(const double angle){ //Input in radians
         if(fabs(angle) > normalizationR){
@@ -143,6 +150,33 @@ class shell{
             return 0;
         }
     }
+
+    #ifdef USE_SIMD
+    /*
+    float64_vec calcNormalizationRSIMD(const float64_vec angle){
+        float64_vec result;
+        std::vector<double, AlignmentAllocator<double,  float64_vec::size * 8>> aR;
+        aR.resize(4);
+        storea(angle, aR.data());
+        double a;
+        #pragma omp simd 
+        for(int i=0; i<float64_vec::size; i++){
+            a = aR[i];
+
+            if(fabs(a) > normalizationR){
+                result.set_elt(i, fabs(a) - normalizationR);
+            }else{
+                result.set_elt(i, 0);
+            }
+        }
+        return result;
+    }
+    */
+    float64_vec calcNormalizationRSIMD(float64_vec angle){
+        return fmax(fabs(angle) - float64_vec(normalizationR), float64_vec(0.0));
+    }
+
+    #endif
 
     template <typename T> inline constexpr
     int signum(T x, std::false_type is_signed) {
@@ -203,81 +237,132 @@ class shell{
     }
 
     void calculateStd(){
-
+        unsigned int i;
         size = (unsigned int) (max - min) / precision;
+        sizeAligned = (float64_vec::size - (size % float64_vec::size)) + size;
+
         oneVector.resize(size);
         memset(oneVector.data(), 1, sizeof(double) * size);
 
         trajectories.resize(2 * size);
-        stdData.resize(13 * size);
+        stdData.resize(13 * sizeAligned);
 
-        stdOut0.resize(size * 2);
-        temp.resize(size * 7);
+        stdOut0.resize(sizeAligned * 2);
 
         stdDataSizeIndex.resize(13);
-        for(unsigned int i=0; i<13; i++){
-            stdDataSizeIndex[i] = i * size;
+        for(i=0; i<13; i++){
+            stdDataSizeIndex[i] = i * sizeAligned;
         }
         
+
+        float64_vec angleSIMD, angleRSIMD, temp, v0SIMD = float64_vec(v0);        
+        for(unsigned int j=0; j<float64_vec::size; j++){
+            temp.set_elt(j, (double) j);
+        }
         double angle, angleR;
-        #pragma omp parallel for private(angle, angleR)
-        for(unsigned int i=0; i < size; i++){
+        i=0;
+        #ifdef USE_SIMD
+        #pragma omp parallel for private(i, angleSIMD, angleRSIMD)
+        for(i=0; i < size - size % float64_vec::size; i+=float64_vec::size){
+            angleSIMD = fma((temp + float64_vec(i)), float64_vec(precision),float64_vec(min));
+            angleRSIMD = angleSIMD * float64_vec(M_PI / 180);
+            //std::cout<<"Angles: "<<angleSIMD<<" "<<angleRSIMD<<std::endl;
+            storea(angleSIMD, stdData.data() + i + launchA * sizeAligned);
+            storea(cos(angleRSIMD) * v0SIMD, stdOut0.data() + i);
+            storea(sin(angleRSIMD) * v0SIMD, stdOut0.data() + i + sizeAligned);
+        }
+        #else
+        #pragma omp parallel for private(i, angle, angleR)
+        #endif
+        for(; i<size; i++){
             angle = i * precision + min;
             angleR = angle * M_PI / 180;
-            stdData[i + stdDataSizeIndex[launchA]] = angle;
+            stdData[i + sizeAligned*launchA] = angle;
             stdOut0[i       ] = cos(angleR) * v0;
-            stdOut0[i + size] = sin(angleR) * v0;
+            stdOut0[i + sizeAligned] = sin(angleR) * v0;
         }
-        //printf("%d\n", size);
+
         omp_set_num_threads(6);
         #pragma omp parallel for schedule(dynamic, 4)
-        for(unsigned int i=0; i<size; i++){
+        for(i=0; i<size; i++){
             singleTraj(i);
             //printf("i %d \n", i);
         }
 
-        //printStdData();
-        //printf("%d\n", stdDataSizeIndex[impactAHD]);
-
+        //std::cout<<"Completed Trajectories"<<std::endl;
         double iAR, iADR, iV, rP;
-        #pragma omp parallel for private(iAR, iADR, iV, rP) schedule(static)
-        for(unsigned int i=0; i<size; i++){
+        i = 0;
+        #ifdef USE_SIMD
+        float64_vec iARSIMD, iADRSIMD, iVSIMD, rPSIMD;
+        #pragma omp parallel for private(i, iARSIMD, iADRSIMD, iVSIMD, rPSIMD) schedule(static)
+        for(i=0;i<size - (size % float64_vec::size); i+=float64_vec::size){
             //Calculate [2]IA , [7]IA_D
-            iAR = atan(stdOut0[i + size]/stdOut0[i]);
-            stdData[i+stdDataSizeIndex[impactAHR]] = iAR;
-            stdData[i+stdDataSizeIndex[impactAHD]] = iAR / M_PI * 180;
-            iADR = M_PI / 2 + iAR;
-            stdData[i+stdDataSizeIndex[impactADD]] = iADR / M_PI * 180;
+            iARSIMD = atan(float64_vec(stdOut0.data()+i+sizeAligned)/float64_vec(stdOut0.data()+i));
+            storea(iARSIMD, stdData.data()+i+sizeAligned*impactAHR);
+            storea(iARSIMD * float64_vec(180 / M_PI), stdData.data()+i+sizeAligned*impactAHD);
+
+            iADRSIMD = float64_vec(M_PI / 2) + iARSIMD;
+            storea(iADRSIMD * float64_vec(180 / M_PI), stdData.data()+i+sizeAligned*impactADD);
 
             //Calculate [3]iV,  [4]rP
-            iV = sqrt(pow(stdOut0[i+size],2) + pow(stdOut0[i],2));
-            stdData[i+stdDataSizeIndex[impactV]] = iV;
-            rP = pow(iV, 1.1) * pPPC;
-            stdData[i+stdDataSizeIndex[rawPen]] = rP;
+            iVSIMD = sqrt(float64_vec(stdOut0.data()+i+sizeAligned) * float64_vec(stdOut0.data()+i+sizeAligned) 
+            + float64_vec(stdOut0.data()+i) * float64_vec(stdOut0.data()+i));
+            storea(iVSIMD, stdData.data()+i+sizeAligned*impactV);
+
+            //std::cout<<"PostProcesses3"<<std::endl;
+            rPSIMD = pow(iVSIMD, float64_vec(1.1)) * float64_vec(pPPC);
+            storea(rPSIMD, stdData.data()+i+sizeAligned*rawPen);
+
             //Calculate [5]EPH  [8]EPV
-            stdData[i+stdDataSizeIndex[ePenH]] = cos(iAR) * rP;
-            stdData[i+stdDataSizeIndex[ePenD]] = cos(iADR) * rP;
+            storea(cos(iARSIMD)* rPSIMD , stdData.data()+i+sizeAligned*ePenH);
+            storea(cos(iADRSIMD)* rPSIMD, stdData.data()+i+sizeAligned*ePenD);
+            
+            storea(cos(calcNormalizationRSIMD(iARSIMD)) * rPSIMD , stdData.data()+i+sizeAligned*ePenHN);
+            storea(cos(calcNormalizationRSIMD(iADRSIMD)) * rPSIMD, stdData.data()+i+sizeAligned*ePenDN);
 
-            stdData[i+stdDataSizeIndex[ePenHN]] = cos(calcNormalizationR(iAR)) * rP;
-            stdData[i+stdDataSizeIndex[ePenDN]] = cos(calcNormalizationR(iADR)) * rP;
+            storea(float64_vec(stdData.data()+i+sizeAligned*tToTarget)/float64_vec(3.1), stdData.data()+i+sizeAligned*tToTargetA);
+        }
+        #else
+        #pragma omp parallel for private(iAR, iADR, iV, rP) schedule(static)
+        #endif
+        for(; i<size; i++){
+            //Calculate [2]IA , [7]IA_D
+            iAR = atan(stdOut0[i + sizeAligned]/stdOut0[i]);
+            stdData[i+sizeAligned*impactAHR] = iAR;
+            stdData[i+sizeAligned*impactAHD] = iAR / M_PI * 180;
+            iADR = M_PI / 2 + iAR;
+            stdData[i+sizeAligned*impactADD] = iADR / M_PI * 180;
 
-            stdData[i+stdDataSizeIndex[tToTargetA]] = stdData[i+stdDataSizeIndex[tToTarget]] / 3.1;
+            //Calculate [3]iV,  [4]rP
+            iV = sqrt(pow(stdOut0[i+sizeAligned],2) + pow(stdOut0[i],2));
+            stdData[i+sizeAligned*impactV] = iV;
+            rP = pow(iV, 1.1) * pPPC;
+            stdData[i+sizeAligned*rawPen] = rP;
+            //Calculate [5]EPH  [8]EPV
+            stdData[i+sizeAligned*ePenH] = cos(iAR) * rP;
+            stdData[i+sizeAligned*ePenD] = cos(iADR) * rP;
+
+            stdData[i+sizeAligned*ePenHN] = cos(calcNormalizationR(iAR)) * rP;
+            stdData[i+sizeAligned*ePenDN] = cos(calcNormalizationR(iADR)) * rP;
+
+            stdData[i+sizeAligned*tToTargetA] = stdData[i+sizeAligned*tToTarget] / 3.1;
         }
     }
 
     void printStdOut(){
         for(unsigned int i=0; i<size; i++){
-            printf("%f %f %f %f %f\n", stdOut0[i], stdOut0[i+size], 
-            stdOut0[i+size*2], stdOut0[i+size*3], stdOut0[i+size*4]);
+            printf("%f %f %f %f %f\n", stdOut0[i], stdOut0[i+sizeAligned], 
+            stdOut0[i+sizeAligned*2], stdOut0[i+sizeAligned*3], stdOut0[i+sizeAligned*4]);
         }
     }
     void printStdData(){
         for(unsigned int i=0; i<size; i++){
             for(unsigned int j=0; j<stdDataSizeIndex.size(); j++){
-                printf("%f ", stdData[i + size * j]);
+                std::cout<<stdData[i + sizeAligned * j]<< " ";
             }
-            printf("\n");
+            std::cout<<std::endl;
         }
+        std::cout<<"Completed"<<std::endl;
     }
     void printTrajectory(unsigned int target){
         printf("Index:[%d] X Y\n", target);
@@ -288,12 +373,11 @@ class shell{
     }
 
     //Post-Penetration 
-
     private:
     double threshold, fuseTime, dtf = 0.0001;
     double xf0 = 0, yf0 = 0;
     bool completed = false;
-    std::vector<double> velocities;
+    std::vector<double, AlignmentAllocator<double, 32>> velocities;
     
     bool includeNormalization = true;
     bool nChangeTrajectory = true;
@@ -309,27 +393,19 @@ class shell{
     }
 
     void postPenTraj(const unsigned int i){
-        //printf("%d ", i);
-        //printf("%f %f %f %f\n", x, y, v_x, v_y);
         double T, p, rho, t, x, y, z, v_x, v_y, v_z;
         v_x = velocities[i];
-        v_z = velocities[i+postPenSize*2];
-        v_y = velocities[i+postPenSize];
-        //printf("%d %f %f %f\n", i, v_x, v_y, v_z);
+        v_z = velocities[i+postPenSizeAligned*2];
+        v_y = velocities[i+postPenSizeAligned];
         x = xf0;
         y = yf0;
         z = xf0;
         t = 0;
-        //printf("%f ",dt);
         if(v_x > 0){
             while(t < fuseTime){
                 x = x + dtf*v_x;
                 z = z + dtf*v_z;
                 y = y + dtf*v_y;
-                //if(i == 100){
-                //    printf("%f %f %f %f\n", x, y, z, t);
-                //}
-                //printf("%f ", x);
                 T = t0 - L*y;
                 p = p0*pow((1-L*y/t0),(g*M/(R*L)));
                 rho = p*M/(R*T);
@@ -342,7 +418,7 @@ class shell{
             postPenData[i+postPenSize*2] = x;
             postPenData[i+postPenSize*3] = y;
             postPenData[i+postPenSize*4] = z;
-            if(velocities[i+postPenSize*3] > threshold){
+            if(velocities[i+postPenSizeAligned*3] > threshold){
                 postPenData[i+postPenSize*5] = x;
             }else{
                 postPenData[i+postPenSize*5] = -1;
@@ -356,9 +432,9 @@ class shell{
     }
 
     public:
-    unsigned int postPenSize;
+    unsigned int postPenSize, postPenSizeAligned;
     std::vector<double> *angles;
-    std::vector<double> postPenData;
+    std::vector<double, AlignmentAllocator<double, 32>> postPenData;
 
 
     void setAngles(std::vector<double> *angles){
@@ -376,21 +452,236 @@ class shell{
     }
 
     void calculatePostPen(const double thickness){
+        unsigned int i;
         postPenSize = size * angles->size();
+        postPenSizeAligned = sizeAligned * angles->size();
         postPenData.resize(6 * postPenSize);
-        velocities.resize(4 * postPenSize);
+        velocities.resize(4 * postPenSizeAligned);
 
         #pragma omp parallel for
         for(unsigned int i=0; i<angles->size(); i++){
-            //printf("%f\n", angles->at(i));
-            //for(int j=0; j<size; j++){
-            //    printf("%f\n", stdData[j]);
-            //}
-            fill(postPenData.begin() + i * size, postPenData.begin() + (i + 1) * size, angles->at(i));
-            copy(stdData.begin(), stdData.begin() + size, postPenData.begin() + postPenSize + i * size);
+            fill(postPenData.begin() + i * size, postPenData.begin() + (i+1) * size, angles->at(i));
+            copy_n(stdData.begin() + sizeAligned * distance, size, postPenData.begin() + postPenSize + i * size);
         }
 
-        unsigned int distIndex, anglesIndex;
+        double hAngle, vAngle, cAngle, nCAngle, aAngle, pPV, ePenetration, hFAngle, vFAngle;
+        unsigned int distIndex, anglesIndex, dAIT;
+        //float64_vec distIndexV, anglesIndexV;
+        #ifdef USE_SIMD
+        float64_vec hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV, v0V, pPVV, ePenetrationV, hFAngleV, vFAngleV;
+        #endif
+        /*for(unsigned int j=0; j<int64_vec::size; j++){
+            temp.set_elt(j, j);
+        }*/
+
+
+        if(includeNormalization){
+            if(nChangeTrajectory){
+                i=0;
+                #ifdef USE_SIMD
+                #pragma omp parallel for private(distIndex, anglesIndex, hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV, pPVV, ePenetrationV, hFAngleV, vFAngleV)
+                for(unsigned int i=0; i < (size * angles->size()) - (size * angles->size()) % float64_vec::size; i+=float64_vec::size){
+                    distIndex = i % size;
+                    anglesIndex = i / size;
+
+                    if(angles->size() - anglesIndex >= float64_vec::size){
+                        hAngleV = float64_vec(angles->data() + anglesIndex) * float64_vec(M_PI/180);
+                    }else{
+                        for(unsigned int j=0; j<float64_vec::size; j++){
+                            dAIT = (i + j) / size;
+                            hAngleV.set_elt(j, angles->at(dAIT) * M_PI/180);
+                        }
+                    }
+
+                    if(size - distIndex >= float64_vec::size){
+                        vAngleV =       stdData.data()+distIndex+sizeAligned*impactAHR;
+                        ePenetrationV = stdData.data()+distIndex+sizeAligned*rawPen;
+                        v0V =           stdData.data()+distIndex+sizeAligned*impactV;
+                    }else{
+                        for(unsigned int j=0; j<float64_vec::size; j++){
+                            dAIT = (i + j) % size;
+                            vAngleV.set_elt(      j, stdData[dAIT+sizeAligned*impactAHR]);
+                            ePenetrationV.set_elt(j, stdData[dAIT+sizeAligned*rawPen]);
+                            v0V.set_elt(          j, stdData[dAIT+sizeAligned*impactV]);
+                        }
+                    }
+
+                    cAngleV = acos(cos(hAngle) * cos(vAngle));
+                    nCAngleV = calcNormalizationRSIMD(cAngle);
+                        
+                    ePenetrationV *= cos(nCAngleV);
+                    pPVV = ifthen(ePenetrationV > float64_vec(thickness), 
+                    (float64_vec(1)-exp(float64_vec(1)-ePenetrationV/float64_vec(thickness)))*v0V, float64_vec(0.0));
+
+                    aAngleV = nCAngleV / cAngleV;
+                    hFAngleV = hAngleV * aAngleV;
+                    vFAngleV = vAngleV * aAngleV;
+
+                    storea(pPVV * cos(vFAngleV) * cos(vFAngleV)  , velocities.data()+i);
+                    storea(pPVV * sin(vFAngleV)                  , velocities.data()+i+  postPenSizeAligned);
+                    storea(pPVV * cos(vFAngleV) * sin(hFAngleV)  , velocities.data()+i+2*postPenSizeAligned);
+                    storea(float64_vec(thickness) / cos(nCAngleV), velocities.data()+i+3*postPenSizeAligned);
+                }
+                #else
+                #pragma omp parallel for private(distIndex, anglesIndex, hAngle, vAngle, cAngle, nCAngle, aAngle, pPV, ePenetration, hFAngle, vFAngle)
+                #endif
+                for(; i < size * angles->size(); i++){
+                    distIndex = i % size;
+                    anglesIndex = i / size;
+
+                    hAngle = angles->at(anglesIndex) /180*M_PI;
+                    vAngle = stdData[distIndex+stdDataSizeIndex[impactAHR]];
+                    cAngle = acos(cos(hAngle) * cos(vAngle));
+                    nCAngle = calcNormalizationR(cAngle);
+ 
+                    ePenetration = stdData[distIndex+stdDataSizeIndex[rawPen]]*cos(nCAngle);
+
+                    if(ePenetration > thickness){
+                        pPV = (1-exp(1-ePenetration/thickness)) * stdData[distIndex+stdDataSizeIndex[impactV]];
+                    }else{
+                        pPV = 0;
+                    }
+
+                    aAngle = nCAngle / cAngle;
+                    hFAngle = hAngle * aAngle;
+                    vFAngle = vAngle * aAngle;
+
+                    velocities[i                     ] = pPV * cos(vFAngle) * cos(vFAngle);
+                    velocities[i+  postPenSizeAligned] = pPV * sin(vFAngle);
+                    velocities[i+2*postPenSizeAligned] = pPV * cos(vFAngle) * sin(hFAngle);
+                    velocities[i+3*postPenSizeAligned] = thickness / cos(nCAngle);
+                }
+            }else{
+                i=0;
+                #pragma omp parallel for private(distIndex, anglesIndex, hAngle, vAngle, cAngle, nCAngle, aAngle, pPV, ePenetration, hFAngle, vFAngle)
+                for(unsigned int i=0; i < (size * angles->size()) - (size * angles->size()) % float64_vec::size; i+=float64_vec::size){
+                    distIndex = i % size;
+                    anglesIndex = i / size;
+
+                    if(angles->size() - anglesIndex >= float64_vec::size){
+                        hAngleV = float64_vec(angles->data() + anglesIndex) * float64_vec(M_PI/180);
+                    }else{
+                        for(unsigned int j=0; j<float64_vec::size; j++){
+                            dAIT = (i + j) / size;
+                            hAngleV.set_elt(j, angles->at(dAIT) * M_PI/180);
+                        }
+                    }
+
+                    if(size - distIndex >= float64_vec::size){
+                        vAngleV = stdData.data()+distIndex+sizeAligned*impactAHR;
+                        ePenetrationV = stdData.data()+distIndex+sizeAligned*rawPen;
+                        v0V = stdData.data()+distIndex+sizeAligned*impactV;
+                    }else{
+                        for(unsigned int j=0; j<float64_vec::size; j++){
+                            dAIT = (i + j) % size;
+                            vAngleV.set_elt(j, stdData[dAIT+sizeAligned*impactAHR]);
+                            ePenetrationV.set_elt(j, stdData[dAIT+sizeAligned*rawPen]);
+                            v0V.set_elt(j, stdData[dAIT+sizeAligned*impactV]);
+                        }
+                    }
+
+                    cAngleV = acos(cos(hAngle) * cos(vAngle));
+                    nCAngleV = calcNormalizationRSIMD(cAngle);
+                        
+                    ePenetrationV *= cos(nCAngleV);
+                    pPVV = ifthen(ePenetrationV > float64_vec(thickness), (float64_vec(1)-exp(float64_vec(1)-ePenetrationV/float64_vec(thickness)))*v0V, float64_vec(0.0));
+
+                    storea(pPVV * cos(vAngleV) * cos(vAngleV)  , velocities.data()+i);
+                    storea(pPVV * sin(vAngleV)                  , velocities.data()+i+postPenSizeAligned);
+                    storea(pPVV * cos(vAngleV) * sin(hAngleV)  , velocities.data()+i+2*postPenSizeAligned);
+                    storea(float64_vec(thickness) / cos(nCAngleV), velocities.data()+i+3*postPenSizeAligned);
+                }
+
+                //#pragma omp parallel for private(distIndex, anglesIndex, hAngle, vAngle, cAngle, nCAngle, aAngle, pPV, ePenetration, hFAngle, vFAngle)
+                for(; i < size * angles->size(); i++){
+                    distIndex = i % size;
+                    anglesIndex = i / size;
+
+                    hAngle = angles->at(anglesIndex) /180*M_PI;
+                    vAngle = stdData[distIndex+stdDataSizeIndex[impactAHR]];
+                    cAngle = acos(cos(hAngle) * cos(vAngle));
+                    nCAngle = calcNormalizationR(cAngle);
+                   
+                    ePenetration = stdData[distIndex+stdDataSizeIndex[rawPen]]*cos(nCAngle);
+
+                    if(ePenetration > thickness){
+                        pPV = (1-exp(1-ePenetration/thickness)) * stdData[distIndex+stdDataSizeIndex[impactV]];
+                    }else{
+                        pPV = 0;
+                    }
+
+                    velocities[i                     ] = pPV * cos(vAngle) * cos(vAngle);
+                    velocities[i+  postPenSizeAligned] = pPV * sin(vAngle);
+                    velocities[i+2*postPenSizeAligned] = pPV * cos(vAngle) * sin(hAngle);
+                    velocities[i+3*postPenSizeAligned] = thickness / cos(nCAngle);
+                }
+            }
+        }else{
+            i=0;
+            #pragma omp parallel for private(distIndex, anglesIndex, hAngle, vAngle, cAngle, nCAngle, aAngle, pPV, ePenetration, hFAngle, vFAngle)
+            for(unsigned int i=0; i < (size * angles->size()) - (size * angles->size()) % float64_vec::size; i+=float64_vec::size){
+                distIndex = i % size;
+                anglesIndex = i / size;
+
+                if(angles->size() - anglesIndex >= float64_vec::size){
+                    hAngleV = float64_vec(angles->data() + anglesIndex) * float64_vec(M_PI/180);
+                }else{
+                    for(unsigned int j=0; j<float64_vec::size; j++){
+                        dAIT = (i + j) / size;
+                        hAngleV.set_elt(j, angles->at(dAIT) * M_PI/180);
+                    }
+                }
+
+                if(size - distIndex >= float64_vec::size){
+                    vAngleV = stdData.data()+distIndex+sizeAligned*impactAHR;
+                    ePenetrationV = stdData.data()+distIndex+sizeAligned*rawPen;
+                    v0V = stdData.data()+distIndex+sizeAligned*impactV;
+                }else{
+                    for(unsigned int j=0; j<float64_vec::size; j++){
+                        dAIT = (i + j) % size;
+                        vAngleV.set_elt(j, stdData[dAIT+sizeAligned*impactAHR]);
+                        ePenetrationV.set_elt(j, stdData[dAIT+sizeAligned*rawPen]);
+                        v0V.set_elt(j, stdData[dAIT+sizeAligned*impactV]);
+                    }
+                }
+
+                cAngleV = acos(cos(hAngle) * cos(vAngle));
+                //nCAngleV = calcNormalizationRSIMD(cAngle);
+                    
+                ePenetrationV *= cos(cAngleV);
+                pPVV = ifthen(ePenetrationV > float64_vec(thickness), (float64_vec(1)-exp(float64_vec(1)-ePenetrationV/float64_vec(thickness)))*v0V, float64_vec(0.0));
+
+                storea(pPVV * cos(vAngleV) * cos(vAngleV)  , velocities.data()+i);
+                storea(pPVV * sin(vAngleV)                  , velocities.data()+i+postPenSizeAligned);
+                storea(pPVV * cos(vAngleV) * sin(hAngleV)  , velocities.data()+i+2*postPenSizeAligned);
+                storea(float64_vec(thickness) / cos(cAngleV), velocities.data()+i+3*postPenSizeAligned);
+            }
+
+            //#pragma omp parallel for private(distIndex, anglesIndex, hAngle, vAngle, cAngle, nCAngle, aAngle, pPV, ePenetration, hFAngle, vFAngle)
+            for(; i < size * angles->size(); i++){
+                distIndex = i % size;
+                anglesIndex = i / size;
+
+                hAngle = angles->at(anglesIndex) /180*M_PI;
+                vAngle = stdData[distIndex+stdDataSizeIndex[impactAHR]];
+                cAngle = acos(cos(hAngle) * cos(vAngle));
+                //nCAngle = calcNormalizationR(cAngle);
+                
+                ePenetration = stdData[distIndex+stdDataSizeIndex[rawPen]]*cos(nCAngle);
+
+                if(ePenetration > thickness){
+                    pPV = (1-exp(1-ePenetration/thickness)) * stdData[distIndex+stdDataSizeIndex[impactV]];
+                }else{
+                    pPV = 0;
+                }
+
+                velocities[i                     ] = pPV * cos(vAngle) * cos(vAngle);
+                velocities[i+  postPenSizeAligned] = pPV * sin(vAngle);
+                velocities[i+2*postPenSizeAligned] = pPV * cos(vAngle) * sin(hAngle);
+                velocities[i+3*postPenSizeAligned] = thickness / cos(cAngle);
+            }
+        }
+        /*
         double hAngle, vAngle, cAngle, nCAngle, aAngle, pPV, ePenetration, hFAngle, vFAngle;
         #pragma omp parallel for private(distIndex, anglesIndex, hAngle, vAngle, cAngle, nCAngle, aAngle, pPV, ePenetration, hFAngle, vFAngle)
         for(unsigned int i=0; i < size * angles->size(); i++){
@@ -409,8 +700,6 @@ class shell{
                         
             ePenetration = stdData[distIndex+stdDataSizeIndex[rawPen]]*cos(nCAngle);
 
-            //printf("%f %f %f\n", stdData[distIndex], stdData[distIndex+size*5], ePenetration);
-
             if(ePenetration > thickness){
                 pPV = (1-exp(1-ePenetration/thickness)) * stdData[distIndex+stdDataSizeIndex[impactV]];
             }else{
@@ -425,7 +714,7 @@ class shell{
             velocities[i+  postPenSize] = pPV * sin(vFAngle);
             velocities[i+2*postPenSize] = pPV * cos(vFAngle) * sin(hFAngle);
             velocities[i+3*postPenSize] = thickness / cos(nCAngle);
-        }
+        }*/
 
         omp_set_num_threads(6);
         #pragma omp parallel for
@@ -437,11 +726,14 @@ class shell{
     void printPostPen(){
         for(unsigned int i=0; i<postPenSize; i++){
             for(int j=0; j<6; j++){
-                printf("%f ", postPenData[i + j * postPenSize]);
+                //printf("%f ", postPenData[i + j * postPenSize]);
+                std::cout<< postPenData[i + j * postPenSize] << " "; 
             }
-            printf("\n");
+            //printf("\n");
+            std::cout<<"\n";
         }
-        printf("Completed Print\n");
+        //printf("Completed Print\n");
+        std::cout<<"Completed Print\n";
     }
 
 };
@@ -453,7 +745,7 @@ int main(){
     //std::chrono::microseconds t1, t2;
     double total = 0;
 
-    unsigned int runs = 1000;
+    unsigned int runs = 1;
     for(int i=0; i<runs; i++){
         auto t1 = std::chrono::high_resolution_clock::now();
         test.calculateStd();
@@ -461,10 +753,11 @@ int main(){
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>( t2 - t1 ).count();
         //std::cout << duration;
     }
+    test.printStdData();
+    std::cout << "completed" << std::endl;
     std::cout << total / runs / 1000000000;
     //test.calculateStd();
 
-    //test.printStdData();
     std::vector<double> angle;
     angle.push_back(0);
     angle.push_back(10);
@@ -481,7 +774,7 @@ int main(){
 
     test.setAngles(&angle);
     test.calculatePostPen(400);
-    //test.printPostPen();
+    test.printPostPen();
     //test.printTrajectory(2499);
 
 }
