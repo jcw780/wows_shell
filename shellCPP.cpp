@@ -372,7 +372,9 @@ class shell{
         }
 
     }
-
+    double *exposeStdData(){
+        return stdData.data();
+    }
     //Post-Penetration 
     private:
     double threshold, fuseTime, dtf = 0.0001;
@@ -446,6 +448,12 @@ class shell{
         this->angles = &angles;
     }
 
+    void setAngles(double *angles, unsigned int size){
+        this->angles = new std::vector<double>;
+        this->angles->resize(size);
+        std::copy_n(angles, size, this->angles->data());
+    }
+
     void editPostPen(double dtf){
         if(dtf){
             this->dtf = dtf;
@@ -485,14 +493,7 @@ class shell{
                     distIndex = i % size;
                     anglesIndex = i / size;
 
-                    if(angles->size() - anglesIndex >= float64_vec::size){
-                        hAngleV = float64_vec(angles->data() + anglesIndex) * float64_vec(M_PI/180);
-                    }else{
-                        for(unsigned int j=0; j<float64_vec::size; j++){
-                            dAIT = (i + j) / size;
-                            hAngleV.set_elt(j, angles->at(dAIT) * M_PI/180);
-                        }
-                    }
+                    hAngleV = postPenData.data() + i;
 
                     if(size - distIndex >= float64_vec::size){
                         vAngleV =       stdData.data()+distIndex+sizeAligned*impactAHR;
@@ -559,14 +560,7 @@ class shell{
                     distIndex = i % size;
                     anglesIndex = i / size;
 
-                    if(angles->size() - anglesIndex >= float64_vec::size){
-                        hAngleV = float64_vec(angles->data() + anglesIndex) * float64_vec(M_PI/180);
-                    }else{
-                        for(unsigned int j=0; j<float64_vec::size; j++){
-                            dAIT = (i + j) / size;
-                            hAngleV.set_elt(j, angles->at(dAIT) * M_PI/180);
-                        }
-                    }
+                    hAngleV = postPenData.data() + i;
 
                     if(size - distIndex >= float64_vec::size){
                         vAngleV = stdData.data()+distIndex+sizeAligned*impactAHR;
@@ -624,14 +618,7 @@ class shell{
                 distIndex = i % size;
                 anglesIndex = i / size;
 
-                if(angles->size() - anglesIndex >= float64_vec::size){
-                    hAngleV = float64_vec(angles->data() + anglesIndex) * float64_vec(M_PI/180);
-                }else{
-                    for(unsigned int j=0; j<float64_vec::size; j++){
-                        dAIT = (i + j) / size;
-                        hAngleV.set_elt(j, angles->at(dAIT) * M_PI/180);
-                    }
-                }
+                hAngleV = postPenData.data() + i;
 
                 if(size - distIndex >= float64_vec::size){
                     vAngleV = stdData.data()+distIndex+sizeAligned*impactAHR;
@@ -735,6 +722,10 @@ class shell{
         }
         //printf("Completed Print\n");
         std::cout<<"Completed Print\n";
+    }
+
+    double *exposePostPenData(){
+        return postPenData.data();
     }
 
 };

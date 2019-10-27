@@ -35,7 +35,7 @@ int main(){
     }*/
 
     test.setAngles(&angle);
-    test.calculatePostPen(400);
+    test.calculatePostPen(100);
     test.printPostPen();
     //test.printTrajectory(2499);
 
