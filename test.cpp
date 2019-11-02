@@ -7,7 +7,7 @@ int main(){
     //std::chrono::microseconds t1, t2;
     double total = 0;
 
-    unsigned int runs = 1;
+    unsigned int runs = 100;
     for(int i=0; i<runs; i++){
         auto t1 = std::chrono::high_resolution_clock::now();
         test.calculateStd();
@@ -17,7 +17,7 @@ int main(){
     }
     test.printStdData();
     std::cout << "completed" << std::endl;
-    std::cout << total / runs / 1000000000;
+    std::cout << total / runs / 1000000000 << std::endl;
     //test.calculateStd();
 
     std::vector<double> angle;
@@ -34,9 +34,12 @@ int main(){
         printf("%f\n", angle[i]);
     }*/
 
-    test.setAngles(&angle);
-    test.calculatePostPen(100);
-    test.printPostPen();
+    //test.setAngles(angle);
+    //test.calculatePostPen(100);
+    //test.printPostPen();
+
+    //auto var = test.postPenDataCopy();
+    //std::cout<<&var<< std::endl;
     //test.printTrajectory(2499);
 
 }
