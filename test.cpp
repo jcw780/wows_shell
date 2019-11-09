@@ -7,7 +7,7 @@ int main(){
     //std::chrono::microseconds t1, t2;
     double total = 0;
 
-    unsigned int runs = 100;
+    unsigned int runs = 1;
     for(int i=0; i<runs; i++){
         auto t1 = std::chrono::high_resolution_clock::now();
         test.calculateStd();
@@ -40,6 +40,6 @@ int main(){
 
     //auto var = test.postPenDataCopy();
     //std::cout<<&var<< std::endl;
-    //test.printTrajectory(2499);
+    test.printTrajectory(100);
 
 }

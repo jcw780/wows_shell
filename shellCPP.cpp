@@ -91,9 +91,10 @@ class shell{
     void singleTraj(unsigned int i, bool addTraj){
         //printf("%d ", i);
         //printf("%f %f %f %f\n", x, y, v_x, v_y);
+        #define __TrajBuffer__ 64
         if(addTraj){
-            trajectories[2*i].reserve(64);
-            trajectories[2*i+1].reserve(64);
+            trajectories[2*i].reserve(__TrajBuffer__);
+            trajectories[2*i+1].reserve(__TrajBuffer__);
         }
         double T, p, rho, t, x, y, v_x, v_y;
         v_x = stdOut0[i];
@@ -104,20 +105,41 @@ class shell{
         trajectories[2*i  ].push_back(x);
         trajectories[2*i+1].push_back(y);
         //printf("%f ",dt);
+        unsigned int counter;
+        double xT[__TrajBuffer__], yT[__TrajBuffer__];
         while(y >= 0){
-            x = x + dt*v_x;
-            y = y + dt*v_y;
-            //printf("%f ", x);
-            T = t0 - L*y;
-            p = p0*pow((1-L*y/t0),(g*M/(R*L)));
-            rho = p*M/(R*T);
+            for(counter = 0; counter < __TrajBuffer__; counter++){
+                x = x + dt*v_x;
+                y = y + dt*v_y;
+                //printf("%f ", x);
+                T = t0 - L*y;
+                p = p0*pow((1-L*y/t0),(g*M/(R*L)));
+                rho = p*M/(R*T);
 
-            v_x = v_x - dt*k*rho*(cw_1*v_x*v_x+cw_2*v_x);
-            v_y = v_y - dt*(g - k*rho*(cw_1*v_y*v_y+cw_2*fabs(v_y))*signum(v_y));
-            t = t + dt;
+                v_x = v_x - dt*k*rho*(cw_1*v_x*v_x+cw_2*v_x);
+                v_y = v_y - dt*(g - k*rho*(cw_1*v_y*v_y+cw_2*fabs(v_y))*signum(v_y));
+                t = t + dt;
+                xT[counter] = x;
+                yT[counter] = y;
+                if(y < 0){
+                    break;
+                }
+            }
             if(addTraj){
-                trajectories[2*i  ].push_back(x);
-                trajectories[2*i+1].push_back(y);
+                //trajectories[2*i  ].push_back(x);
+                //trajectories[2*i+1].push_back(y);
+                
+                trajectories[2*i].insert(trajectories[2*i].end(), xT, &xT[counter]);
+                trajectories[2*i+1].insert(trajectories[2*i+1].end(), yT, &yT[counter]);
+
+                /*
+                if(i == 100){
+                    for(unsigned int c = trajectories[2*i].size() - counter - 1; c < trajectories[2*i].size(); c++){
+                        //std::cout<<c <<" "<<xT[c]<<" "<<yT[c]<<std::endl;
+                        std::cout<<trajectories[i*2][c]<<" "<<trajectories[i*2+1][c]<<std::endl;
+                    }
+                }*/
+                //std::cout<<trajectories[2*i].size()<<std::endl;
             }
         }
         stdData[i+sizeAligned*distance] = x;
@@ -432,9 +454,13 @@ class shell{
         std::cout<<"Completed"<<std::endl;
     }
     void printTrajectory(unsigned int target){
-        printf("Index:[%d] X Y\n", target);
-        for(std::vector<double>::size_type i = 0; i != trajectories[target*2].size(); i++) {
-            std::cout<<trajectories[target*2][i]<<" "<<trajectories[target*2+1][i]<<std::endl;
+        if(target >= size){
+            std::cout<<"Target Not Within Range of: "<< size<< std::endl;
+        }else{
+            printf("Index:[%d] X Y\n", target);
+            for(std::vector<double>::size_type i = 0; i < trajectories[target*2].size(); i++) {
+                std::cout<<trajectories[target*2][i]<<" "<<trajectories[target*2+1][i]<<std::endl;
+            }
         }
 
     }
