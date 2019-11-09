@@ -40,6 +40,6 @@ int main(){
 
     //auto var = test.postPenDataCopy();
     //std::cout<<&var<< std::endl;
-    test.printTrajectory(100);
+    //test.printTrajectory(100);
 
 }
