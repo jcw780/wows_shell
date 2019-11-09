@@ -12,7 +12,7 @@
 #ifdef USE_SIMD
 #include "vecmathlib/vecmathlib.h"
 #include "alignmentAllocator.h"
-using namespace vecmathlib;
+
 #endif
 
 #include <iostream>
@@ -30,6 +30,19 @@ double operator"" _lbs(long double input){return input * 0.453592;}
 double operator"" _mps(long double input){return input;}
 double operator"" _fps(long double input){return input * 0.3048;}
 
+typedef struct{
+    double v0;
+    double caliber;
+    double krupp; 
+    double mass;
+    double cD; 
+    double normalization;
+    double threshold; 
+    double fuseTime;
+    std::string name; 
+}shipParams;
+
+using namespace vecmathlib;
 
 class shell{
     private:
@@ -65,6 +78,13 @@ class shell{
     /*standardOut1 - indicies refer to multiples of size
     [0:1) v_x [1:2) v_y
     */
+
+    void preProcess(){
+        k = 0.5 * cD * pow((caliber/2),2) * M_PI / mass;
+        cw_2 = 100+1000/3*caliber;
+        pPPC = C * krupp/2400 * pow(mass,0.55) / pow((caliber*1000),0.65);
+        normalizationR = normalization / 180 * M_PI;
+    }
 
     std::vector<double, AlignmentAllocator<double, 32>> stdOut0;
 
@@ -201,6 +221,30 @@ class shell{
 
     shell();
 
+    shell(shipParams sp){
+        v0 = sp.v0;
+        caliber = sp.caliber;
+        krupp = sp.krupp;
+        mass = sp.mass;
+        normalization = sp.normalization;
+        cD = sp.cD;
+        name = sp.cD;
+
+        if(sp.fuseTime){
+            fuseTime = sp.fuseTime;
+        }else{
+            fuseTime = .033; 
+        }
+
+        if(sp.threshold){
+            threshold = sp.threshold;
+        }else{
+            threshold = caliber / 6;
+        }
+
+        preProcess();
+    }
+
     shell(double v0, double caliber, double krupp, double mass,
     double normalization, double cD, std::string name, double threshold, double fuseTime){
         this->fuseTime = fuseTime;
@@ -213,14 +257,14 @@ class shell{
         this->cD = cD;
         this->name = name;
 
-        k = 0.5 * cD * pow((caliber/2),2) * M_PI / mass;
-        cw_2 = 100+1000/3*caliber;
-        pPPC = C * krupp/2400 * pow(mass,0.55) / pow((caliber*1000),0.65);
-        normalizationR = normalization / 180 * M_PI;
-        //assignShellValues(v0, caliber, krupp, mass, normalization, cD, name);
-        if(!threshold){
-            this->threshold = caliber / 6;   
+        if(threshold){
+            this->threshold = threshold;
+        }else{
+            this->threshold = caliber / 6;
         }
+
+        preProcess();
+        //assignShellValues(v0, caliber, krupp, mass, normalization, cD, name);
     }
 
     void editTestParameters(double max, double min, double precision, double x0, double y0, double dt){
@@ -242,6 +286,20 @@ class shell{
         if(!dt){
             this->dt = max;
         }
+    }
+
+    shipParams returnShipParams(){
+        shipParams ret;
+        ret.caliber = caliber;
+        ret.cD = cD;
+        ret.fuseTime = fuseTime;
+        ret.krupp = krupp;
+        ret.mass = mass;
+        ret.name = name;
+        ret.normalization = normalization;
+        ret.threshold = threshold;
+        ret.v0 = v0;
+        return ret;
     }
 
     void calculateStd(){
