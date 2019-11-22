@@ -91,7 +91,7 @@ class shell{
     void singleTraj(unsigned int i, bool addTraj){
         //printf("%d ", i);
         //printf("%f %f %f %f\n", x, y, v_x, v_y);
-        #define __TrajBuffer__ 64
+        #define __TrajBuffer__ 128
         if(addTraj){
             trajectories[2*i].reserve(__TrajBuffer__);
             trajectories[2*i+1].reserve(__TrajBuffer__);
@@ -148,6 +148,7 @@ class shell{
         stdOut0[i+sizeAligned] = v_y;
     }
 
+    
 
     public:
 
@@ -371,7 +372,7 @@ class shell{
         }
 
         //omp_set_num_threads(6);
-        #pragma omp parallel for schedule(dynamic, 4)
+        #pragma omp parallel for schedule(dynamic)
         for(i=0; i<size; i++){
             singleTraj(i, true);
             //printf("i %d \n", i);
