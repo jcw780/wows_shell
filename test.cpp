@@ -1,4 +1,6 @@
-#include "shellCPP.cpp"
+#include "shellCPP.hpp"
+
+#include <chrono>
 
 int main(){
     //shell test(780, .460, 2574, 1460, 6, .033, .292, 76, "Yamato");
@@ -7,7 +9,7 @@ int main(){
     //std::chrono::microseconds t1, t2;
     double total = 0;
 
-    unsigned int runs = 100;
+    unsigned int runs = 1;
     for(int i=0; i<runs; i++){
         auto t1 = std::chrono::high_resolution_clock::now();
         test.calculateStd();
@@ -20,6 +22,7 @@ int main(){
     std::cout << total / runs / 1000000000 << std::endl;
     //test.calculateStd();
 
+    /*
     std::vector<double> angle;
     angle.push_back(0);
     angle.push_back(10);
@@ -28,6 +31,7 @@ int main(){
     angle.push_back(40);
     angle.push_back(50);
     angle.push_back(60);
+    */
 
     /*
     for(unsigned int i=0; i<angle.size(); i++){
@@ -40,6 +44,7 @@ int main(){
 
     //auto var = test.postPenDataCopy();
     //std::cout<<&var<< std::endl;
-    //test.printTrajectory(2499);
+    //test.printTrajectory(100);
+    return 0;
 
 }
