@@ -11,7 +11,7 @@
 #define INLINE inline
 #endif
 
-#include "nonnumber.h"
+//#include "nonnumber.h"
 //#define ENABLE_AVX2
 
 #ifdef ENABLE_SSE2
