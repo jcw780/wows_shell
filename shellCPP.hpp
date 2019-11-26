@@ -38,6 +38,7 @@ typedef __m256d fVType
 #include <unordered_map>
 #include <stdlib.h>
 #include <cstring>
+#include <algorithm>
 
 /*
 double operator"" _kg (long double input){return input;}
@@ -109,7 +110,15 @@ class shell{
         //std::cout<<"Running0 "<< i<<std::endl;
         __m256d angleSIMD, angleRSIMD, temp, v0SIMD = _mm256_set1_pd(v0);
         __m256d vx, vy, tSIMD;
+
+        #ifdef __clang__
         temp = {0.0, 1.0, 2.0, 3.0};
+        #else
+        temp[0] = 0.0;
+        temp[1] = 1.0;
+        temp[2] = 2.0;
+        temp[3] = 3.0;
+        #endif
 
         angleSIMD = _mm256_fmadd_pd(
             _mm256_add_pd(_mm256_set1_pd(i), temp), 
@@ -361,6 +370,8 @@ class shell{
 
     shell();
 
+    //~shell();
+
     shell(shipParams sp){
         v0 = sp.v0;
         caliber = sp.caliber;
@@ -461,8 +472,8 @@ class shell{
         }
         
         //omp_set_num_threads(6);
-        #pragma omp parallel for //schedule(dynamic)
-        for(i=0; i<size; i+=4){
+        #pragma omp parallel for schedule(dynamic)
+        for(i=0; i<size; i+=vSize){
             singleTraj(i, true);
             //printf("i %d \n", i);
         }

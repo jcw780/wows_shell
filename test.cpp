@@ -5,19 +5,21 @@
 int main(){
     //shell test(780, .460, 2574, 1460, 6, .033, .292, 76, "Yamato");
     //shell test(780, .460, 2574, 1460, 6, .292, "Yamato");
-    shell test(780, .460, 2574, 1460, 6, .292, "Yamato", 76, .033);
+    //shell test(780, .460, 2574, 1460, 6, .292, "Yamato", 76, .033);
     //std::chrono::microseconds t1, t2;
     double total = 0;
-
-    unsigned int runs = 1;
+    shell* test;
+    unsigned int runs = 10000;
     for(int i=0; i<runs; i++){
+        test = new shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76, .033);
         auto t1 = std::chrono::high_resolution_clock::now();
-        test.calculateStd();
+        test->calculateStd();
         auto t2 = std::chrono::high_resolution_clock::now();
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>( t2 - t1 ).count();
         //std::cout << duration;
+        delete test;
     }
-    test.printStdData();
+    //test.printStdData();
     std::cout << "completed" << std::endl;
     std::cout << total / runs / 1000000000 << std::endl;
     //test.calculateStd();
