@@ -15,10 +15,8 @@ typedef double fPType;
 #endif
 
 #ifdef USE_SIMD
-//#include "vecmathlib/vecmathlib.h"
 #define ENABLE_AVX2
 #include "sleef-2.80/simd/sleefsimddp.c"
-//#include "alignmentAllocator.h"
 const unsigned int vSize = 32 / sizeof(fPType);
 
 /*
@@ -57,14 +55,145 @@ typedef struct{
     double normalization;
     double threshold; 
     double fuseTime;
-    std::string name; 
-}shipParams;
+    //std::string name;
 
-//using namespace vecmathlib;
+}shellParams;
+
+typedef struct{
+    double v0;
+    double k;
+    double cw_2;
+    double pPPC;
+    double normalizationR;
+}procCharacteristic; 
 
 class shell{
     private:
-    double C = 0.5561613;
+    //double v0;
+    double caliber;
+    double krupp; 
+    double mass;
+    double cD; 
+    double normalization;
+    double threshold; 
+    double fuseTime;
+    std::string name;
+
+    //double k, cw_2, pPPC, normalizationR;
+    procCharacteristic p;
+
+    void preProcess(){
+        p.k = 0.5 * cD * pow((caliber/2),2) * M_PI / mass;
+        p.cw_2 = 100+1000/3*caliber;
+        p.pPPC = 0.5561613 * krupp/2400 * pow(mass,0.55) / pow((caliber*1000),0.65);
+        p.normalizationR = normalization / 180 * M_PI;
+    }
+
+    public:
+    unsigned int size;
+    unsigned int sizeAligned; 
+    //procCharacteristic p;
+    /*trajectories output
+    [0           ]trajx 0        [1           ]trajy 1
+    ...
+    [size * 2 - 2]trajx size - 1 [size * 2 - 1]trajy size - 1
+    */
+    std::vector<std::vector<double>> trajectories;
+    /*standard output - Indicies refer to multiples of size [Num Colums of 12
+    [0 : 1)-distance,          [1 : 2)-launch angle,      [2 : 3)-impact angle - R
+    [3 : 4)-impact angle - D,  [4 : 5)-impact velocity,   [5 : 6)-raw pen,           
+    [6 : 7)-effectivepenH,     [7 : 8)-effectivepenH w/N, [8 : 9)-IA_d,              
+    [9 :10)-effectivepenD,     [10:11)-effectivepenD w/N, [11:12)-ttt,          
+    [12:13)-ttta
+    */
+    std::vector<double> stdData;
+    const unsigned int maxColumns = 13;
+    enum stdDataIndex{
+        distance   , launchA, impactAHR, 
+        impactAHD  , impactV, rawPen   , 
+        ePenH      , ePenHN , impactADD, 
+        ePenD      , ePenDN , tToTarget, 
+        tToTargetA};
+
+    shell(double v0, double caliber, double krupp, double mass,
+    double normalization, double cD, std::string name, double threshold, double fuseTime){
+        this->fuseTime = fuseTime;
+
+        //this->v0 = v0;
+        p.v0 = v0;
+        this->caliber = caliber;
+        this->krupp = krupp;
+        this->mass = mass;
+        this->normalization = normalization;
+        this->cD = cD;
+        this->name = name;
+
+        if(threshold){
+            this->threshold = threshold;
+        }else{
+            this->threshold = caliber / 6;
+        }
+        preProcess();
+    }
+    /*
+    shell(shellParams sp, string name){
+
+    }*/
+
+    procCharacteristic retPC(){
+        return p;
+    }
+
+    shellParams returnShipParams(){
+        shellParams ret;
+        ret.caliber = caliber;
+        ret.cD = cD;
+        ret.fuseTime = fuseTime;
+        ret.krupp = krupp;
+        ret.mass = mass;
+        //ret.name = name;
+        ret.normalization = normalization;
+        ret.threshold = threshold;
+        ret.v0 = p.v0;
+        return ret;
+    }
+    
+    void printStdData(){
+        for(unsigned int i=0; i<size; i++){
+            for(unsigned int j=0; j<maxColumns; j++){
+                std::cout<<std::fixed<<std::setprecision(4)<<stdData[i + sizeAligned * j]<< " ";
+            }
+            std::cout<<std::endl;
+        }
+        std::cout<<"Completed"<<std::endl;
+    }
+    void printTrajectory(unsigned int target){
+        if(target >= size){
+            std::cout<<"Target Not Within Range of: "<< size<< std::endl;
+        }else{
+            printf("Index:[%d] X Y\n", target);
+            for(std::vector<double>::size_type i = 0; i < trajectories[target*2].size(); i++) {
+                std::cout<<trajectories[target*2][i]<<" "<<trajectories[target*2+1][i]<<std::endl;
+            }
+        }
+    }
+    /*
+    std::vector<double> stdDataCopy(){
+        std::vector<double> out;
+        out.resize(size * stdDataSizeIndex.size());
+        
+        #pragma omp parallel for schedule(static)
+        for(unsigned int i=0; i<stdDataSizeIndex.size(); i++){
+            std::copy_n(stdData.begin() + i * sizeAligned, size, out.begin() + i * size);
+        }
+
+        return out;
+    }*/
+};
+
+class shellCalc{
+    private:
+    //double C = 0.5561613;
     double g = 9.81;
     double t0 = 288;
     double L = 0.0065;
@@ -73,21 +202,13 @@ class shell{
     double M = 0.0289644;
     double cw_1 = 1;
 
-    double v0; // = 780;
-    double caliber; // = .460;
-    double krupp; // = 2574;
-    double mass; // = 1460;
-    double normalization; // = 6;
-    double cD; // = .292;
-    std::string name;
-
     double max = 25;
     double min = 0;
     double precision = .1;
     double x0 = 0, y0 = 0;
     double dt = .01;
 
-    double k, cw_2, pPPC, normalizationR;
+    //double k, cw_2, pPPC, normalizationR;
 
     std::vector<double> oneVector;
     std::vector<double> temp;
@@ -97,18 +218,14 @@ class shell{
     [0:1) v_x [1:2) v_y
     */
 
-    void preProcess(){
-        k = 0.5 * cD * pow((caliber/2),2) * M_PI / mass;
-        cw_2 = 100+1000/3*caliber;
-        pPPC = C * krupp/2400 * pow(mass,0.55) / pow((caliber*1000),0.65);
-        normalizationR = normalization / 180 * M_PI;
-    }
-
-    //std::vector<double> stdOut0;
-
-    void singleTraj(unsigned int i, bool addTraj){
+    void singleTraj(unsigned int i, shell& s, bool addTraj){
         //std::cout<<"Running0 "<< i<<std::endl;
-        __m256d angleSIMD, angleRSIMD, temp, v0SIMD = _mm256_set1_pd(v0);
+        const procCharacteristic pC = s.retPC();
+        double k = pC.k;
+        double cw_2 = pC.cw_2;
+        double pPPC = pC.pPPC;
+        double normalizationR = pC.normalizationR;
+        __m256d angleSIMD, angleRSIMD, temp, v0SIMD = _mm256_set1_pd(pC.v0);
         __m256d vx, vy, tSIMD;
 
         #ifdef __clang__
@@ -125,7 +242,7 @@ class shell{
             _mm256_set1_pd(precision),
             _mm256_set1_pd(min));
         angleRSIMD = _mm256_mul_pd(angleSIMD, _mm256_set1_pd((M_PI / 180)));
-        _mm256_storeu_pd(stdData.data() + i + launchA * sizeAligned, angleSIMD);
+        _mm256_storeu_pd(s.stdData.data() + i + s.launchA * s.sizeAligned, angleSIMD);
 
         vx = _mm256_mul_pd(v0SIMD, xcos(angleRSIMD));
         vy = _mm256_mul_pd(v0SIMD, xsin(angleRSIMD));
@@ -135,11 +252,11 @@ class shell{
         #define __TrajBuffer__ 128
         double xT[__TrajBuffer__], yT[__TrajBuffer__];
 
-        for(unsigned int j = 0; (j+i<size) && (j < vSize); j++){
+        for(unsigned int j = 0; (j+i<s.size) && (j < vSize); j++){
 
             if(addTraj){
-                trajectories[2*(i+j)  ].reserve(__TrajBuffer__);
-                trajectories[2*(i+j)+1].reserve(__TrajBuffer__);
+                s.trajectories[2*(i+j)  ].reserve(__TrajBuffer__);
+                s.trajectories[2*(i+j)+1].reserve(__TrajBuffer__);
             }
             //double T, p, rho, t, x, y, v_x, v_y;
             v_x = vx[j];
@@ -149,8 +266,8 @@ class shell{
             x = x0;
             y = y0;
             t = 0;
-            trajectories[2*(i+j)  ].push_back(x);
-            trajectories[2*(i+j)+1].push_back(y);
+            s.trajectories[2*(i+j)  ].push_back(x);
+            s.trajectories[2*(i+j)+1].push_back(y);
             //printf("%f ",dt);
 
             while(y >= 0){
@@ -175,32 +292,25 @@ class shell{
                     }
                 }
                 if(addTraj){
-                    trajectories[2*(i+j)  ].insert(trajectories[2*(i+j)  ].end(), xT, &xT[counter]);
-                    trajectories[2*(i+j)+1].insert(trajectories[2*(i+j)+1].end(), yT, &yT[counter]);
+                    s.trajectories[2*(i+j)  ].insert(s.trajectories[2*(i+j)  ].end(), xT, &xT[counter]);
+                    s.trajectories[2*(i+j)+1].insert(s.trajectories[2*(i+j)+1].end(), yT, &yT[counter]);
 
                 }
             }
-            stdData[i+j+sizeAligned*distance] = x;
-            //stdData[i+sizeAligned*tToTarget] = t;
-            //stdOut0[i] = v_x;
-            //stdOut0[i+sizeAligned] = v_y;
+            s.stdData[i+j+s.sizeAligned*s.distance] = x;
             vx[j] = v_x;
             vy[j] = v_y;
             tSIMD[j] = t;
             //std::cout<<k<<" "<<v_x<<std::endl;
         }
 
-        /*std::cout<<vx[0]<<std::endl;
-        std::cout<<vx[1]<<std::endl;
-        std::cout<<vx[2]<<std::endl;
-        std::cout<<vx[3]<<std::endl;*/
         //Calculate [2]IA , [7]IA_D
         __m256d iVSIMD, rPSIMD;  
         angleRSIMD = xatan(_mm256_div_pd(vy,vx));
 
-        _mm256_storeu_pd(stdData.data()+i+sizeAligned*impactAHR, angleRSIMD);
+        _mm256_storeu_pd(s.stdData.data()+i+s.sizeAligned*s.impactAHR, angleRSIMD);
         _mm256_storeu_pd(
-            stdData.data()+i+sizeAligned*impactAHD, 
+            s.stdData.data()+i+s.sizeAligned*s.impactAHD, 
             _mm256_mul_pd(angleRSIMD, _mm256_set1_pd(180 / M_PI))
         );
 
@@ -209,49 +319,43 @@ class shell{
             _mm256_set1_pd(M_PI / 2), angleRSIMD
         );
 
-        _mm256_storeu_pd(stdData.data()+i+sizeAligned*impactADD,
+        _mm256_storeu_pd(s.stdData.data()+i+s.sizeAligned*s.impactADD,
             _mm256_mul_pd(angleSIMD, _mm256_set1_pd(180 / M_PI))
         );
 
         //Calculate [3]iV,  [4]rP
 
         iVSIMD = _mm256_sqrt_pd(_mm256_add_pd(_mm256_mul_pd(vx, vx), _mm256_mul_pd(vy, vy)));
-        _mm256_storeu_pd(stdData.data()+i+sizeAligned*impactV, iVSIMD);
+        _mm256_storeu_pd(s.stdData.data()+i+s.sizeAligned*s.impactV, iVSIMD);
 
         rPSIMD = _mm256_mul_pd(xpow(iVSIMD, _mm256_set1_pd(1.1)), _mm256_set1_pd(pPPC));
-        _mm256_storeu_pd(stdData.data()+i+sizeAligned*rawPen, rPSIMD);
+        _mm256_storeu_pd(s.stdData.data()+i+s.sizeAligned*s.rawPen, rPSIMD);
 
         //Calculate [5]EPH  [8]EPV
-        _mm256_storeu_pd(
-            stdData.data()+i+sizeAligned*ePenH, 
+        _mm256_storeu_pd(s.stdData.data()+i+s.sizeAligned*s.ePenH, 
             _mm256_mul_pd(xcos(angleRSIMD),rPSIMD)
         );
 
-        _mm256_storeu_pd(
-            stdData.data()+i+sizeAligned*ePenD, 
+        _mm256_storeu_pd(s.stdData.data()+i+s.sizeAligned*s.ePenD, 
             _mm256_mul_pd(xcos(angleSIMD),rPSIMD)
         );
         
-        _mm256_storeu_pd(
-            stdData.data()+i+sizeAligned*ePenHN,
+        _mm256_storeu_pd(s.stdData.data()+i+s.sizeAligned*s.ePenHN,
             _mm256_mul_pd(
-                rPSIMD, xcos(calcNormalizationRSIMD(angleRSIMD))
+                rPSIMD, xcos(calcNormalizationRSIMD(angleRSIMD, normalizationR))
             )
         );
-        _mm256_storeu_pd(
-            stdData.data()+i+sizeAligned*ePenDN,
+        _mm256_storeu_pd(s.stdData.data()+i+s.sizeAligned*s.ePenDN,
             _mm256_mul_pd(
-                rPSIMD, xcos(calcNormalizationRSIMD(angleSIMD))
+                rPSIMD, xcos(calcNormalizationRSIMD(angleSIMD, normalizationR))
             )
         );
 
-        _mm256_storeu_pd(
-            stdData.data()+i+sizeAligned*tToTarget,
+        _mm256_storeu_pd(s.stdData.data()+i+s.sizeAligned*s.tToTarget,
             tSIMD
         );
 
-        _mm256_storeu_pd(
-            stdData.data()+i+sizeAligned*tToTargetA,
+        _mm256_storeu_pd(s.stdData.data()+i+s.sizeAligned*s.tToTargetA,
             _mm256_div_pd(
                 tSIMD,
                 _mm256_set1_pd(3.1)                 
@@ -262,47 +366,7 @@ class shell{
 
     public:
 
-    /*trajectories output
-    [0           ]trajx 0        [1           ]trajy 1
-    ...
-    [size * 2 - 2]trajx size - 1 [size * 2 - 1]trajy size - 1
-    */
-    std::vector<std::vector<double>> trajectories;
-
-    /*standard output - Indicies refer to multiples of size [Num Colums of 12
-    [0 : 1)-distance,          [1 : 2)-launch angle,      [2 : 3)-impact angle - R
-    [3 : 4)-impact angle - D,  [4 : 5)-impact velocity,   [5 : 6)-raw pen,           
-    [6 : 7)-effectivepenH,     [7 : 8)-effectivepenH w/N, [8 : 9)-IA_d,              
-    [9 :10)-effectivepenD,     [10:11)-effectivepenD w/N, [11:12)-ttt,          
-    [12:13)-ttta
-    */
-    std::vector<double> stdData;
-
-    //For convenience purposes
-    /*
-    const unordered_map<string, unsigned int> stdDataIndex = {
-        {"distance"   ,  0}, {"launchA",  1}, {"impactAHR",  2},
-        {"impactAHD"  ,  3}, {"impactV",  4}, {"rawPen"   ,  5},
-        {"ePenH"      ,  6}, {"ePenHN" ,  7}, {"impactADD",  8},
-        {"ePenD"      ,  9}, {"ePenDN" , 10}, {"tToTarget", 11},
-        {"tToTarget-A", 12}
-    }; */
-
-    enum stdDataIndex{
-        distance   , launchA, impactAHR, 
-        impactAHD  , impactV, rawPen   , 
-        ePenH      , ePenHN , impactADD, 
-        ePenD      , ePenDN , tToTarget, 
-        tToTargetA};
-
-    std::vector<unsigned int> stdDataSizeIndex;
-
-    //unordered_map<string, unsigned int> stdDataSizeIndex;
-
-    unsigned int size;
-    unsigned int sizeAligned; 
-
-    double calcNormalizationR(const double angle){ //Input in radians
+    double calcNormalizationR(const double angle, const double normalizationR){ //Input in radians
         if(fabs(angle) > normalizationR){
             return fabs(angle) - normalizationR;
         }else{
@@ -311,31 +375,8 @@ class shell{
     }
 
     #ifdef USE_SIMD
-    /*
-    float64_vec calcNormalizationRSIMD(const float64_vec angle){
-        float64_vec result;
-        std::vector<double, AlignmentAllocator<double,  vSize * 8>> aR;
-        aR.resize(4);
-        storea(angle, aR.data());
-        double a;
-        #pragma omp simd 
-        for(int i=0; i<vSize; i++){
-            a = aR[i];
 
-            if(fabs(a) > normalizationR){
-                result.set_elt(i, fabs(a) - normalizationR);
-            }else{
-                result.set_elt(i, 0);
-            }
-        }
-        return result;
-    }
-    */
-    /*float64_vec calcNormalizationRSIMD(float64_vec angle){
-        return fmax(fabs(angle) - float64_vec(normalizationR), float64_vec(0.0));
-    }*/
-
-    __m256d calcNormalizationRSIMD(__m256d angle){
+    __m256d calcNormalizationRSIMD(__m256d angle, const double normalizationR){
         return _mm256_max_pd(
             _mm256_sub_pd(
                 _mm256_and_pd(
@@ -349,74 +390,11 @@ class shell{
 
     #endif
 
-    /*
-    template <typename T> inline constexpr
-    int signum(T x, std::false_type is_signed) {
-        return T(0) < x;
-    }
-
-    template <typename T> inline constexpr
-    int signum(T x, std::true_type is_signed) {
-        return (T(0) < x) - (x < T(0));
-    }
-
-    template <typename T> inline constexpr
-    int signum(T x) {
-        return signum(x, std::is_signed<T>());
-    }*/
     inline int signum(double x){
         return ((0.0) < x) - (x < (0.0));
     }
 
-    shell();
-
-    //~shell();
-
-    shell(shipParams sp){
-        v0 = sp.v0;
-        caliber = sp.caliber;
-        krupp = sp.krupp;
-        mass = sp.mass;
-        normalization = sp.normalization;
-        cD = sp.cD;
-        name = sp.cD;
-
-        if(sp.fuseTime){
-            fuseTime = sp.fuseTime;
-        }else{
-            fuseTime = .033; 
-        }
-
-        if(sp.threshold){
-            threshold = sp.threshold;
-        }else{
-            threshold = caliber / 6;
-        }
-
-        preProcess();
-    }
-
-    shell(double v0, double caliber, double krupp, double mass,
-    double normalization, double cD, std::string name, double threshold, double fuseTime){
-        this->fuseTime = fuseTime;
-
-        this->v0 = v0;
-        this->caliber = caliber;
-        this->krupp = krupp;
-        this->mass = mass;
-        this->normalization = normalization;
-        this->cD = cD;
-        this->name = name;
-
-        if(threshold){
-            this->threshold = threshold;
-        }else{
-            this->threshold = caliber / 6;
-        }
-
-        preProcess();
-        //assignShellValues(v0, caliber, krupp, mass, normalization, cD, name);
-    }
+    shellCalc() = default;
 
     void editTestParameters(double max, double min, double precision, double x0, double y0, double dt){
         if(!max){
@@ -439,111 +417,31 @@ class shell{
         }
     }
 
-    shipParams returnShipParams(){
-        shipParams ret;
-        ret.caliber = caliber;
-        ret.cD = cD;
-        ret.fuseTime = fuseTime;
-        ret.krupp = krupp;
-        ret.mass = mass;
-        ret.name = name;
-        ret.normalization = normalization;
-        ret.threshold = threshold;
-        ret.v0 = v0;
-        return ret;
-    }
-
-    void calculateStd(){
+    void calculateStd(shell& s){
         unsigned int i;
-        size = (unsigned int) (max - min) / precision;
-        sizeAligned = (sizeof(__m256d)/sizeof(double) - (size % (sizeof(__m256d)/sizeof(double)))) + size;
+        s.size = (unsigned int) (max - min) / precision;
+        s.sizeAligned = (sizeof(__m256d)/sizeof(double) - (s.size % (sizeof(__m256d)/sizeof(double)))) + s.size;
 
-        oneVector.resize(size);
-        memset(oneVector.data(), 1, sizeof(double) * size);
+        //oneVector.resize(size);
+        //memset(oneVector.data(), 1, sizeof(double) * size);
 
-        trajectories.resize(2 * size);
-        stdData.resize(13 * sizeAligned);
+        s.trajectories.resize(2 * s.size);
+        s.stdData.resize(13 * s.sizeAligned);
 
-        //stdOut0.resize(sizeAligned * 2);
-
-        stdDataSizeIndex.resize(13);
-        for(i=0; i<13; i++){
-            stdDataSizeIndex[i] = i * sizeAligned;
-        }
-        
         //omp_set_num_threads(6);
         #pragma omp parallel for schedule(dynamic)
-        for(i=0; i<size; i+=vSize){
-            singleTraj(i, true);
+        for(i=0; i<s.size; i+=vSize){
+            singleTraj(i, s, true);
             //printf("i %d \n", i);
         }
-
-
     }
-    /*
-    void printStdOut(){
-        for(unsigned int i=0; i<size; i++){
-            printf("%f %f %f %f %f\n", stdOut0[i], stdOut0[i+sizeAligned], 
-            stdOut0[i+sizeAligned*2], stdOut0[i+sizeAligned*3], stdOut0[i+sizeAligned*4]);
-        }
-    }*/
-    void printStdData(){
-        for(unsigned int i=0; i<size; i++){
-            for(unsigned int j=0; j<stdDataSizeIndex.size(); j++){
-                std::cout<<std::fixed<<std::setprecision(4)<<stdData[i + sizeAligned * j]<< " ";
-            }
-            std::cout<<std::endl;
-        }
-        std::cout<<"Completed"<<std::endl;
-    }
-    void printTrajectory(unsigned int target){
-        if(target >= size){
-            std::cout<<"Target Not Within Range of: "<< size<< std::endl;
-        }else{
-            printf("Index:[%d] X Y\n", target);
-            for(std::vector<double>::size_type i = 0; i < trajectories[target*2].size(); i++) {
-                std::cout<<trajectories[target*2][i]<<" "<<trajectories[target*2+1][i]<<std::endl;
-            }
-        }
-
-    }
-    /*
-    double *exposeStdData(){
-        return stdData.data();
-    }*/
-
-    std::vector<double> stdDataCopy(){
-        std::vector<double> out;
-        out.resize(size * stdDataSizeIndex.size());
-        
-        #pragma omp parallel for schedule(static)
-        for(unsigned int i=0; i<stdDataSizeIndex.size(); i++){
-            std::copy_n(stdData.begin() + i * sizeAligned, size, out.begin() + i * size);
-        }
-
-        //std::copy_n(stdData.begin(), stdData.size(), out.begin());
-        //std::cout<<&out<<std::endl;
-        return out;
-    }
-
 
     //Post-Penetration 
     private:
     double threshold, fuseTime, dtf = 0.0001;
     double xf0 = 0, yf0 = 0;
     bool completed = false;
-    //std::vector<double, AlignmentAllocator<double, 32>> velocities;
-    
-    /*
-    void printVelocities(){
-        printf("Velocities\n");
-        for(unsigned int i=0; i<postPenSize; i++){
-            for(int j=0; j<4; j++){
-                printf("%f ", velocities[i + j * postPenSize]);
-            }
-            printf("\n");
-        }
-    }*/
+
 #ifdef NOTTEST
     void postPenTraj(const unsigned int i, std::vector<double, AlignmentAllocator<double, 32>> velocities){
         double T, p, rho, t, x, y, z, v_x, v_y, v_z;

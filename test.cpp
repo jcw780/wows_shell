@@ -9,14 +9,17 @@ int main(){
     //std::chrono::microseconds t1, t2;
     double total = 0;
     shell* test;
-    unsigned int runs = 10000;
+    shellCalc sc;
+    unsigned int runs = 1;
     for(int i=0; i<runs; i++){
         test = new shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76, .033);
         auto t1 = std::chrono::high_resolution_clock::now();
-        test->calculateStd();
+        //test->calculateStd();
+        sc.calculateStd(*test);
         auto t2 = std::chrono::high_resolution_clock::now();
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>( t2 - t1 ).count();
         //std::cout << duration;
+        test->printStdData();
         delete test;
     }
     //test.printStdData();
