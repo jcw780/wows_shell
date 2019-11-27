@@ -1,6 +1,7 @@
 #include "shellCPP.hpp"
 
 #include <chrono>
+#include <utility>
 
 int main(){
     //shell test(780, .460, 2574, 1460, 6, .033, .292, 76, "Yamato");
@@ -20,14 +21,16 @@ int main(){
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>( t2 - t1 ).count();
         //std::cout << duration;
         test->printStdData();
-        delete test;
+        if(i < runs - 1){
+            delete test;
+        }
     }
     //test.printStdData();
     std::cout << "completed" << std::endl;
     std::cout << total / runs / 1000000000 << std::endl;
     //test.calculateStd();
 
-    /*
+    
     std::vector<double> angle;
     angle.push_back(0);
     angle.push_back(10);
@@ -36,7 +39,10 @@ int main(){
     angle.push_back(40);
     angle.push_back(50);
     angle.push_back(60);
-    */
+    
+    test->angles = std::move(angle);
+    sc.calculatePostPen(100, *test);
+    test->printPostPen();
 
     /*
     for(unsigned int i=0; i<angle.size(); i++){
