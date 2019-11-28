@@ -48,7 +48,9 @@ double operator"" _mps(long double input){return input;}
 double operator"" _fps(long double input){return input * 0.3048;}
 */
 
-//Base shell characteristics
+/* Base shell characteristics 
+ * May be used to implement a hash table in the future
+ */
 typedef struct{
     double v0;
     double caliber;
@@ -59,42 +61,30 @@ typedef struct{
     double threshold; 
     double fuseTime;
     //std::string name;
-
 }shellParams;
-
-//Used to pass variables to trajectory calculators
-typedef struct{
-    double v0;
-    double k;
-    double cw_2;
-    double pPPC;
-    double normalizationR;
-    double threshold;
-    double fuseTime;
-}procCharacteristic; 
 
 class shell{
     private:
-    //double v0;
+    double v0;
     double caliber;
     double krupp; 
     double mass;
     double cD; 
     double normalization;
-    //double threshold; 
-    //double fuseTime;
+    double threshold; 
+    double fuseTime;
     std::string name;
 
-    //double k, cw_2, pPPC, normalizationR;
-    procCharacteristic p;
+    double k, cw_2, pPPC, normalizationR;
+    //procCharacteristic p;
 
     //Condenses initial values into values used by calculations
     //[Reduces repeated computations]
     void preProcess(){
-        p.k = 0.5 * cD * pow((caliber/2),2) * M_PI / mass;
-        p.cw_2 = 100+1000/3*caliber;
-        p.pPPC = 0.5561613 * krupp/2400 * pow(mass,0.55) / pow((caliber*1000),0.65);
-        p.normalizationR = normalization / 180 * M_PI;
+        k = 0.5 * cD * pow((caliber/2),2) * M_PI / mass;
+        cw_2 = 100+1000/3*caliber;
+        pPPC = 0.5561613 * krupp/2400 * pow(mass,0.55) / pow((caliber*1000),0.65);
+        normalizationR = normalization / 180 * M_PI;
     }
 
     public:
@@ -128,10 +118,10 @@ class shell{
 
     shell(double v0, double caliber, double krupp, double mass,
     double normalization, double cD, std::string name, double threshold, double fuseTime = .033){
-        //this->fuseTime = fuseTime;
-        p.fuseTime = fuseTime;
-        //this->v0 = v0;
-        p.v0 = v0;
+        this->fuseTime = fuseTime;
+        //p.fuseTime = fuseTime;
+        this->v0 = v0;
+        //p.v0 = v0;
         this->caliber = caliber;
         this->krupp = krupp;
         this->mass = mass;
@@ -140,32 +130,52 @@ class shell{
         this->name = name;
 
         if(threshold){
-            p.threshold = threshold;
+            this->threshold = threshold;
+            //p.threshold = threshold;
         }else{
-            p.threshold = caliber / 6;
+            this->threshold = caliber / 6;
+            //p.threshold = caliber / 6;
         }
         preProcess();
+    }
+    //Getter Functions
+    const double& get_v0(){
+        return v0;
+    }
+    const double& get_k(){
+        return k;
+    }
+    const double& get_cw_2(){
+        return cw_2;
+    }
+    const double& get_pPPC(){
+        return pPPC;
+    }
+    const double& get_normalizationR(){
+        return normalizationR;
+    }
+    const double& get_threshold(){
+        return threshold;
+    }
+    const double& get_fuseTime(){
+        return fuseTime;
     }
     /*
     shell(shellParams sp, string name){
 
     }*/
 
-    procCharacteristic retPC(){
-        return p;
-    }
-
     shellParams returnShipParams(){
         shellParams ret;
         ret.caliber = caliber;
         ret.cD = cD;
-        ret.fuseTime = p.fuseTime;
+        ret.fuseTime = fuseTime;
         ret.krupp = krupp;
         ret.mass = mass;
         //ret.name = name;
         ret.normalization = normalization;
-        ret.threshold = p.threshold;
-        ret.v0 = p.v0;
+        ret.threshold = threshold;
+        ret.v0 = v0;
         return ret;
     }
     
@@ -234,12 +244,11 @@ class shellCalc{
 
     void singleTraj(unsigned int i, shell& s, bool addTraj){
         //std::cout<<"Running0 "<< i<<std::endl;
-        const procCharacteristic pC = s.retPC();
-        double k = pC.k;
-        double cw_2 = pC.cw_2;
-        double pPPC = pC.pPPC;
-        double normalizationR = pC.normalizationR;
-        __m256d angleSIMD, angleRSIMD, temp, v0SIMD = _mm256_set1_pd(pC.v0);
+        const double k = s.get_k();
+        const double cw_2 = s.get_cw_2();
+        const double pPPC = s.get_pPPC();
+        const double normalizationR = s.get_pPPC();
+        __m256d angleSIMD, angleRSIMD, temp, v0SIMD = _mm256_set1_pd(s.get_v0());
         __m256d vx, vy, tSIMD;
 
         #ifdef __clang__
@@ -265,7 +274,6 @@ class shellCalc{
         unsigned int counter;
         #define __TrajBuffer__ 128
         double xT[__TrajBuffer__], yT[__TrajBuffer__];
-
         for(unsigned int j = 0; (j+i<s.size) && (j < vSize); j++){
 
             if(addTraj){
@@ -388,7 +396,7 @@ class shellCalc{
 
     #ifdef USE_SIMD
 
-    __m256d calcNormalizationRSIMD(__m256d angle, const double normalizationR){
+    __m256d calcNormalizationRSIMD(const __m256d angle, const double normalizationR){
         return _mm256_max_pd(
             _mm256_sub_pd(
                 _mm256_and_pd(
@@ -445,25 +453,24 @@ class shellCalc{
         s.completed = true;
     }
 
-    //Post-Penetration 
+    //Post-Penetration Section
     private:
     double dtf = 0.0001;
     double xf0 = 0, yf0 = 0;
     //bool completed = false;
 
     void postPenTraj(const unsigned int i, shell& s, double v_x, double v_y, double v_z, double thickness){
-        const procCharacteristic pC = s.retPC();
-        double k = pC.k;
-        double cw_2 = pC.cw_2;
-        double pPPC = pC.pPPC;
-        double normalizationR = pC.normalizationR;
+        const double k = s.get_k();
+        const double cw_2 = s.get_cw_2();
+        const double pPPC = s.get_pPPC();
+        const double normalizationR = s.get_normalizationR();
         double T, p, rho, t, x, y, z; //v_x, v_y, v_z;
         x = xf0;
         y = yf0;
         z = xf0;
         t = 0;
         if(v_x > 0){
-            while(t < pC.fuseTime){
+            while(t < s.get_fuseTime()){
                 x = x + dtf*v_x;
                 z = z + dtf*v_z;
                 y = y + dtf*v_y;
@@ -479,7 +486,7 @@ class shellCalc{
             s.postPenData[i+s.postPenSize*2] = x;
             s.postPenData[i+s.postPenSize*3] = y;
             s.postPenData[i+s.postPenSize*4] = z;
-            if(thickness > pC.threshold){
+            if(thickness > s.get_threshold()){
                 s.postPenData[i+s.postPenSize*5] = x;
             }else{
                 s.postPenData[i+s.postPenSize*5] = -1;
@@ -557,7 +564,7 @@ class shellCalc{
             
             cAngleV = xacos(_mm256_mul_pd(xcos(hAngleV), xcos(vAngleV)));
             //cAngleV = acos(cos(hAngleV) * cos(vAngleV));
-            nCAngleV = calcNormalizationRSIMD(cAngleV, s.retPC().normalizationR);
+            nCAngleV = calcNormalizationRSIMD(cAngleV, s.get_normalizationR());
             eThickness = _mm256_div_pd(_mm256_set1_pd(thickness), xcos(nCAngleV));
                 
             pPVV = _mm256_max_pd(_mm256_mul_pd(v0V, 
