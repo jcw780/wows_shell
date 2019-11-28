@@ -48,6 +48,7 @@ double operator"" _mps(long double input){return input;}
 double operator"" _fps(long double input){return input * 0.3048;}
 */
 
+//Base shell characteristics
 typedef struct{
     double v0;
     double caliber;
@@ -61,6 +62,7 @@ typedef struct{
 
 }shellParams;
 
+//Used to pass variables to trajectory calculators
 typedef struct{
     double v0;
     double k;
@@ -68,6 +70,7 @@ typedef struct{
     double pPPC;
     double normalizationR;
     double threshold;
+    double fuseTime;
 }procCharacteristic; 
 
 class shell{
@@ -79,12 +82,14 @@ class shell{
     double cD; 
     double normalization;
     //double threshold; 
-    double fuseTime;
+    //double fuseTime;
     std::string name;
 
     //double k, cw_2, pPPC, normalizationR;
     procCharacteristic p;
 
+    //Condenses initial values into values used by calculations
+    //[Reduces repeated computations]
     void preProcess(){
         p.k = 0.5 * cD * pow((caliber/2),2) * M_PI / mass;
         p.cw_2 = 100+1000/3*caliber;
@@ -96,7 +101,7 @@ class shell{
     unsigned int size, postPenSize;
     unsigned int sizeAligned, postPenSizeAligned;
     bool completed = false;
-    //procCharacteristic p;
+
     /*trajectories output
     [0           ]trajx 0        [1           ]trajy 1
     ...
@@ -122,9 +127,9 @@ class shell{
         tToTargetA};
 
     shell(double v0, double caliber, double krupp, double mass,
-    double normalization, double cD, std::string name, double threshold, double fuseTime){
-        this->fuseTime = fuseTime;
-
+    double normalization, double cD, std::string name, double threshold, double fuseTime = .033){
+        //this->fuseTime = fuseTime;
+        p.fuseTime = fuseTime;
         //this->v0 = v0;
         p.v0 = v0;
         this->caliber = caliber;
@@ -154,7 +159,7 @@ class shell{
         shellParams ret;
         ret.caliber = caliber;
         ret.cD = cD;
-        ret.fuseTime = fuseTime;
+        ret.fuseTime = p.fuseTime;
         ret.krupp = krupp;
         ret.mass = mass;
         //ret.name = name;
@@ -201,25 +206,26 @@ class shell{
 
 class shellCalc{
     private:
+    //Calculation constants
     //double C = 0.5561613;
-    double g = 9.81;
-    double t0 = 288;
-    double L = 0.0065;
-    double p0 = 101325;
-    double R = 8.31447;
-    double M = 0.0289644;
+    double g = 9.81;      //Gravitational Constant       m/(s^2)
+    double t0 = 288;      //Temperature at Sea Level     K
+    double L = 0.0065;    //Atmospheric Lapse Rate       C/km
+    double p0 = 101325;   //Pressure at Sea Level        Pa
+    double R = 8.31447;   //Ideal Gas Constant           J/(mol K)
+    double M = 0.0289644; //Molarity of Air at Sea Level kg/mol
     double cw_1 = 1;
 
-    double max = 25;
-    double min = 0;
-    double precision = .1;
-    double x0 = 0, y0 = 0;
-    double dt = .01;
+    double max = 25;      //Max Angle
+    double min = 0;       //Min Angle
+    double precision = .1;//Angle Step
+    double x0 = 0, y0 = 0;//Starting x0, y0
+    double dt = .01;      //Time step
 
     //double k, cw_2, pPPC, normalizationR;
 
-    std::vector<double> oneVector;
-    std::vector<double> temp;
+    //std::vector<double> oneVector;
+    //std::vector<double> temp;
 
     unsigned int alignmentRequired = vSize * 8;
     /*standardOut1 - indicies refer to multiples of size
@@ -371,9 +377,7 @@ class shellCalc{
         );
     }
     
-
     public:
-
     double calcNormalizationR(const double angle, const double normalizationR){ //Input in radians
         if(fabs(angle) > normalizationR){
             return fabs(angle) - normalizationR;
@@ -430,9 +434,6 @@ class shellCalc{
         s.size = (unsigned int) (max - min) / precision;
         s.sizeAligned = (sizeof(__m256d)/sizeof(double) - (s.size % (sizeof(__m256d)/sizeof(double)))) + s.size;
 
-        //oneVector.resize(size);
-        //memset(oneVector.data(), 1, sizeof(double) * size);
-
         s.trajectories.resize(2 * s.size);
         s.stdData.resize(s.maxColumns * s.sizeAligned);
 
@@ -440,16 +441,15 @@ class shellCalc{
         #pragma omp parallel for schedule(dynamic)
         for(i=0; i<s.size; i+=vSize){
             singleTraj(i, s, true);
-            //printf("i %d \n", i);
         }
         s.completed = true;
     }
 
     //Post-Penetration 
     private:
-    double threshold, fuseTime, dtf = 0.0001;
+    double dtf = 0.0001;
     double xf0 = 0, yf0 = 0;
-    bool completed = false;
+    //bool completed = false;
 
     void postPenTraj(const unsigned int i, shell& s, double v_x, double v_y, double v_z, double thickness){
         const procCharacteristic pC = s.retPC();
@@ -458,15 +458,12 @@ class shellCalc{
         double pPPC = pC.pPPC;
         double normalizationR = pC.normalizationR;
         double T, p, rho, t, x, y, z; //v_x, v_y, v_z;
-        //v_x = velocities[i];
-        //v_z = velocities[i+postPenSizeAligned*2];
-        //v_y = velocities[i+postPenSizeAligned];
         x = xf0;
         y = yf0;
         z = xf0;
         t = 0;
         if(v_x > 0){
-            while(t < fuseTime){
+            while(t < pC.fuseTime){
                 x = x + dtf*v_x;
                 z = z + dtf*v_z;
                 y = y + dtf*v_y;
@@ -517,27 +514,27 @@ class shellCalc{
         s.postPenSizeAligned = s.sizeAligned * s.angles.size();
         s.postPenData.resize(6 * postPenSize);
 
-
-        #ifdef USE_SIMD
-        __m256d hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV, v0V, pPVV, ePenetrationV, eThickness, hFAngleV, vFAngleV, v_x, v_y, v_z;
-        #endif
-        /*for(unsigned int j=0; j<int64_vec::size; j++){
-            temp.set_elt(j, j);
-        }*/
-
+        #pragma omp parallel for
+        for(unsigned int i=0; i < s.angles.size(); i++){
+            std::fill_n(s.postPenData.begin() + i * s.size, s.size, s.angles[i]);
+            std::copy_n(s.stdData.begin() + s.distance*s.sizeAligned, s.size, s.postPenData.begin() + s.postPenSize + i * s.size);
+        }
         //#ifdef USE_SIMD
-        #pragma omp parallel for private(distIndex, hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV, pPVV, ePenetrationV, hFAngleV, vFAngleV)
-        for(unsigned int i=0; i < s.postPenSize % vSize; i+=vSize){
+        #pragma omp parallel for //private(distIndex, hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV, pPVV, ePenetrationV, hFAngleV, vFAngleV)
+        for(unsigned int i=0; i < s.postPenSize; i+=vSize){
+            __m256d hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV;
+            __m256d v0V, pPVV, ePenetrationV, eThickness, hFAngleV, vFAngleV;
+            __m256d v_x, v_y, v_z;
             distIndex = (i < s.size) ? i : i % s.size;
             anglesIndex = i / s.size;
 
             //hAngleV = postPenData.data() + i;
             unsigned int j, k = 0;
             if(distIndex < s.size - vSize + 1){
-                hAngleV = _mm256_loadu_pd(s.angles.data()+anglesIndex);
-                vAngleV = _mm256_loadu_pd(s.stdData.data()+s.sizeAligned*s.impactAHR);
-                ePenetrationV = _mm256_loadu_pd(s.stdData.data()+s.sizeAligned*s.rawPen);
-                v0V = _mm256_loadu_pd(s.stdData.data()+s.sizeAligned*s.impactV);
+                hAngleV = _mm256_set1_pd(s.angles[anglesIndex]);
+                vAngleV = _mm256_loadu_pd(s.stdData.data()+s.sizeAligned*s.impactAHR+distIndex);
+                ePenetrationV = _mm256_loadu_pd(s.stdData.data()+s.sizeAligned*s.rawPen+distIndex);
+                v0V = _mm256_loadu_pd(s.stdData.data()+s.sizeAligned*s.impactV+distIndex);
             }else{
                 for(j = 0; (j + distIndex < s.size) && (j < vSize); j++){
                     hAngleV[j] = s.angles[anglesIndex];
@@ -548,13 +545,14 @@ class shellCalc{
                 if(anglesIndex < s.angles.size()){
                     for(; (j < vSize); j++){
                         hAngleV[j] = s.angles[anglesIndex + 1];
-                        vAngleV[k] = s.stdData[k+s.sizeAligned*s.impactAHR];
-                        ePenetrationV[k] = s.stdData[k+s.sizeAligned*s.rawPen];
+                        vAngleV[j] = s.stdData[k+s.sizeAligned*s.impactAHR];
+                        ePenetrationV[j] = s.stdData[k+s.sizeAligned*s.rawPen];
                         v0V[j] = s.stdData[k+s.sizeAligned*s.impactV];
                         k++;
                     }
                 }
             }
+            hAngleV = _mm256_mul_pd(hAngleV, _mm256_set1_pd(M_PI/180));
 
             
             cAngleV = xacos(_mm256_mul_pd(xcos(hAngleV), xcos(vAngleV)));
@@ -562,40 +560,29 @@ class shellCalc{
             nCAngleV = calcNormalizationRSIMD(cAngleV, s.retPC().normalizationR);
             eThickness = _mm256_div_pd(_mm256_set1_pd(thickness), xcos(nCAngleV));
                 
-            //ePenetrationV = _mm256_mul_pd(xcos(nCAngleV), ePenentrationV);
             pPVV = _mm256_max_pd(_mm256_mul_pd(v0V, 
                 _mm256_sub_pd(_mm256_set1_pd(1), 
                     xexp(_mm256_sub_pd(_mm256_set1_pd(1),
                         _mm256_div_pd(ePenetrationV, eThickness)
                     )))
             ), _mm256_set1_pd(0));
-            //pPVV = ifthen(ePenetrationV > float64_vec(thickness), 
-            //(float64_vec(1)-exp(float64_vec(1)-ePenetrationV/float64_vec(thickness)))*v0V, float64_vec(0.0));
-
-            //aAngleV = nCAngleV / cAngleV;
-            //hFAngleV = hAngleV * aAngleV;
-            //vFAngleV = vAngleV * aAngleV;
 
             aAngleV = _mm256_div_pd(nCAngleV, cAngleV);
             hFAngleV = _mm256_mul_pd(hAngleV, aAngleV);
             vFAngleV = _mm256_mul_pd(vAngleV, aAngleV);
-
+            
+            __m256d vFAngleVCos = xcos(vFAngleV);
             v_x = _mm256_mul_pd(pPVV,
-                _mm256_mul_pd(xcos(vFAngleV), xcos(hFAngleV))
+                _mm256_mul_pd(vFAngleVCos, xcos(hFAngleV))
             );
             v_y = _mm256_mul_pd(pPVV, xsin(vFAngleV));
             v_z = _mm256_mul_pd(pPVV,
-                _mm256_mul_pd(xcos(vFAngleV), xsin(hFAngleV))
+                _mm256_mul_pd(vFAngleVCos, xsin(hFAngleV))
             );
 
             for(j=0; (j<vSize) && (j+i < s.postPenSize); j++){
-                postPenTraj(i, s, v_x[j], v_y[j], v_z[j], eThickness[j]);
+                postPenTraj(i+j, s, v_x[j], v_y[j], v_z[j], eThickness[j]);
             }
-
-            //storea(pPVV * cos(vFAngleV) * cos(vFAngleV)  , velocities.data()+i);
-            //storea(pPVV * sin(vFAngleV)                  , velocities.data()+i+  postPenSizeAligned);
-            //storea(pPVV * cos(vFAngleV) * sin(hFAngleV)  , velocities.data()+i+2*postPenSizeAligned);
-            //storea(float64_vec(thickness) / cos(nCAngleV), velocities.data()+i+3*postPenSizeAligned);
         }
 
     }

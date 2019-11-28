@@ -11,7 +11,7 @@ int main(){
     double total = 0;
     shell* test;
     shellCalc sc;
-    unsigned int runs = 1;
+    unsigned int runs = 100;
     for(int i=0; i<runs; i++){
         test = new shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76, .033);
         auto t1 = std::chrono::high_resolution_clock::now();
@@ -20,25 +20,26 @@ int main(){
         auto t2 = std::chrono::high_resolution_clock::now();
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>( t2 - t1 ).count();
         //std::cout << duration;
-        test->printStdData();
         if(i < runs - 1){
             delete test;
         }
     }
     //test.printStdData();
+    //test->printStdData();
     std::cout << "completed" << std::endl;
     std::cout << total / runs / 1000000000 << std::endl;
     //test.calculateStd();
 
     
-    std::vector<double> angle;
+    std::vector<double> angle = {0, 10, 20, 30, 40, 50, 60};
+    /*
     angle.push_back(0);
     angle.push_back(10);
     angle.push_back(20);
     angle.push_back(30);
     angle.push_back(40);
     angle.push_back(50);
-    angle.push_back(60);
+    angle.push_back(60);*/
     
     test->angles = std::move(angle);
     sc.calculatePostPen(100, *test);
