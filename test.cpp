@@ -15,7 +15,7 @@ int main(){
 
     shell* test;
     shellCalc sc;
-    unsigned int runs = 1;
+    unsigned int runs = 100;
     for(int i=0; i<runs; i++){
         test = new shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76, .033);
         auto t1 = std::chrono::high_resolution_clock::now();
@@ -37,17 +37,11 @@ int main(){
 
     
     std::vector<double> angle = {0, 10, 20, 30, 40, 50, 60};
-    /*
-    angle.push_back(0);
-    angle.push_back(10);
-    angle.push_back(20);
-    angle.push_back(30);
-    angle.push_back(40);
-    angle.push_back(50);
-    angle.push_back(60);*/
     
     test->angles = std::move(angle);
+    //std::cout << "completed" << std::endl;
     sc.calculatePostPen(100, *test);
+    //std::cout << "completed" << std::endl;
     test->printPostPen();
 
     /*

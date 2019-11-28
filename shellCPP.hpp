@@ -90,7 +90,7 @@ class shell{
     public:
     unsigned int size, postPenSize;
     unsigned int sizeAligned, postPenSizeAligned;
-    bool completed = false;
+    bool completedStd = false, completedPostPen = false;
 
     /*trajectories output
     [0           ]trajx 0        [1           ]trajy 1
@@ -180,6 +180,11 @@ class shell{
     }
     
     void printPostPen(){
+        for(auto i: angles){
+            std::cout<<i<<" ";
+        }
+        std::cout<<std::endl;
+
         for(unsigned int i=0; i<postPenSize; i++){
             for(int j=0; j<6; j++){
                 //printf("%f ", postPenData[i + j * postPenSize]);
@@ -189,7 +194,7 @@ class shell{
             std::cout<<"\n";
         }
         //printf("Completed Print\n");
-        std::cout<<"Completed Print\n";
+        std::cout<<"Completed Post-Penetration\n";
     }
 
     void printStdData(){
@@ -199,7 +204,7 @@ class shell{
             }
             std::cout<<std::endl;
         }
-        std::cout<<"Completed"<<std::endl;
+        std::cout<<"Completed Standard Data"<<std::endl;
     }
     void printTrajectory(unsigned int target){
         if(target >= size){
@@ -270,46 +275,56 @@ class shellCalc{
         vx = _mm256_mul_pd(v0SIMD, xcos(angleRSIMD));
         vy = _mm256_mul_pd(v0SIMD, xsin(angleRSIMD));
 
-        double T, p, rho, t, x, y, v_x, v_y;
-        unsigned int counter;
         #define __TrajBuffer__ 128
         double xT[__TrajBuffer__], yT[__TrajBuffer__];
         for(unsigned int j = 0; (j+i<s.size) && (j < vSize); j++){
-
+            double T, p, rho, t; //x, y, v_x, v_y;
+            __m128d pos, velocity, velocitySquared, dragIntermediary;
+            unsigned int counter;
             if(addTraj){
                 s.trajectories[2*(i+j)  ].reserve(__TrajBuffer__);
                 s.trajectories[2*(i+j)+1].reserve(__TrajBuffer__);
             }
             //double T, p, rho, t, x, y, v_x, v_y;
-            v_x = vx[j];
-            v_y = vy[j];
+            //v_x = vx[j];
+            //v_y = vy[j];
+            velocity[0] = vx[j]; //velocity 0 - v_x 1 - v_y
+            velocity[1] = vy[j];
             //std::cout<<vx[j]<<" "<<vy[j]<<std::endl;
             //std::cout<<k<<" "<<v_x<<" "<<v_y<<std::endl;
-            x = x0;
-            y = y0;
+            //x = x0;
+            //y = y0;
+            pos[0] = x0;
+            pos[1] = y0;
             t = 0;
-            s.trajectories[2*(i+j)  ].push_back(x);
-            s.trajectories[2*(i+j)+1].push_back(y);
+            s.trajectories[2*(i+j)  ].push_back(x0);
+            s.trajectories[2*(i+j)+1].push_back(y0);
             //printf("%f ",dt);
 
-            while(y >= 0){
+            while(pos[1] >= 0){
                 for(counter = 0; counter < __TrajBuffer__; counter++){
-                    x += dt*v_x;
-                    y += dt*v_y;
+                    //x += dt*v_x;
+                    //y += dt*v_y;
+                    pos = _mm_fmadd_pd(_mm_set1_pd(dt), velocity, pos);
                     //printf("%f ", x);
-                    T = t0 - L*y;
-                    p = p0*pow((1-L*y/t0),(g*M/(R*L)));
+                    T = t0 - L*pos[1];
+                    p = p0*pow((1-L*pos[1]/t0),(g*M/(R*L)));
                     rho = p*M/(R*T);
 
-                    v_x -= dt*k*rho*(cw_1*v_x*v_x+cw_2*v_x);
-                    v_y -= dt*(g - k*rho*(cw_1*v_y*v_y+cw_2*fabs(v_y))*signum(v_y));
+                    velocitySquared = _mm_mul_pd(velocity, velocity);
+                    dragIntermediary[0] = k*rho*(cw_1*velocitySquared[0] + cw_2*velocity[0]);
+                    dragIntermediary[1] = g - k*rho*(cw_1*velocitySquared[1]+cw_2*fabs(velocity[1]))*signum(velocity[1]);
+                    //v_x -= dt*k*rho*(cw_1*v_x*v_x+cw_2*v_x);
+                    //v_y -= dt*(g - k*rho*(cw_1*v_y*v_y+cw_2*fabs(v_y))*signum(v_y));
+
+                    velocity = _mm_fmadd_pd(_mm_set1_pd(-1 * dt), dragIntermediary, velocity);
                     t += dt;
-                    xT[counter] = x;
-                    yT[counter] = y;
+                    xT[counter] = pos[0];
+                    yT[counter] = pos[1];
                     //if(i+j == 248 || i+j == 247){
                     //    std::cout<<i+k<<" "<<T<<" "<<p<<" "<<x<<" "<<y<<" "<<v_x<<" "<<v_y<<std::endl; 
                     //}
-                    if(y < 0){
+                    if(pos[1] < 0){
                         break;
                     }
                 }
@@ -319,9 +334,9 @@ class shellCalc{
 
                 }
             }
-            s.stdData[i+j+s.sizeAligned*s.distance] = x;
-            vx[j] = v_x;
-            vy[j] = v_y;
+            s.stdData[i+j+s.sizeAligned*s.distance] = pos[0];
+            vx[j] = velocity[0];
+            vy[j] = velocity[1];
             tSIMD[j] = t;
             //std::cout<<k<<" "<<v_x<<std::endl;
         }
@@ -450,7 +465,7 @@ class shellCalc{
         for(i=0; i<s.size; i+=vSize){
             singleTraj(i, s, true);
         }
-        s.completed = true;
+        s.completedStd = true;
     }
 
     //Post-Penetration Section
@@ -462,32 +477,50 @@ class shellCalc{
     void postPenTraj(const unsigned int i, shell& s, double v_x, double v_y, double v_z, double thickness){
         const double k = s.get_k();
         const double cw_2 = s.get_cw_2();
-        const double pPPC = s.get_pPPC();
-        const double normalizationR = s.get_normalizationR();
-        double T, p, rho, t, x, y, z; //v_x, v_y, v_z;
-        x = xf0;
-        y = yf0;
-        z = xf0;
+        //const double pPPC = s.get_pPPC();
+        //const double normalizationR = s.get_normalizationR();
+        double T, p, rho, t; //x, y, z; //v_x, v_y, v_z;
+        //x = xf0;
+        //y = yf0;
+        //z = xf0;
+        __m256d pos, velocities, velocitiesSquared, dragIntermediary;
+        __m128d xz_dragIntermediary; 
+        pos[0] = xf0, pos[1] = yf0, pos[2] = xf0;
+        velocities[0] = v_x, velocities[1] = v_y, velocities[2] = v_z;
+
         t = 0;
         if(v_x > 0){
             while(t < s.get_fuseTime()){
-                x = x + dtf*v_x;
-                z = z + dtf*v_z;
-                y = y + dtf*v_y;
-                T = t0 - L*y;
-                p = p0*pow((1-L*y/t0),(g*M/(R*L)));
+                //x = x + dtf*v_x;
+                //z = z + dtf*v_z;
+                //y = y + dtf*v_y;
+                pos = _mm256_fmadd_pd(velocities, _mm256_set1_pd(dtf), pos);
+                T = t0 - L*pos[1];
+                p = p0*pow((1-L*pos[1]/t0),(g*M/(R*L)));
                 rho = p*M/(R*T);
 
-                v_x = v_x - dtf*k*rho*(cw_1*v_x*v_x+cw_2*v_x);
-                v_z = v_z - dtf*k*rho*(cw_1*v_z*v_z+cw_2*v_z);
-                v_y = v_y - dtf*(g - k*rho*(cw_1*v_y*v_y+cw_2*fabs(v_y))*signum(v_y));
+                velocitiesSquared = _mm256_mul_pd(velocities, velocities);
+                xz_dragIntermediary = _mm_mul_pd(_mm_set1_pd(k*rho),
+                    _mm_fmadd_pd(_mm_set1_pd(cw_1), _mm_set_pd(velocitiesSquared[0], velocitiesSquared[1]), 
+                    _mm_mul_pd(_mm_set1_pd(cw_2), _mm_set_pd(velocities[0], velocities[2]))));
+                
+                dragIntermediary[0] = xz_dragIntermediary[0]; //x
+                dragIntermediary[1] = (g - k*rho*(cw_1*velocitiesSquared[1]+cw_2*fabs(velocities[1]))*signum(velocities[1]));
+                dragIntermediary[2] = xz_dragIntermediary[1]; //z
+
+                //v_x = v_x - dtf*k*rho*(cw_1*v_x*v_x+cw_2*v_x);
+                //v_z = v_z - dtf*k*rho*(cw_1*v_z*v_z+cw_2*v_z);
+                //v_y = v_y - dtf*(g - k*rho*(cw_1*v_y*v_y+cw_2*fabs(v_y))*signum(v_y));
+
+                velocities = _mm256_fmadd_pd(_mm256_set1_pd(dtf * -1), dragIntermediary, velocities);
+
                 t = t + dtf;
             }
-            s.postPenData[i+s.postPenSize*2] = x;
-            s.postPenData[i+s.postPenSize*3] = y;
-            s.postPenData[i+s.postPenSize*4] = z;
+            s.postPenData[i+s.postPenSize*2] = pos[0];
+            s.postPenData[i+s.postPenSize*3] = pos[1];
+            s.postPenData[i+s.postPenSize*4] = pos[2];
             if(thickness > s.get_threshold()){
-                s.postPenData[i+s.postPenSize*5] = x;
+                s.postPenData[i+s.postPenSize*5] = pos[0];
             }else{
                 s.postPenData[i+s.postPenSize*5] = -1;
             }
@@ -512,9 +545,15 @@ class shellCalc{
 
 
     void calculatePostPen(const double thickness, shell& s){
-        if(!s.completed){
+        if(!s.completedStd){
             calculateStd(s);
         }
+
+        /*for(auto i: s.angles){
+            std::cout<<i<<" ";
+        }
+        std::cout<<std::endl;*/
+
 
         unsigned int i, distIndex, anglesIndex;
         s.postPenSize = s.size * s.angles.size();
@@ -591,6 +630,7 @@ class shellCalc{
                 postPenTraj(i+j, s, v_x[j], v_y[j], v_z[j], eThickness[j]);
             }
         }
+        s.completedPostPen = true; 
 
     }
 
