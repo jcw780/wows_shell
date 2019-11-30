@@ -65,14 +65,14 @@ typedef struct{
 
 class shell{
     private:
-    double v0;
-    double caliber;
-    double krupp; 
-    double mass;
-    double cD; 
-    double normalization;
-    double threshold; 
-    double fuseTime;
+    double v0;            //muzzle velocity     m/s
+    double caliber;       //shell caliber       m
+    double krupp;         //shell krupp         [ndim]
+    double mass;          //shell mass          kg
+    double cD;            //coefficient of drag [ndim]
+    double normalization; //shell normalization degrees
+    double threshold;     //fusing threshold    mm
+    double fuseTime;      //fuse time           s
     std::string name;
 
     double k, cw_2, pPPC, normalizationR;
@@ -81,15 +81,15 @@ class shell{
     //Condenses initial values into values used by calculations
     //[Reduces repeated computations]
     void preProcess(){
-        k = 0.5 * cD * pow((caliber/2),2) * M_PI / mass;
-        cw_2 = 100+1000/3*caliber;
-        pPPC = 0.5561613 * krupp/2400 * pow(mass,0.55) / pow((caliber*1000),0.65);
-        normalizationR = normalization / 180 * M_PI;
+        k = 0.5 * cD * pow((caliber/2),2) * M_PI / mass; //condensed drag coefficient
+        cw_2 = 100+1000/3*caliber; //quadratic drag coefficient
+        pPPC = 0.5561613 * krupp/2400 * pow(mass,0.55) / pow((caliber*1000),0.65); //condensed penetration coefficient
+        normalizationR = normalization / 180 * M_PI; //normalization (radians)
     }
 
     public:
-    unsigned int size, postPenSize;
-    unsigned int sizeAligned, postPenSizeAligned;
+    unsigned int size, postPenSize; //number of distances in: standard, postPen
+    unsigned int sizeAligned, postPenSizeAligned; //Not 100% necessary - sizes adjusted to fulfill alignment
     bool completedStd = false, completedPostPen = false;
 
     /*trajectories output
@@ -98,6 +98,7 @@ class shell{
     [size * 2 - 2]trajx size - 1 [size * 2 - 1]trajy size - 1
     */
     std::vector<std::vector<double>> trajectories;
+
     /*standard output - Indicies refer to multiples of size [Num Colums of 12
     [0 : 1)-distance,          [1 : 2)-launch angle,      [2 : 3)-impact angle - R
     [3 : 4)-impact angle - D,  [4 : 5)-impact velocity,   [5 : 6)-raw pen,           
@@ -160,11 +161,8 @@ class shell{
     const double& get_fuseTime(){
         return fuseTime;
     }
-    /*
-    shell(shellParams sp, string name){
-
-    }*/
-
+    
+    //Could be split up into two classes
     shellParams returnShipParams(){
         shellParams ret;
         ret.caliber = caliber;
@@ -411,7 +409,7 @@ class shellCalc{
 
     #ifdef USE_SIMD
 
-    __m256d calcNormalizationRSIMD(const __m256d angle, const double normalizationR){
+    inline __m256d calcNormalizationRSIMD(const __m256d angle, const double normalizationR){
         return _mm256_max_pd(
             _mm256_sub_pd(
                 _mm256_and_pd(
@@ -553,7 +551,6 @@ class shellCalc{
             std::cout<<i<<" ";
         }
         std::cout<<std::endl;*/
-
 
         unsigned int i, distIndex, anglesIndex;
         s.postPenSize = s.size * s.angles.size();
