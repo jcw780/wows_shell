@@ -117,8 +117,15 @@ class shell{
         ePenD      , ePenDN , tToTarget, 
         tToTargetA};
 
-    shell(double v0, double caliber, double krupp, double mass,
-    double normalization, double cD, std::string name, double threshold, double fuseTime = .033){
+    shell();
+
+    shell(const double v0, const double caliber, const double krupp, const double mass,
+    const double normalization, const double cD, const std::string& name, const double threshold, const double fuseTime = .033){
+        setValues(v0, caliber, krupp, mass, normalization, cD, name, threshold, fuseTime);
+    }
+
+    void setValues(const double v0, const double caliber, const double krupp, const double mass,
+    const double normalization, const double cD, const std::string& name, const double threshold, const double fuseTime = .033){
         this->fuseTime = fuseTime;
         //p.fuseTime = fuseTime;
         this->v0 = v0;
@@ -223,7 +230,7 @@ class shellCalc{
     //double C = 0.5561613;
     double g = 9.81;      //Gravitational Constant       m/(s^2)
     double t0 = 288;      //Temperature at Sea Level     K
-    double L = 0.0065;    //Atmospheric Lapse Rate       C/km
+    double L = 0.0065;    //Atmospheric Lapse Rate       C/m
     double p0 = 101325;   //Pressure at Sea Level        Pa
     double R = 8.31447;   //Ideal Gas Constant           J/(mol K)
     double M = 0.0289644; //Molarity of Air at Sea Level kg/mol
@@ -339,7 +346,7 @@ class shellCalc{
             //std::cout<<k<<" "<<v_x<<std::endl;
         }
 
-        //Calculate [2]IA , [7]IA_D
+        //Calculate [2]Impact Angles (impactAHR) , [7] Impact Angle Deck (impactADD)
         __m256d iVSIMD, rPSIMD;  
         angleRSIMD = xatan(_mm256_div_pd(vy,vx));
 
@@ -349,7 +356,6 @@ class shellCalc{
             _mm256_mul_pd(angleRSIMD, _mm256_set1_pd(180 / M_PI))
         );
 
-        //iADRSIMD = float64_vec(M_PI / 2) + iARSIMD;
         angleSIMD = _mm256_add_pd(
             _mm256_set1_pd(M_PI / 2), angleRSIMD
         );
@@ -358,8 +364,7 @@ class shellCalc{
             _mm256_mul_pd(angleSIMD, _mm256_set1_pd(180 / M_PI))
         );
 
-        //Calculate [3]iV,  [4]rP
-
+        //Calculate [3]Impact Velocity (impactV),  [4]Raw Penetration (rawPen)
         iVSIMD = _mm256_sqrt_pd(_mm256_add_pd(_mm256_mul_pd(vx, vx), _mm256_mul_pd(vy, vy)));
         _mm256_storeu_pd(s.stdData.data()+i+s.sizeAligned*s.impactV, iVSIMD);
 
@@ -428,25 +433,25 @@ class shellCalc{
     }
 
     shellCalc() = default;
-
+    //Replace with setter in the future
     void editTestParameters(double max, double min, double precision, double x0, double y0, double dt){
         if(!max){
             this->max = max;
         }
         if(!min){
-            this->min = max;
+            this->min = min;
         }
         if(!precision){
-            this->precision = max;
+            this->precision = precision;
         }
         if(!x0){
-            this->x0 = max;
+            this->x0 = x0;
         }
         if(!y0){
-            this->y0 = max;
+            this->y0 = y0;
         }
         if(!dt){
-            this->dt = max;
+            this->dt = dt;
         }
     }
 
@@ -459,7 +464,7 @@ class shellCalc{
         s.stdData.resize(s.maxColumns * s.sizeAligned);
 
         //omp_set_num_threads(6);
-        #pragma omp parallel for schedule(dynamic)
+        #pragma omp parallel for schedule(dynamic, 2)
         for(i=0; i<s.size; i+=vSize){
             singleTraj(i, s, true);
         }
@@ -595,9 +600,7 @@ class shellCalc{
                     }
                 }
             }
-            hAngleV = _mm256_mul_pd(hAngleV, _mm256_set1_pd(M_PI/180));
-
-            
+            hAngleV = _mm256_mul_pd(hAngleV, _mm256_set1_pd(M_PI/180));            
             cAngleV = xacos(_mm256_mul_pd(xcos(hAngleV), xcos(vAngleV)));
             //cAngleV = acos(cos(hAngleV) * cos(vAngleV));
             nCAngleV = calcNormalizationRSIMD(cAngleV, s.get_normalizationR());
