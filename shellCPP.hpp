@@ -117,7 +117,7 @@ class shell{
         ePenD      , ePenDN , tToTarget, 
         tToTargetA};
 
-    shell();
+    shell() = default;
 
     shell(const double v0, const double caliber, const double krupp, const double mass,
     const double normalization, const double cD, const std::string& name, const double threshold, const double fuseTime = .033){
