@@ -21,7 +21,7 @@ int main(){
         auto t1 = std::chrono::high_resolution_clock::now();
         //test->calculateStd();
         //std::cout<<"Running"<<std::endl;
-        sc.calculateStd(*test);
+        sc.calculateStd(*test, true);
         auto t2 = std::chrono::high_resolution_clock::now();
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>( t2 - t1 ).count();
         //std::cout << duration;
@@ -30,28 +30,28 @@ int main(){
             delete test;
         }
     }
-    test->printStdData();
+    //test->printStdData();
     std::cout << "completed" << std::endl;
     std::cout << total / runs / 1000000000 << std::endl;
     //test.calculateStd();
 
     
-    std::vector<double> angle = {0, 10, 20, 30, 40, 50, 60};
+    std::vector<double> angle = {0, 1};
     
-    test->angles = std::move(angle);
+    //for(auto& i : angle){
+        //i = 0;
+    //}
+    //test->angles = std::move(angle);
     //std::cout << "completed" << std::endl;
-    //sc.calculatePostPen(100, *test);
+    sc.calculatePostPen(100, *test, angle);
     //std::cout << "completed" << std::endl;
-    //test->printPostPen();
+    test->printPostPen();
 
     /*
     for(unsigned int i=0; i<angle.size(); i++){
         printf("%f\n", angle[i]);
     }*/
 
-    //test.setAngles(angle);
-    //test.calculatePostPen(100);
-    //test.printPostPen();
 
     //auto var = test.postPenDataCopy();
     //std::cout<<&var<< std::endl;

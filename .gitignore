@@ -18,6 +18,7 @@
 
 # Compiled Python libraries
 *.pyd
+*.exp
 
 # Fortran module files
 *.mod

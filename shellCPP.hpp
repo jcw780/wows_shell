@@ -19,7 +19,7 @@ typedef double fPType;
 #ifdef USE_SIMD
 #define ENABLE_AVX2
 #include "sleef-2.80/simd/sleefsimddp.c"
-const unsigned int vSize = 32 / sizeof(fPType);
+//const unsigned int vSize = 32 / sizeof(fPType);
 
 /*
 #ifdef _SINGLE_PRECISION
@@ -39,7 +39,8 @@ typedef __m256d fVType
 #include <stdlib.h>
 #include <cstring>
 #include <algorithm>
-
+#include <type_traits>
+		
 /*
 double operator"" _kg (long double input){return input;}
 double operator"" _lbs(long double input){return input * 0.453592;}
@@ -107,7 +108,7 @@ class shell{
     [12:13)-ttta
     */
     std::vector<double> stdData;
-    std::vector<double> angles; 
+    //std::vector<double> angles; 
     std::vector<double> postPenData;
     const unsigned int maxColumns = 13;
     enum stdDataIndex{
@@ -185,10 +186,11 @@ class shell{
     }
     
     void printPostPen(){
+        /*
         for(auto i: angles){
             std::cout<<i<<" ";
         }
-        std::cout<<std::endl;
+        std::cout<<std::endl;*/
 
         for(unsigned int i=0; i<postPenSize; i++){
             for(int j=0; j<6; j++){
@@ -246,13 +248,16 @@ class shellCalc{
 
     //std::vector<double> oneVector;
     //std::vector<double> temp;
-
+    static_assert(sizeof(double) == 8, "Size of double is not 8 - required for AVX2"); //Use float64 in the future
+    static_assert(std::numeric_limits<double>::is_iec559, "Type is not IEE754 compliant");
+    static constexpr unsigned int vSize = (256 / 8) / sizeof(double);
+    
     unsigned int alignmentRequired = vSize * 8;
     /*standardOut1 - indicies refer to multiples of size
     [0:1) v_x [1:2) v_y
     */
 
-    void singleTraj(unsigned int i, shell& s, bool addTraj){
+    void singleTraj(const unsigned int i, shell& s, const bool addTraj){
         //std::cout<<"Running0 "<< i<<std::endl;
         const double k = s.get_k();
         const double cw_2 = s.get_cw_2();
@@ -455,10 +460,11 @@ class shellCalc{
         }
     }
 
-    void calculateStd(shell& s){
+    void calculateStd(shell& s, bool addTraj){
         unsigned int i;
         s.size = (unsigned int) (max - min) / precision;
         s.sizeAligned = (sizeof(__m256d)/sizeof(double) - (s.size % (sizeof(__m256d)/sizeof(double)))) + s.size;
+        //s.sizeAligned = s.size;
 
         s.trajectories.resize(2 * s.size);
         s.stdData.resize(s.maxColumns * s.sizeAligned);
@@ -466,7 +472,7 @@ class shellCalc{
         //omp_set_num_threads(6);
         #pragma omp parallel for schedule(dynamic, 2)
         for(i=0; i<s.size; i+=vSize){
-            singleTraj(i, s, true);
+            singleTraj(i, s, addTraj);
         }
         s.completedStd = true;
     }
@@ -490,7 +496,6 @@ class shellCalc{
         __m128d xz_dragIntermediary; 
         pos[0] = xf0, pos[1] = yf0, pos[2] = xf0;
         velocities[0] = v_x, velocities[1] = v_y, velocities[2] = v_z;
-
         t = 0;
         if(v_x > 0){
             while(t < s.get_fuseTime()){
@@ -503,9 +508,12 @@ class shellCalc{
                 rho = p*M/(R*T);
 
                 velocitiesSquared = _mm256_mul_pd(velocities, velocities);
+
                 xz_dragIntermediary = _mm_mul_pd(_mm_set1_pd(k*rho),
-                    _mm_fmadd_pd(_mm_set1_pd(cw_1), _mm_set_pd(velocitiesSquared[0], velocitiesSquared[1]), 
-                    _mm_mul_pd(_mm_set1_pd(cw_2), _mm_set_pd(velocities[0], velocities[2]))));
+                    _mm_fmadd_pd(_mm_set1_pd(cw_1), _mm_set_pd(velocitiesSquared[2], velocitiesSquared[0]), 
+                    _mm_mul_pd(_mm_set1_pd(cw_2), _mm_set_pd(velocities[2], velocities[0]))
+                    )
+                );
                 
                 dragIntermediary[0] = xz_dragIntermediary[0]; //x
                 dragIntermediary[1] = (g - k*rho*(cw_1*velocitiesSquared[1]+cw_2*fabs(velocities[1]))*signum(velocities[1]));
@@ -517,12 +525,13 @@ class shellCalc{
 
                 velocities = _mm256_fmadd_pd(_mm256_set1_pd(dtf * -1), dragIntermediary, velocities);
 
-                t = t + dtf;
+                t += dtf;
             }
+            //std::cout<<i<<" "<<pos[0]<<" "<<pos[1]<<" "<<pos[2]<<"\n";
             s.postPenData[i+s.postPenSize*2] = pos[0];
             s.postPenData[i+s.postPenSize*3] = pos[1];
             s.postPenData[i+s.postPenSize*4] = pos[2];
-            if(thickness > s.get_threshold()){
+            if(thickness >= s.get_threshold()){
                 s.postPenData[i+s.postPenSize*5] = pos[0];
             }else{
                 s.postPenData[i+s.postPenSize*5] = -1;
@@ -546,27 +555,43 @@ class shellCalc{
      */
     //std::vector<double, AlignmentAllocator<double, 32>> postPenData;
 
+    template<typename T>
+    void calculatePostPen(const double thickness, shell& s, std::vector<T>& angles){
+        static_assert(std::is_arithmetic<T>(), "Cannot use non numeric vector");
 
-    void calculatePostPen(const double thickness, shell& s){
         if(!s.completedStd){
-            calculateStd(s);
+            std::cout<<"Standard Not Calculated - Running automatically\n";
+            calculateStd(s, false);
         }
-
-        /*for(auto i: s.angles){
+        std::cout<<"Angles"<<std::endl;
+        for(auto i: angles){
             std::cout<<i<<" ";
         }
-        std::cout<<std::endl;*/
-
+        std::cout<<std::endl;
+        std::cout<<"Running"<<std::endl;
+        std::cout<<angles.size()<<std::endl;
         unsigned int i, distIndex, anglesIndex;
-        s.postPenSize = s.size * s.angles.size();
-        s.postPenSizeAligned = s.sizeAligned * s.angles.size();
-        s.postPenData.resize(6 * postPenSize);
+        s.postPenSize = s.size * angles.size();
+        s.postPenSizeAligned = s.sizeAligned * angles.size();
+        assert(6 * postPenSize < s.postPenData.max_size());
+        std::cout<<"Resizing "<<s.postPenData.max_size()<< " " << s.postPenSize <<std::endl;
+        try {
+            s.postPenData.resize(6 * postPenSize);
+        }
+        catch (std::bad_alloc const&) {
+            std::cout << "Memory allocation fail!\n";
+            exit(0);
+        }
+        //s.postPenData.resize(6 * postPenSize);
+
+        std::cout<<"Copying"<<std::endl;
 
         #pragma omp parallel for
-        for(unsigned int i=0; i < s.angles.size(); i++){
-            std::fill_n(s.postPenData.begin() + i * s.size, s.size, s.angles[i]);
+        for(unsigned int i=0; i < angles.size(); i++){
+            std::fill_n(s.postPenData.begin() + i * s.size, s.size, (double) angles[i]);
             std::copy_n(s.stdData.begin() + s.distance*s.sizeAligned, s.size, s.postPenData.begin() + s.postPenSize + i * s.size);
         }
+        std::cout<<"Calculating"<<std::endl;
         //#ifdef USE_SIMD
         #pragma omp parallel for //private(distIndex, hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV, pPVV, ePenetrationV, hFAngleV, vFAngleV)
         for(unsigned int i=0; i < s.postPenSize; i+=vSize){
@@ -576,23 +601,31 @@ class shellCalc{
             distIndex = (i < s.size) ? i : i % s.size;
             anglesIndex = i / s.size;
 
-            //hAngleV = postPenData.data() + i;
             unsigned int j, k = 0;
+
+            if(i + vSize <= postPenSize){
+                hAngleV = _mm256_loadu_pd(&s.postPenData[i]);
+            }else{
+                for(j = 0; (i + j)< postPenSize; j++){
+                    hAngleV[j] = s.postPenData[i+j];
+                }
+            }
+
             if(distIndex < s.size - vSize + 1){
-                hAngleV = _mm256_set1_pd(s.angles[anglesIndex]);
+                //hAngleV = _mm256_set1_pd(angles[anglesIndex]);
                 vAngleV = _mm256_loadu_pd(s.stdData.data()+s.sizeAligned*s.impactAHR+distIndex);
                 ePenetrationV = _mm256_loadu_pd(s.stdData.data()+s.sizeAligned*s.rawPen+distIndex);
                 v0V = _mm256_loadu_pd(s.stdData.data()+s.sizeAligned*s.impactV+distIndex);
             }else{
                 for(j = 0; (j + distIndex < s.size) && (j < vSize); j++){
-                    hAngleV[j] = s.angles[anglesIndex];
+                    //hAngleV[j] = angles[anglesIndex];
                     vAngleV[j] = s.stdData[distIndex+j+s.sizeAligned*s.impactAHR];
                     ePenetrationV[j] = s.stdData[distIndex+j+s.sizeAligned*s.rawPen];
                     v0V[j] = s.stdData[distIndex+j+s.sizeAligned*s.impactV];
                 }
-                if(anglesIndex < s.angles.size()){
+                if(anglesIndex < angles.size()){
                     for(; (j < vSize); j++){
-                        hAngleV[j] = s.angles[anglesIndex + 1];
+                        //hAngleV[j] = angles[anglesIndex + 1];
                         vAngleV[j] = s.stdData[k+s.sizeAligned*s.impactAHR];
                         ePenetrationV[j] = s.stdData[k+s.sizeAligned*s.rawPen];
                         v0V[j] = s.stdData[k+s.sizeAligned*s.impactV];
@@ -600,11 +633,20 @@ class shellCalc{
                     }
                 }
             }
+            /*
+            for(int vc = 0; vc< vSize; vc++){
+                std::cout<<(i + vc)<<" "<<hAngleV[vc]<<" "<<vAngleV[vc]<<" "<<ePenetrationV[vc]<<" "<<v0V[vc]<<"\n";
+            }*/
+
             hAngleV = _mm256_mul_pd(hAngleV, _mm256_set1_pd(M_PI/180));            
             cAngleV = xacos(_mm256_mul_pd(xcos(hAngleV), xcos(vAngleV)));
-            //cAngleV = acos(cos(hAngleV) * cos(vAngleV));
             nCAngleV = calcNormalizationRSIMD(cAngleV, s.get_normalizationR());
             eThickness = _mm256_div_pd(_mm256_set1_pd(thickness), xcos(nCAngleV));
+
+            /*
+            for(int vc = 0; vc< vSize; vc++){
+                std::cout<<(i + vc)<<" "<<cAngleV[vc]<<" "<<nCAngleV[vc]<<"\n";
+            }*/
                 
             pPVV = _mm256_max_pd(_mm256_mul_pd(v0V, 
                 _mm256_sub_pd(_mm256_set1_pd(1), 
@@ -616,6 +658,11 @@ class shellCalc{
             aAngleV = _mm256_div_pd(nCAngleV, cAngleV);
             hFAngleV = _mm256_mul_pd(hAngleV, aAngleV);
             vFAngleV = _mm256_mul_pd(vAngleV, aAngleV);
+
+            /*
+            for(int vc = 0; vc< vSize; vc++){
+                std::cout<<(i + vc)<<" "<<hFAngleV[vc]<<" "<<vFAngleV[vc]<<" "<<aAngleV[vc]<<"\n";
+            }*/
             
             __m256d vFAngleVCos = xcos(vFAngleV);
             v_x = _mm256_mul_pd(pPVV,
@@ -625,11 +672,17 @@ class shellCalc{
             v_z = _mm256_mul_pd(pPVV,
                 _mm256_mul_pd(vFAngleVCos, xsin(hFAngleV))
             );
+            
+            /*
+            for(int vc = 0; vc< vSize; vc++){
+                std::cout<<(i + vc)<<" "<<v_x[vc]<<" "<<v_y[vc]<<" "<<v_z[vc]<<"\n";
+            }*/
 
-            for(j=0; (j<vSize) && (j+i < s.postPenSize); j++){
+            for(unsigned int j=0; (j<vSize) && (j+i < s.postPenSize); j++){
                 postPenTraj(i+j, s, v_x[j], v_y[j], v_z[j], eThickness[j]);
             }
         }
+        std::cout<<"Finished Calc"<<std::endl;
         s.completedPostPen = true; 
 
     }

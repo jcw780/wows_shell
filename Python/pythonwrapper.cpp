@@ -3,6 +3,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <utility>
+#include <algorithm>
 #include <cstddef>
 #include "../shellCPP.hpp"
 
@@ -18,8 +19,26 @@ class shellCombined{
     }
 
     void calcStandard(){
-        calc.calculateStd(s);
-        s.printStdData();
+        pybind11::gil_scoped_release release;
+        calc.calculateStd(s, false);
+        //s.printStdData();
+        pybind11::gil_scoped_acquire acquire;
+    }
+
+    void calcPostPen(double thickness, std::vector<double> angles){
+        //s.angles = std::move(angles);
+        std::cout<<"Entered"<<std::endl;
+        
+        /*s.angles.resize(angles.size());
+        std::copy(angles.begin(), angles.end(), s.angles.begin());*/
+        //s.angles = angles;
+        pybind11::gil_scoped_release release;
+        //s.angles = std::move(angles);
+        std::cout<<"GIL Released"<<std::endl;
+        calc.calculatePostPen(thickness, s, angles);
+        std::cout<<"GIL Acquired"<<std::endl;
+        //s.printPostPen();
+        pybind11::gil_scoped_acquire acquire;
     }
 
     double* stdPtr(){
@@ -30,35 +49,37 @@ class shellCombined{
         return s.postPenData.data();
     }
 
-    void calcPostPen(double thickness, std::vector<double> angles){
-        s.angles = std::move(angles);
-        calc.calculatePostPen(thickness, s);
-        s.printPostPen();
-    }
-
     pybind11::array_t<double> getStd(){
         constexpr std::size_t sT = sizeof(double);
+        //double *temp = new double[s.sizeAligned * 13];
+        //std::copy_n(stdPtr(), s.sizeAligned * 13, temp);
+
         auto result = pybind11::array(pybind11::buffer_info(
-            stdPtr(),                                   /* Pointer to data (nullptr -> ask NumPy to allocate!) */
+            nullptr,                                   /* Pointer to data (nullptr -> ask NumPy to allocate!) */
             sT,                             /* Size of one item */
             pybind11::format_descriptor<double>::value, /* Buffer format */
             2,                                          /* How many dimensions? */
-            std::vector<std::size_t>{ 14, s.sizeAligned },                            /* Number of elements for each dimension */
+            std::vector<std::size_t>{ 13, s.sizeAligned },                            /* Number of elements for each dimension */
             std::vector<std::size_t>{ s.sizeAligned * sT, sT}                          /* Strides for each dimension */
         ));
+        std::copy_n(stdPtr(), s.sizeAligned * 13, (double*) result.request().ptr);
         return result;
     }
 
     pybind11::array_t<double> getPostPen(){
+        std::cout<<"Returning"<<std::endl;
         constexpr std::size_t sT = sizeof(double);
+        //double *temp = new double[s.postPenSize * 6];
         auto result = pybind11::array(pybind11::buffer_info(
-            postPenPtr(),                       /* Pointer to data (nullptr -> ask NumPy to allocate!) */
+            nullptr,                       /* Pointer to data (nullptr -> ask NumPy to allocate!) */
             sT,                             /* Size of one item */
             pybind11::format_descriptor<double>::value, /* Buffer format */
-            3,                                  /* How many dimensions? */
-            std::vector<std::size_t>{ s.angles.size(), 6, s.sizeAligned },                          /* Number of elements for each dimension */
-            std::vector<std::size_t>{ 6 * s.sizeAligned * sT, s.sizeAligned * sT, sT}                          /* Strides for each dimension */
+            2,                                  /* How many dimensions? */
+            std::vector<std::size_t>{ 6, s.postPenSize },                          /* Number of elements for each dimension */
+            std::vector<std::size_t>{ s.postPenSize * sT, sT}                          /* Strides for each dimension */
         ));
+        std::copy_n(postPenPtr(), s.postPenSize * 6, (double*) result.request().ptr);
+        std::cout<<"Returning"<<std::endl;
         return result;
     }
 
