@@ -3,13 +3,14 @@ import numpy as np
 s = shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76.0, .033 )
 s.calcStandard()
 print("Standard Done")
-s.calcPostPen(100.0, [0])
+s.calcPostPen(100.0, [0, 10, 20])
 print("Postpen done")
 
 n1 = s.getStandard()
 print(n1.shape)
 
 n1r = np.round(n1, 2)
+
 for y in range(250):
     pS = F'{y}'
     for x in range(13):
@@ -22,7 +23,20 @@ print(n2.shape)
 n2r = np.round(n2, 2)
 
 for y in range(n2.shape[1]):
-    pS = F'{y}'
+    pS = F''
+    for x in range(n2.shape[0]):
+        pS = F'{pS} {n2r[x, y]}'
+    print(pS)
+
+s.calcPostPen(100.0, [0, 10])
+
+
+s.printPostPen()
+n2 = s.getPostPen()
+n2r = np.round(n2, 2)
+
+for y in range(n2.shape[1]):
+    pS = F''
     for x in range(n2.shape[0]):
         pS = F'{pS} {n2r[x, y]}'
     print(pS)

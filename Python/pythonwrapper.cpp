@@ -9,8 +9,8 @@
 
 class shellCombined{
     private:
-    shellCalc calc;
-    shell s;
+    shell::shellCalc calc;
+    shell::shell s;
 
     public:
     shellCombined(const double v0, const double caliber, const double krupp, const double mass,
@@ -19,68 +19,78 @@ class shellCombined{
     }
 
     void calcStandard(){
-        pybind11::gil_scoped_release release;
+        //pybind11::gil_scoped_release release;
         calc.calculateStd(s, false);
         //s.printStdData();
-        pybind11::gil_scoped_acquire acquire;
+        //pybind11::gil_scoped_acquire acquire;
     }
 
     void calcPostPen(double thickness, std::vector<double> angles){
         //s.angles = std::move(angles);
-        std::cout<<"Entered"<<std::endl;
+        //std::cout<<"Entered"<<std::endl;
         
         /*s.angles.resize(angles.size());
         std::copy(angles.begin(), angles.end(), s.angles.begin());*/
         //s.angles = angles;
-        pybind11::gil_scoped_release release;
+        //pybind11::gil_scoped_release release;
         //s.angles = std::move(angles);
-        std::cout<<"GIL Released"<<std::endl;
+        //std::cout<<"GIL Released"<<std::endl;
         calc.calculatePostPen(thickness, s, angles);
-        std::cout<<"GIL Acquired"<<std::endl;
+        //std::cout<<"GIL Acquired"<<std::endl;
         //s.printPostPen();
-        pybind11::gil_scoped_acquire acquire;
+        //pybind11::gil_scoped_acquire acquire;
     }
 
-    double* stdPtr(){
-        return s.stdData.data();
+    void printStandard(){
+        s.printStdData();
     }
 
-    double* postPenPtr(){
-        return s.postPenData.data();
+    void printPostPen(){
+        s.printPostPen();
     }
 
     pybind11::array_t<double> getStd(){
-        constexpr std::size_t sT = sizeof(double);
-        //double *temp = new double[s.sizeAligned * 13];
-        //std::copy_n(stdPtr(), s.sizeAligned * 13, temp);
+        if(s.completedStd){
+            constexpr std::size_t sT = sizeof(double);
+            //double *temp = new double[s.sizeAligned * 13];
+            //std::copy_n(stdPtr(), s.sizeAligned * 13, temp);
 
-        auto result = pybind11::array(pybind11::buffer_info(
-            nullptr,                                   /* Pointer to data (nullptr -> ask NumPy to allocate!) */
-            sT,                             /* Size of one item */
-            pybind11::format_descriptor<double>::value, /* Buffer format */
-            2,                                          /* How many dimensions? */
-            std::vector<std::size_t>{ 13, s.sizeAligned },                            /* Number of elements for each dimension */
-            std::vector<std::size_t>{ s.sizeAligned * sT, sT}                          /* Strides for each dimension */
-        ));
-        std::copy_n(stdPtr(), s.sizeAligned * 13, (double*) result.request().ptr);
-        return result;
+            auto result = pybind11::array(pybind11::buffer_info(
+                s.stdData.data(),                                   /* Pointer to data (nullptr -> ask NumPy to allocate!) */
+                sT,                             /* Size of one item */
+                pybind11::format_descriptor<double>::value, /* Buffer format */
+                2,                                          /* How many dimensions? */
+                std::vector<std::size_t>{ shell::maxColumnsStd, s.sizeAligned },                            /* Number of elements for each dimension */
+                std::vector<std::size_t>{ s.sizeAligned * sT, sT}                          /* Strides for each dimension */
+            ));
+            //std::copy(s.stdData.begin(), s.stdData.end(), (double*) result.request().ptr);
+            return result;
+        }else{
+            throw std::runtime_error("Standard data not generated");
+        }
     }
 
     pybind11::array_t<double> getPostPen(){
-        std::cout<<"Returning"<<std::endl;
-        constexpr std::size_t sT = sizeof(double);
-        //double *temp = new double[s.postPenSize * 6];
-        auto result = pybind11::array(pybind11::buffer_info(
-            nullptr,                       /* Pointer to data (nullptr -> ask NumPy to allocate!) */
-            sT,                             /* Size of one item */
-            pybind11::format_descriptor<double>::value, /* Buffer format */
-            2,                                  /* How many dimensions? */
-            std::vector<std::size_t>{ 6, s.postPenSize },                          /* Number of elements for each dimension */
-            std::vector<std::size_t>{ s.postPenSize * sT, sT}                          /* Strides for each dimension */
-        ));
-        std::copy_n(postPenPtr(), s.postPenSize * 6, (double*) result.request().ptr);
-        std::cout<<"Returning"<<std::endl;
-        return result;
+        if(s.completedPostPen){
+            //std::cout<<"Returning"<<std::endl;
+            constexpr std::size_t sT = sizeof(double);
+            //double *temp = new double[s.postPenSize * 6];
+            auto result = pybind11::array(pybind11::buffer_info(
+                s.postPenData.data(),                       /* Pointer to data (nullptr -> ask NumPy to allocate!) */
+                sT,                             /* Size of one item */
+                pybind11::format_descriptor<double>::value, /* Buffer format */
+                2,                                  /* How many dimensions? */
+                std::vector<std::size_t>{ shell::post::maxColumns, s.postPenSize },                          /* Number of elements for each dimension */
+                std::vector<std::size_t>{ s.postPenSize * sT, sT}                          /* Strides for each dimension */
+            ));
+            //std::cout<<"Initialized Done"<<std::endl;
+            //std::cout<<s.postPenData.size()<<" "<<6 * s.postPenSize<<"\n";
+            //std::copy(s.postPenData.begin(), s.postPenData.end(), (double*) result.request().ptr);
+            //std::cout<<"Returning Done"<<std::endl;
+            return result;
+        }else{
+            throw std::runtime_error("PostPen data not generated");
+        }
     }
 
 };
@@ -91,6 +101,25 @@ PYBIND11_MODULE(pythonwrapper, m){
         .def(pybind11::init<double, double, double, double, double, double, std::string& , double, double>())
         .def("calcStandard", &shellCombined::calcStandard)
         .def("calcPostPen", &shellCombined::calcPostPen)
-        .def("getStandard", &shellCombined::getStd)
-        .def("getPostPen", &shellCombined::getPostPen);
+        .def("getStandard", &shellCombined::getStd, pybind11::return_value_policy::reference)
+        .def("getPostPen", &shellCombined::getPostPen, pybind11::return_value_policy::reference)
+        .def("printStandard", &shellCombined::printStandard)
+        .def("printPostPen", &shellCombined::printPostPen);
+    /*
+    pybind11::enum_<shellCombined.s::stdDataIndex>(m, "stdDataIndex", py::arithmetic())
+        .value("distance", shellCombined::shell::stdDataIndex::distance)
+        .value("launchA" , shellCombined::shell::stdDataIndex::launchA)
+        .value("impactAHR", shellCombined::shell::stdDataIndex::impactAHR)
+        .value("impactAHD", shellCombined::shell::stdDataIndex::impactAHD)
+        .value("impactV", shellCombined::shell::stdDataIndex::impactV)
+        .value("rawPen", shellCombined::shell::stdDataIndex::rawPen)
+        .value("ePenH", shellCombined::shell::stdDataIndex::ePenH)
+        .value("ePenHN", shellCombined::shell::stdDataIndex::ePenHN)
+        .value("impactADD", shellCombined::shell::stdDataIndex::impactADD)
+        .value("ePenD", shellCombined::shell::stdDataIndex::ePenD)
+        .value("ePenDN", shellCombined::shell::stdDataIndex::ePenDN)
+        .value("tToTarget", shellCombined::shell::stdDataIndex::tToTarget)
+        .value("tToTargetA", shellCombined::shell::stdDataIndex::tToTargetA)
+        .export_values();*/
 };
+
