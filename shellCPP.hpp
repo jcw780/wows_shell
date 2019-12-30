@@ -383,7 +383,6 @@ class shellCalc{
         );
 
         _mm256_storeu_pd(s.getImpactPtr(i, impact::tToTarget), tSIMD);
-
         _mm256_storeu_pd(s.getImpactPtr(i, impact::tToTargetA), _mm256_div_pd(tSIMD, 
             _mm256_set1_pd(3.1))
         );

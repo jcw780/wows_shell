@@ -29,51 +29,49 @@ class shellCombined{
     }
 
     void printImpact(){
-        s.printImpactData();
+        if(s.completedImpact){
+            s.printImpactData();
+        }else{
+            throw std::runtime_error("Impact data not generated");
+        }
     }
 
     void printPostPen(){
-        s.printPostPenData();
+        if(s.completedPostPen){
+            s.printPostPenData();
+        }else{
+            throw std::runtime_error("PostPen data not generated");
+        }
     }
 
     pybind11::array_t<double> getImpact(){
         if(s.completedImpact){
             constexpr std::size_t sT = sizeof(double);
-            //double *temp = new double[s.sizeAligned * 13];
-            //std::copy_n(stdPtr(), s.sizeAligned * 13, temp);
-
             auto result = pybind11::array(pybind11::buffer_info(
-                s.getImpactPtr(0, 0),                                   /* Pointer to data (nullptr -> ask NumPy to allocate!) */
-                sT,                             /* Size of one item */
+                s.getImpactPtr(0, 0),                       /* Pointer to data (nullptr -> ask NumPy to allocate!) */
+                sT,                                         /* Size of one item */
                 pybind11::format_descriptor<double>::value, /* Buffer format */
                 2,                                          /* How many dimensions? */
-                std::vector<std::size_t>{ shell::impact::maxColumns, s.impactSizeAligned },                            /* Number of elements for each dimension */
-                std::vector<std::size_t>{ s.impactSizeAligned * sT, sT}                          /* Strides for each dimension */
+                std::vector<std::size_t>{ shell::impact::maxColumns, s.impactSizeAligned }, /* Number of elements for each dimension */
+                std::vector<std::size_t>{ s.impactSizeAligned * sT, sT}                     /* Strides for each dimension */
             ));
-            //std::copy(s.stdData.begin(), s.stdData.end(), (double*) result.request().ptr);
             return result;
         }else{
-            throw std::runtime_error("Standard data not generated");
+            throw std::runtime_error("Impact data not generated");
         }
     }
 
     pybind11::array_t<double> getPostPen(){
         if(s.completedPostPen){
-            //std::cout<<"Returning"<<std::endl;
             constexpr std::size_t sT = sizeof(double);
-            //double *temp = new double[s.postPenSize * 6];
             auto result = pybind11::array(pybind11::buffer_info(
-                s.postPenData.data(),                       /* Pointer to data (nullptr -> ask NumPy to allocate!) */
-                sT,                             /* Size of one item */
+                s.getPostPenPtr(0, 0),                      /* Pointer to data (nullptr -> ask NumPy to allocate!) */
+                sT,                                         /* Size of one item */
                 pybind11::format_descriptor<double>::value, /* Buffer format */
-                2,                                  /* How many dimensions? */
-                std::vector<std::size_t>{ shell::post::maxColumns, s.postPenSize },                          /* Number of elements for each dimension */
-                std::vector<std::size_t>{ s.postPenSize * sT, sT}                          /* Strides for each dimension */
+                2,                                          /* How many dimensions? */
+                std::vector<std::size_t>{ shell::post::maxColumns, s.postPenSize },  /* Number of elements for each dimension */
+                std::vector<std::size_t>{ s.postPenSize * sT, sT}                    /* Strides for each dimension */
             ));
-            //std::cout<<"Initialized Done"<<std::endl;
-            //std::cout<<s.postPenData.size()<<" "<<6 * s.postPenSize<<"\n";
-            //std::copy(s.postPenData.begin(), s.postPenData.end(), (double*) result.request().ptr);
-            //std::cout<<"Returning Done"<<std::endl;
             return result;
         }else{
             throw std::runtime_error("PostPen data not generated");

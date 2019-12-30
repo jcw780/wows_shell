@@ -30,7 +30,6 @@ for y in range(n2.shape[1]):
 
 s.calcPostPen(100.0, [0, 10])
 
-
 s.printPostPen()
 n2 = s.getPostPen()
 n2r = np.round(n2, 2)
