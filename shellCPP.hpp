@@ -56,7 +56,7 @@ namespace shell{
 
 namespace impact{
 static constexpr unsigned int maxColumns = 13;
-enum stdDataIndex{
+enum impactDataIndex{
     distance   , launchA, impactAHR, 
     impactAHD  , impactV, rawPen   , 
     ePenH      , ePenHN , impactADD, 
@@ -131,6 +131,13 @@ class shell{
     Refer to stdDataIndex enums defined above
     */
     std::vector<double> impactData;
+
+    /* WARNING: LOCATION OF LATERAL ANGLE IN VECTOR CANNOT BE CHANGED OR ELSE SIMD ALIGNMENT MAY NOT BE GUARANTEED
+     * [0:1) Lateral Angle [1:2) Distance 
+     * [2:3) X             [3:4) Y 
+     * [4:5) Z             [5:6) XWF
+     * See enums defined above
+     */
     std::vector<double> postPenData;
     
     shell() = default;
@@ -265,6 +272,10 @@ class shellCalc{
     static_assert(std::numeric_limits<double>::is_iec559, "Type is not IEE754 compliant");
     static constexpr unsigned int vSize = (256 / 8) / sizeof(double);
     
+    //template<bool AT>
+    //void singleTraj(const unsigned int i, const unsigned int j, shell&s, __m256d& vx, __m256d& vy, __m256d& tSIMD);
+
+    //template<>
     void singleTraj(const unsigned int i, const unsigned int j, shell&s, __m256d& vx, __m256d& vy, __m256d& tSIMD){
         static constexpr unsigned int __TrajBuffer__ = 128;
         const double k = s.get_k();
@@ -315,6 +326,48 @@ class shellCalc{
         tSIMD[j] = t;
     }
 
+    /*template<>
+    void singleTraj<false>(const unsigned int i, const unsigned int j, shell&s, __m256d& vx, __m256d& vy, __m256d& tSIMD){
+        static constexpr unsigned int __TrajBuffer__ = 128;
+        const double k = s.get_k();
+        const double cw_2 = s.get_cw_2();
+
+        double T, p, rho, t; //x, y, v_x, v_y;
+        __m128d pos, velocity, velocitySquared, dragIntermediary;
+        unsigned int counter;
+
+        //setting initial values
+        velocity[0] = vx[j];                         //x component of velocity v_x
+        velocity[1] = vy[j];                         //y component of velocity v_y
+        pos[0] = x0;                                 //x start x0
+        pos[1] = y0;                                 //y start y0
+        t = 0;                                       //t start
+
+        while(pos[1] >= 0){
+            for(counter = 0; counter < __TrajBuffer__ && pos[1] >= 0; counter++){
+                pos = _mm_fmadd_pd(_mm_set1_pd(dt), velocity, pos); //positions += velocity * dt
+                //Calculating air density
+                T = t0 - L*pos[1];                       //Calculating air temperature at altitude
+                p = p0*pow((1-L*pos[1]/t0),(g*M/(R*L))); //Calculating air pressure at altitude
+                rho = p*M/(R*T);                         //Use ideal gas law to calculate air density
+
+                //Calculate drag deceleration
+                velocitySquared = _mm_mul_pd(velocity, velocity);                                                     //v^2 = v * v
+                dragIntermediary[0] = k*rho*(cw_1*velocitySquared[0] + cw_2*velocity[0]);                             //for horizontal (x) component
+                dragIntermediary[1] = g - k*rho*(cw_1*velocitySquared[1]+cw_2*fabs(velocity[1]))*signum(velocity[1]); //for vertical   (y) component
+
+                //Adjust for next cycle
+                velocity = _mm_fmadd_pd(_mm_set1_pd(-1 * dt), dragIntermediary, velocity); //v -= drag * dt
+                t += dt;                                                                   //adjust time
+            }
+
+        }
+        s.getImpact(i + j, impact::distance) = pos[0];
+        vx[j] = velocity[0];
+        vy[j] = velocity[1];
+        tSIMD[j] = t;
+    }*/
+
     void multiTraj(const unsigned int i, shell& s, const bool addTraj){
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_pPPC();
@@ -344,7 +397,7 @@ class shellCalc{
             singleTraj(i, j, s, vx, vy, tSIMD);
         }
 
-        //Calculate [2]Impact Angles (impactAHR) , [7] Impact Angle Deck (impactADD)
+        //Calculate [2]Impact Angles (impactAHR) [3]Impact Angles (impactAHD) [7] Impact Angle Deck (impactADD)
         __m256d iVSIMD, rPSIMD;  
         angleRSIMD = xatan(_mm256_div_pd(vy,vx));                 // = atan(vy / vx)
 
@@ -354,34 +407,29 @@ class shellCalc{
         );
 
         angleSIMD = _mm256_add_pd(_mm256_set1_pd(M_PI / 2), angleRSIMD);
-
         _mm256_storeu_pd(s.getImpactPtr(i, impact::impactADD),
             _mm256_mul_pd(angleSIMD, _mm256_set1_pd(180 / M_PI))
         );
 
-        //Calculate [3]Impact Velocity (impactV),  [4]Raw Penetration (rawPen)
+        //Calculate [4]Impact Velocity (impactV),  [5]Raw Penetration (rawPen)
         iVSIMD = _mm256_sqrt_pd(_mm256_add_pd(_mm256_mul_pd(vx, vx), _mm256_mul_pd(vy, vy)));
         _mm256_storeu_pd(s.getImpactPtr(i, impact::impactV), iVSIMD);
-
         rPSIMD = _mm256_mul_pd(xpow(iVSIMD, _mm256_set1_pd(1.1)), _mm256_set1_pd(pPPC));
         _mm256_storeu_pd(s.getImpactPtr(i, impact::rawPen), rPSIMD);
 
-        //Calculate [5]EPH  [8]EPV
+        //Calculate [6]EPH  [9]EPV
         _mm256_storeu_pd(s.getImpactPtr(i, impact::ePenH), _mm256_mul_pd(xcos(angleRSIMD),rPSIMD));
-
         _mm256_storeu_pd(s.getImpactPtr(i, impact::ePenD), _mm256_mul_pd(xcos(angleSIMD),rPSIMD));
         
+        //Calculate [7]EPHN [10]EPDN
         _mm256_storeu_pd(s.getImpactPtr(i, impact::ePenHN),
-            _mm256_mul_pd(
-                rPSIMD, xcos(calcNormalizationRSIMD(angleRSIMD, normalizationR))
-            )
+            _mm256_mul_pd(rPSIMD, xcos(calcNormalizationRSIMD(angleRSIMD, normalizationR)))
         );
         _mm256_storeu_pd(s.getImpactPtr(i, impact::ePenDN),
-            _mm256_mul_pd(
-                rPSIMD, xcos(calcNormalizationRSIMD(angleSIMD, normalizationR))
-            )
+            _mm256_mul_pd(rPSIMD, xcos(calcNormalizationRSIMD(angleSIMD, normalizationR)))
         );
 
+        //Calculate [11]TTT [12]TTTA
         _mm256_storeu_pd(s.getImpactPtr(i, impact::tToTarget), tSIMD);
         _mm256_storeu_pd(s.getImpactPtr(i, impact::tToTargetA), _mm256_div_pd(tSIMD, 
             _mm256_set1_pd(3.1))
@@ -390,11 +438,6 @@ class shellCalc{
     
     public:
     double calcNormalizationR(const double angle, const double normalizationR){ //Input in radians
-        /*if(fabs(angle) > normalizationR){
-            return fabs(angle) - normalizationR;
-        }else{
-            return 0;
-        }*/
         return (fabs(angle) > normalizationR) * (fabs(angle) - normalizationR);
     }
 
@@ -445,7 +488,6 @@ class shellCalc{
         unsigned int i;
         s.impactSize = (unsigned int) (max - min) / precision;
         s.impactSizeAligned = vSize - (s.impactSize % vSize) + s.impactSize;
-        //s.sizeAligned = s.size;
 
         s.trajectories.resize(2 * s.impactSize);
         s.impactData.resize(impact::maxColumns * s.impactSizeAligned);
@@ -462,7 +504,6 @@ class shellCalc{
     private:
     double dtf = 0.0001;
     double xf0 = 0, yf0 = 0;
-    //bool completed = false;
 
     void postPenTraj(const unsigned int i, shell& s, double v_x, double v_y, double v_z, double thickness){
         const double k = s.get_k();
@@ -508,14 +549,7 @@ class shellCalc{
             s.getPostPen(i, post::x) = pos[0];
             s.getPostPen(i, post::y) = pos[1];
             s.getPostPen(i, post::z) = pos[2];
-
             s.getPostPen(i, post::xwf) = (thickness >= s.get_threshold()) * pos[0] + !(thickness >= s.get_threshold()) * -1;
-            /*
-            if(thickness >= s.get_threshold()){
-                s.getPostPen(i, post::xwf) = pos[0];
-            }else{
-                s.getPostPen(i, post::xwf) = -1;
-            }*/
         }else{
             s.getPostPen(i, post::x) = 0;
             s.getPostPen(i, post::y) = 0;
@@ -527,11 +561,6 @@ class shellCalc{
     public:
     bool includeNormalization = true;
     bool nChangeTrajectory = true;
-
-    /* WARNING: LOCATION OF LATERAL ANGLE IN VECTOR CANNOT BE CHANGED OR ELSE SIMD ALIGNMENT MAY NOT BE GUARANTEED
-     * [0:1) Lateral Angle [1:2) Distance [2:3) X [3:4) Y [4:5) Z [5:6) XWF
-     */
-    //std::vector<double, AlignmentAllocator<double, 32>> postPenData;
 
     template<typename T>
     void calculatePostPen(const double thickness, shell& s, std::vector<T>& angles){
