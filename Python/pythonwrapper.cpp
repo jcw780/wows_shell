@@ -18,49 +18,34 @@ class shellCombined{
         s.setValues(v0, caliber, krupp, mass, normalization, cD, name, threshold, fuseTime);
     }
 
-    void calcStandard(){
-        //pybind11::gil_scoped_release release;
-        calc.calculateStd(s, false);
-        //s.printStdData();
-        //pybind11::gil_scoped_acquire acquire;
+    void calcImpact(){
+        calc.calculateImpact(s, false);
     }
 
     void calcPostPen(double thickness, std::vector<double> angles){
-        //s.angles = std::move(angles);
-        //std::cout<<"Entered"<<std::endl;
-        
-        /*s.angles.resize(angles.size());
-        std::copy(angles.begin(), angles.end(), s.angles.begin());*/
-        //s.angles = angles;
-        //pybind11::gil_scoped_release release;
-        //s.angles = std::move(angles);
-        //std::cout<<"GIL Released"<<std::endl;
         calc.calculatePostPen(thickness, s, angles);
-        //std::cout<<"GIL Acquired"<<std::endl;
-        //s.printPostPen();
-        //pybind11::gil_scoped_acquire acquire;
     }
 
-    void printStandard(){
-        s.printStdData();
+    void printImpact(){
+        s.printImpactData();
     }
 
     void printPostPen(){
-        s.printPostPen();
+        s.printPostPenData();
     }
 
-    pybind11::array_t<double> getStd(){
-        if(s.completedStd){
+    pybind11::array_t<double> getImpact(){
+        if(s.completedImpact){
             constexpr std::size_t sT = sizeof(double);
             //double *temp = new double[s.sizeAligned * 13];
             //std::copy_n(stdPtr(), s.sizeAligned * 13, temp);
 
             auto result = pybind11::array(pybind11::buffer_info(
-                s.stdData.data(),                                   /* Pointer to data (nullptr -> ask NumPy to allocate!) */
+                s.getImpactPtr(0, 0),                                   /* Pointer to data (nullptr -> ask NumPy to allocate!) */
                 sT,                             /* Size of one item */
                 pybind11::format_descriptor<double>::value, /* Buffer format */
                 2,                                          /* How many dimensions? */
-                std::vector<std::size_t>{ shell::maxColumnsStd, s.sizeAligned },                            /* Number of elements for each dimension */
+                std::vector<std::size_t>{ shell::impact::maxColumns, s.sizeAligned },                            /* Number of elements for each dimension */
                 std::vector<std::size_t>{ s.sizeAligned * sT, sT}                          /* Strides for each dimension */
             ));
             //std::copy(s.stdData.begin(), s.stdData.end(), (double*) result.request().ptr);
@@ -99,11 +84,11 @@ class shellCombined{
 PYBIND11_MODULE(pythonwrapper, m){
     pybind11::class_<shellCombined>(m, "shell", pybind11::buffer_protocol())
         .def(pybind11::init<double, double, double, double, double, double, std::string& , double, double>())
-        .def("calcStandard", &shellCombined::calcStandard)
+        .def("calcImpact", &shellCombined::calcImpact)
         .def("calcPostPen", &shellCombined::calcPostPen)
-        .def("getStandard", &shellCombined::getStd, pybind11::return_value_policy::reference)
+        .def("getImpact", &shellCombined::getImpact, pybind11::return_value_policy::reference)
         .def("getPostPen", &shellCombined::getPostPen, pybind11::return_value_policy::reference)
-        .def("printStandard", &shellCombined::printStandard)
+        .def("printImpact", &shellCombined::printImpact)
         .def("printPostPen", &shellCombined::printPostPen);
     /*
     pybind11::enum_<shellCombined.s::stdDataIndex>(m, "stdDataIndex", py::arithmetic())
