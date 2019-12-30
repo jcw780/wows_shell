@@ -87,8 +87,6 @@ typedef struct{
     //std::string name;
 }shellParams;
 
-
-
 class shell{
     private:              //Description         units
     double v0;            //muzzle velocity     m/s
@@ -113,8 +111,8 @@ class shell{
     }
 
     public:
-    unsigned int size, postPenSize; //number of distances in: standard, postPen
-    unsigned int sizeAligned, postPenSizeAligned; //Not 100% necessary - sizes adjusted to fulfill alignment
+    unsigned int impactSize, postPenSize; //number of distances in: standard, postPen
+    unsigned int impactSizeAligned, postPenSizeAligned; //Not 100% necessary - sizes adjusted to fulfill alignment
     bool completedImpact = false, completedPostPen = false;
 
     /*trajectories output
@@ -135,23 +133,6 @@ class shell{
     std::vector<double> impactData;
     std::vector<double> postPenData;
     
-    double& getImpact(unsigned int i, unsigned int j){
-        return impactData[i + j * sizeAligned];
-    }
-
-    double* getImpactPtr(unsigned int i, unsigned int j){
-        return impactData.data() + i + j * sizeAligned;
-    }
-
-    double& getPostPen(unsigned int i, unsigned int j){
-        return postPenData[i + j * postPenSize];
-    }
-
-    double* getPostPenPtr(unsigned int i, unsigned int j){
-        return postPenData.data() + i + j * postPenSize;
-    }
-
-
     shell() = default;
 
     shell(const double v0, const double caliber, const double krupp, const double mass,
@@ -178,6 +159,22 @@ class shell{
         preProcess();
     }
     //Getter Functions
+    double& getImpact(unsigned int i, unsigned int j){
+        return impactData[i + j * impactSizeAligned];
+    }
+
+    double* getImpactPtr(unsigned int i, unsigned int j){
+        return impactData.data() + i + j * impactSizeAligned;
+    }
+
+    double& getPostPen(unsigned int i, unsigned int j){
+        return postPenData[i + j * postPenSize];
+    }
+
+    double* getPostPenPtr(unsigned int i, unsigned int j){
+        return postPenData.data() + i + j * postPenSize;
+    }
+
     const double& get_v0(){
         return v0;
     }
@@ -217,7 +214,7 @@ class shell{
 
     void printPostPenData(){
         for(unsigned int i=0; i<postPenSize; i++){
-            for(int j=0; j<post::maxColumns; j++){
+            for(unsigned int j=0; j<post::maxColumns; j++){
                 std::cout<< std::fixed<< std::setprecision(4) << postPenData[i + j * postPenSize] << " "; 
             }
             std::cout<<"\n";
@@ -226,7 +223,7 @@ class shell{
     }
 
     void printImpactData(){
-        for(unsigned int i=0; i<size; i++){
+        for(unsigned int i=0; i<impactSize; i++){
             for(unsigned int j=0; j<impact::maxColumns; j++){
                 std::cout<<std::fixed<<std::setprecision(4)<<getImpact(i, j)<< " ";
             }
@@ -235,8 +232,8 @@ class shell{
         std::cout<<"Completed Standard Data"<<std::endl;
     }
     void printTrajectory(unsigned int target){
-        if(target >= size){
-            std::cout<<"Target Not Within Range of: "<< size<< std::endl;
+        if(target >= impactSize){
+            std::cout<<"Target Not Within Range of: "<<impactSize<< std::endl;
         }else{
             printf("Index:[%d] X Y\n", target);
             for(std::vector<double>::size_type i = 0; i < trajectories[target*2].size(); i++) {
@@ -249,22 +246,20 @@ class shell{
 
 class shellCalc{
     private:
-    //Physical Constants
-    //                    Description                    Units
-    double g = 9.81;      //Gravitational Constant       m/(s^2)
-    double t0 = 288;      //Temperature at Sea Level     K
-    double L = 0.0065;    //Atmospheric Lapse Rate       C/m
-    double p0 = 101325;   //Pressure at Sea Level        Pa
-    double R = 8.31447;   //Ideal Gas Constant           J/(mol K)
-    double M = 0.0289644; //Molarity of Air at Sea Level kg/mol
+    //Physical Constants     Description                    Units
+    double g = 9.81;         //Gravitational Constant       m/(s^2)
+    double t0 = 288;         //Temperature at Sea Level     K
+    double L = 0.0065;       //Atmospheric Lapse Rate       C/m
+    double p0 = 101325;      //Pressure at Sea Level        Pa
+    double R = 8.31447;      //Ideal Gas Constant           J/(mol K)
+    double M = 0.0289644;    //Molarity of Air at Sea Level kg/mol
     double cw_1 = 1;
-    
-    //Calculation Parameters Description          Units
-    double max = 25;         //Max Angle          degrees
-    double min = 0;          //Min Angle          degrees
-    double precision = .1;   //Angle Step         degrees
-    double x0 = 0, y0 = 0;   //Starting x0, y0    m
-    double dt = .01;         //Time step          s
+    //Calculation Parameters 
+    double max = 25;         //Max Angle                    degrees
+    double min = 0;          //Min Angle                    degrees
+    double precision = .1;   //Angle Step                   degrees
+    double x0 = 0, y0 = 0;   //Starting x0, y0              m
+    double dt = .01;         //Time step                    s
 
     static_assert(sizeof(double) == 8, "Size of double is not 8 - required for AVX2"); //Use float64 in the future
     static_assert(std::numeric_limits<double>::is_iec559, "Type is not IEE754 compliant");
@@ -314,14 +309,13 @@ class shellCalc{
             s.trajectories[2*(i+j)+1].insert(s.trajectories[2*(i+j)+1].end(), yT, &yT[counter]);
 
         }
-        //s.stdData[i+j+s.sizeAligned*impact::distance] = pos[0];
         s.getImpact(i + j, impact::distance) = pos[0];
         vx[j] = velocity[0];
         vy[j] = velocity[1];
         tSIMD[j] = t;
     }
 
-    void quadTraj(const unsigned int i, shell& s, const bool addTraj){
+    void multiTraj(const unsigned int i, shell& s, const bool addTraj){
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_pPPC();
         __m256d angleSIMD, angleRSIMD, temp, v0SIMD = _mm256_set1_pd(s.get_v0());
@@ -346,7 +340,7 @@ class shellCalc{
         vx = _mm256_mul_pd(v0SIMD, xcos(angleRSIMD));
         vy = _mm256_mul_pd(v0SIMD, xsin(angleRSIMD));
 
-        for(unsigned int j = 0; (j+i<s.size) && (j < vSize); j++){
+        for(unsigned int j = 0; (j+i<s.impactSize) && (j < vSize); j++){
             singleTraj(i, j, s, vx, vy, tSIMD);
         }
 
@@ -397,11 +391,12 @@ class shellCalc{
     
     public:
     double calcNormalizationR(const double angle, const double normalizationR){ //Input in radians
-        if(fabs(angle) > normalizationR){
+        /*if(fabs(angle) > normalizationR){
             return fabs(angle) - normalizationR;
         }else{
             return 0;
-        }
+        }*/
+        return (fabs(angle) > normalizationR) * (fabs(angle) - normalizationR);
     }
 
     #ifdef USE_SIMD
@@ -449,17 +444,17 @@ class shellCalc{
 
     void calculateImpact(shell& s, bool addTraj){
         unsigned int i;
-        s.size = (unsigned int) (max - min) / precision;
-        s.sizeAligned = (sizeof(__m256d)/sizeof(double) - (s.size % (sizeof(__m256d)/sizeof(double)))) + s.size;
+        s.impactSize = (unsigned int) (max - min) / precision;
+        s.impactSizeAligned = vSize - (s.impactSize % vSize) + s.impactSize;
         //s.sizeAligned = s.size;
 
-        s.trajectories.resize(2 * s.size);
-        s.impactData.resize(impact::maxColumns * s.sizeAligned);
+        s.trajectories.resize(2 * s.impactSize);
+        s.impactData.resize(impact::maxColumns * s.impactSizeAligned);
 
         //omp_set_num_threads(6);
         #pragma omp parallel for schedule(dynamic, 2)
-        for(i=0; i<s.size; i+=vSize){
-            quadTraj(i, s, addTraj);
+        for(i=0; i<s.impactSize; i+=vSize){
+            multiTraj(i, s, addTraj);
         }
         s.completedImpact = true;
     }
@@ -509,23 +504,24 @@ class shellCalc{
                 dragIntermediary[2] = xz_dragIntermediary[1]; //z
 
                 velocities = _mm256_fmadd_pd(_mm256_set1_pd(dtf * -1), dragIntermediary, velocities); //velocities -= dtf * dragIntermediary
+                t += dtf;                                                                             
+            }
+            s.getPostPen(i, post::x) = pos[0];
+            s.getPostPen(i, post::y) = pos[1];
+            s.getPostPen(i, post::z) = pos[2];
 
-                t += dtf;
-            }
-            //std::cout<<i<<" "<<pos[0]<<" "<<pos[1]<<" "<<pos[2]<<"\n";
-            s.postPenData[i+s.postPenSize*2] = pos[0];
-            s.postPenData[i+s.postPenSize*3] = pos[1];
-            s.postPenData[i+s.postPenSize*4] = pos[2];
+            s.getPostPen(i, post::xwf) = (thickness >= s.get_threshold()) * pos[0] + !(thickness >= s.get_threshold()) * -1;
+            /*
             if(thickness >= s.get_threshold()){
-                s.postPenData[i+s.postPenSize*5] = pos[0];
+                s.getPostPen(i, post::xwf) = pos[0];
             }else{
-                s.postPenData[i+s.postPenSize*5] = -1;
-            }
+                s.getPostPen(i, post::xwf) = -1;
+            }*/
         }else{
-            s.postPenData[i+s.postPenSize*2] = 0;
-            s.postPenData[i+s.postPenSize*3] = 0;
-            s.postPenData[i+s.postPenSize*4] = 0;
-            s.postPenData[i+s.postPenSize*5] = 0;
+            s.getPostPen(i, post::x) = 0;
+            s.getPostPen(i, post::y) = 0;
+            s.getPostPen(i, post::z) = 0;
+            s.getPostPen(i, post::xwf) = 0;
         }
     }
 
@@ -547,14 +543,14 @@ class shellCalc{
             calculateImpact(s, false);
         }
 
-        s.postPenSize = s.size * angles.size();
+        s.postPenSize = s.impactSize * angles.size();
         s.postPenData.resize(6 * s.postPenSize);
 
 
         #pragma omp parallel for
         for(unsigned int i=0; i < angles.size(); i++){
-            std::fill_n(s.postPenData.begin() + i * s.size, s.size, (double) angles[i]);
-            std::copy_n(s.getImpactPtr(0, impact::distance), s.size, s.postPenData.begin() + s.postPenSize + i * s.size);
+            std::fill_n(s.postPenData.begin() + i * s.impactSize, s.impactSize, (double) angles[i]);
+            std::copy_n(s.getImpactPtr(0, impact::distance), s.impactSize, s.postPenData.begin() + s.postPenSize + i * s.impactSize);
         }
 
         #pragma omp parallel for
@@ -562,8 +558,8 @@ class shellCalc{
             __m256d hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV;
             __m256d v0V, pPVV, ePenetrationV, eThickness, hFAngleV, vFAngleV;
             __m256d v_x, v_y, v_z;
-            unsigned int distIndex = (i < s.size) ? i : i % s.size;
-            unsigned int anglesIndex = i / s.size;
+            unsigned int distIndex = (i < s.impactSize) ? i : i % s.impactSize;
+            unsigned int anglesIndex = i / s.impactSize;
 
             unsigned int j, k = 0;
 
@@ -575,12 +571,12 @@ class shellCalc{
                 }
             }
 
-            if(distIndex < s.size - vSize + 1){
+            if(distIndex < s.impactSize - vSize + 1){
                 vAngleV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactAHR));
                 ePenetrationV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::rawPen));
                 v0V = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactV));
             }else{
-                for(j = 0; (j + distIndex < s.size) && (j < vSize); j++){
+                for(j = 0; (j + distIndex < s.impactSize) && (j < vSize); j++){
                     vAngleV[j] = s.getImpact(distIndex + j, impact::impactAHR);
                     ePenetrationV[j] = s.getImpact(distIndex + j, impact::rawPen);
                     v0V[j] = s.getImpact(distIndex + j, impact::impactV);

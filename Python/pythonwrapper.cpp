@@ -1,7 +1,9 @@
-#define strdup _strdup
+//pybind11
+#define strdup _strdup //if windows.
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
+
 #include <utility>
 #include <algorithm>
 #include <cstddef>
@@ -45,8 +47,8 @@ class shellCombined{
                 sT,                             /* Size of one item */
                 pybind11::format_descriptor<double>::value, /* Buffer format */
                 2,                                          /* How many dimensions? */
-                std::vector<std::size_t>{ shell::impact::maxColumns, s.sizeAligned },                            /* Number of elements for each dimension */
-                std::vector<std::size_t>{ s.sizeAligned * sT, sT}                          /* Strides for each dimension */
+                std::vector<std::size_t>{ shell::impact::maxColumns, s.impactSizeAligned },                            /* Number of elements for each dimension */
+                std::vector<std::size_t>{ s.impactSizeAligned * sT, sT}                          /* Strides for each dimension */
             ));
             //std::copy(s.stdData.begin(), s.stdData.end(), (double*) result.request().ptr);
             return result;
