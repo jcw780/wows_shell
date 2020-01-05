@@ -31,6 +31,8 @@ typedef __m256d fVType
 
 #endif
 
+#include "threadPool.hpp"
+
 #include <iostream>
 #include <iomanip>
 #include <string>
@@ -40,6 +42,9 @@ typedef __m256d fVType
 #include <cstring>
 #include <algorithm>
 #include <type_traits>
+#include <thread>
+#include <atomic>
+#include <functional>
 		
 /*
 double operator"" _kg (long double input){return input;}
@@ -53,6 +58,8 @@ double operator"" _fps(long double input){return input * 0.3048;}
  * May be used to implement a hash table in the future
  */
 namespace shell{
+
+
 
 namespace impact{
 static constexpr unsigned int maxColumns = 13;
@@ -253,6 +260,10 @@ class shell{
 
 class shellCalc{
     private:
+    
+
+
+
     //Physical Constants     Description                    Units
     double g = 9.81;         //Gravitational Constant       m/(s^2)
     double t0 = 288;         //Temperature at Sea Level     K
@@ -325,48 +336,6 @@ class shellCalc{
         vy[j] = velocity[1];
         tSIMD[j] = t;
     }
-
-    /*template<>
-    void singleTraj<false>(const unsigned int i, const unsigned int j, shell&s, __m256d& vx, __m256d& vy, __m256d& tSIMD){
-        static constexpr unsigned int __TrajBuffer__ = 128;
-        const double k = s.get_k();
-        const double cw_2 = s.get_cw_2();
-
-        double T, p, rho, t; //x, y, v_x, v_y;
-        __m128d pos, velocity, velocitySquared, dragIntermediary;
-        unsigned int counter;
-
-        //setting initial values
-        velocity[0] = vx[j];                         //x component of velocity v_x
-        velocity[1] = vy[j];                         //y component of velocity v_y
-        pos[0] = x0;                                 //x start x0
-        pos[1] = y0;                                 //y start y0
-        t = 0;                                       //t start
-
-        while(pos[1] >= 0){
-            for(counter = 0; counter < __TrajBuffer__ && pos[1] >= 0; counter++){
-                pos = _mm_fmadd_pd(_mm_set1_pd(dt), velocity, pos); //positions += velocity * dt
-                //Calculating air density
-                T = t0 - L*pos[1];                       //Calculating air temperature at altitude
-                p = p0*pow((1-L*pos[1]/t0),(g*M/(R*L))); //Calculating air pressure at altitude
-                rho = p*M/(R*T);                         //Use ideal gas law to calculate air density
-
-                //Calculate drag deceleration
-                velocitySquared = _mm_mul_pd(velocity, velocity);                                                     //v^2 = v * v
-                dragIntermediary[0] = k*rho*(cw_1*velocitySquared[0] + cw_2*velocity[0]);                             //for horizontal (x) component
-                dragIntermediary[1] = g - k*rho*(cw_1*velocitySquared[1]+cw_2*fabs(velocity[1]))*signum(velocity[1]); //for vertical   (y) component
-
-                //Adjust for next cycle
-                velocity = _mm_fmadd_pd(_mm_set1_pd(-1 * dt), dragIntermediary, velocity); //v -= drag * dt
-                t += dt;                                                                   //adjust time
-            }
-
-        }
-        s.getImpact(i + j, impact::distance) = pos[0];
-        vx[j] = velocity[0];
-        vy[j] = velocity[1];
-        tSIMD[j] = t;
-    }*/
 
     void multiTraj(const unsigned int i, shell& s, const bool addTraj){
         const double pPPC = s.get_pPPC();
@@ -558,6 +527,20 @@ class shellCalc{
         }
     }
 
+    template<typename T>
+    struct fcArgs{
+        std::vector<T>* angles;
+        shell* s;
+    };
+
+    template<typename T>
+    void parallelFillCopy(int i, struct fcArgs<T> f){
+        shell& s = *f.s;
+        std::vector<T>& angles = *f.angles;
+        std::fill_n(s.postPenData.begin() + i * s.impactSize, s.impactSize, (double) angles[i]);
+        std::copy_n(s.getImpactPtr(0, impact::distance), s.impactSize, s.postPenData.begin() + s.postPenSize + i * s.impactSize);
+    }
+
     public:
     bool includeNormalization = true;
     bool nChangeTrajectory = true;
@@ -574,12 +557,14 @@ class shellCalc{
         s.postPenSize = s.impactSize * angles.size();
         s.postPenData.resize(6 * s.postPenSize);
 
-
-        #pragma omp parallel for
+        
+        /*#pragma omp parallel for
         for(unsigned int i=0; i < angles.size(); i++){
             std::fill_n(s.postPenData.begin() + i * s.impactSize, s.impactSize, (double) angles[i]);
             std::copy_n(s.getImpactPtr(0, impact::distance), s.impactSize, s.postPenData.begin() + s.postPenSize + i * s.impactSize);
-        }
+        }*/
+        
+
 
         #pragma omp parallel for
         for(unsigned int i=0; i < s.postPenSize; i+=vSize){
@@ -650,8 +635,6 @@ class shellCalc{
         }
         s.completedPostPen = true; 
     }
-
-
 };
 
 }
