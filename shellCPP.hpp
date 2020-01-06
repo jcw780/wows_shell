@@ -6,7 +6,7 @@
 //#include <x86intrin.h>
 //#include "constant.h"
 
-#define USE_SIMD
+//#define USE_SIMD
 
 #ifdef _SINGLE_PRECISION
 typedef float fPType;
@@ -15,20 +15,10 @@ typedef double fPType;
 #endif
 
 
-//WARNING: CURRENTLY AVX2+ ONLY
-#ifdef USE_SIMD
+//#define USE_AVX2_INTRINSICS
+#ifdef USE_AVX2_INTRINSICS
 #define ENABLE_AVX2
 #include "sleef-2.80/simd/sleefsimddp.c"
-//const unsigned int vSize = 32 / sizeof(fPType);
-
-/*
-#ifdef _SINGLE_PRECISION
-typedef __m256 fVType
-#else
-typedef __m256d fVType
-#endif
-*/
-
 #endif
 
 
@@ -264,7 +254,7 @@ class shellCalc{
     std::atomic<int> counter, threadCount;
     int assigned, length;
     moodycamel::ConcurrentQueue<int> workQueue;
-    constexpr int workQueueBufferSize = 16;
+    static constexpr int workQueueBufferSize = 16;
 
     //Physical Constants     Description                    Units
     double g = 9.81;         //Gravitational Constant       m/(s^2)
@@ -289,6 +279,7 @@ class shellCalc{
     //void singleTraj(const unsigned int i, const unsigned int j, shell&s, __m256d& vx, __m256d& vy, __m256d& tSIMD);
 
     //template<>
+    #ifdef USE_AVX2_INTRINSICS
     void singleTraj(const unsigned int i, const unsigned int j, shell&s, __m256d& vx, __m256d& vy, __m256d& tSIMD){
         static constexpr unsigned int __TrajBuffer__ = 128;
         const double k = s.get_k();
@@ -407,6 +398,116 @@ class shellCalc{
             _mm256_set1_pd(3.1))
         );
     }
+    #else
+    void singleTraj(const unsigned int i, const unsigned int j, shell&s, double* vx, double* vy, double* tVec){
+        static constexpr unsigned int __TrajBuffer__ = 128;
+        const double k = s.get_k();
+        const double cw_2 = s.get_cw_2();
+
+        double T, p, rho, t; //x, y, v_x, v_y;
+        //__m128d pos, velocity, velocitySquared, dragIntermediary;
+        double pos[2], velocity[2];
+        int counter;
+        s.trajectories[2*(i+j)  ].reserve(__TrajBuffer__);
+        s.trajectories[2*(i+j)+1].reserve(__TrajBuffer__);
+        double xT[__TrajBuffer__], yT[__TrajBuffer__];
+
+        //setting initial values
+        velocity[0] = vx[j];                         //x component of velocity v_x
+        velocity[1] = vy[j];                         //y component of velocity v_y
+        pos[0] = x0;                                 //x start x0
+        pos[1] = y0;                                 //y start y0
+        s.trajectories[2*(i+j)  ].push_back(x0);     //add x start (x0) to trajectories
+        s.trajectories[2*(i+j)+1].push_back(y0);     //add y start (y0) to trajectories
+        t = 0;                                       //t start
+
+        while(pos[1] >= 0){
+            for(counter = 0; counter < __TrajBuffer__ && pos[1] >= 0; counter++){
+                #pragma simd
+                for(int l=0; l<2; l++){
+                    pos[l] += velocity[l] * dt;
+                }
+
+                //Calculating air density
+                T = t0 - L*pos[1];                       //Calculating air temperature at altitude
+                p = p0*pow((1-L*pos[1]/t0),(g*M/(R*L))); //Calculating air pressure at altitude
+                rho = p*M/(R*T);                         //Use ideal gas law to calculate air density
+
+                //Calculate drag deceleration
+                double dragIntermediary[2], velocitySquared[2];
+                #pragma simd
+                for(int l=0; l<2; l++){
+                    velocitySquared[l] = velocity[l] * velocity[l]; //v^2 = v * v
+                }
+
+                dragIntermediary[0] = k*rho*(cw_1*velocitySquared[0] + cw_2*velocity[0]);                             //for horizontal (x) component
+                dragIntermediary[1] = g - k*rho*(cw_1*velocitySquared[1]+cw_2*fabs(velocity[1]))*signum(velocity[1]); //for vertical   (y) component
+
+                //Adjust for next cycle
+                #pragma simd
+                for(int l=0; l<2; l++){ //v -= drag * dt
+                    velocity[l] -= dragIntermediary[l] * dt;
+                }
+                t += dt;                                                                   //adjust time
+                xT[counter] = pos[0];                                                      
+                yT[counter] = pos[1];
+            }
+            s.trajectories[2*(i+j)  ].insert(s.trajectories[2*(i+j)  ].end(), xT, &xT[counter]);
+            s.trajectories[2*(i+j)+1].insert(s.trajectories[2*(i+j)+1].end(), yT, &yT[counter]);
+
+        }
+        s.getImpact(i + j, impact::distance) = pos[0];
+        vx[j] = velocity[0];
+        vy[j] = velocity[1];
+        tVec[j] = t;
+    }
+
+    void multiTraj(const unsigned int i, shell& s, const bool addTraj){
+        const double pPPC = s.get_pPPC();
+        const double normalizationR = s.get_pPPC();
+
+        double vx[vSize], vy[vSize], tVec[vSize];
+        #pragma simd
+        for(int j=0; j<vSize; j++){
+            s.getImpact(i + j, impact::launchA) = min + precision * (i+ j);
+
+            double radianLaunch = s.getImpact(i + j, impact::launchA) * M_PI / 180;
+            vx[j] = s.get_v0() * cos(radianLaunch);
+            vy[j] = s.get_v0() * sin(radianLaunch);
+
+        }
+
+        for(int j = 0; (j+i<s.impactSize) && (j < vSize); j++){
+            singleTraj(i, j, s, vx, vy, tVec);
+        }   
+
+        
+        #pragma simd
+        for(int j=0; j<vSize; j++){
+            double IA_R = atan(vy[j] / vx[j]);
+            s.getImpact(i+j, impact::impactAHR) = IA_R;
+            double IAD_R = M_PI / 2 + IA_R;
+            double IA_D = IA_R * 180 / M_PI;
+            s.getImpact(i+j, impact::impactAHD) = IA_D;
+            s.getImpact(i+j, impact::impactADD) = 90 + IA_D;
+
+            double IV = sqrt(vx[j] * vx[j] + vy[j] * vy[j]);
+            s.getImpact(i+j, impact::impactV) = IV;
+            double rawPen = pPPC * pow(IV, 1.1);
+            s.getImpact(i+j, impact::rawPen) = rawPen;
+
+            s.getImpact(i+j, impact::ePenH) = rawPen * cos(IA_R);
+            s.getImpact(i+j, impact::ePenD) = rawPen * cos(IAD_R);
+
+            s.getImpact(i+j, impact::ePenHN) = rawPen * cos(calcNormalizationR(IA_R, normalizationR));
+            s.getImpact(i+j, impact::ePenDN) = rawPen * cos(calcNormalizationR(IAD_R, normalizationR));
+
+            s.getImpact(i+j, impact::tToTarget) = tVec[j];
+            s.getImpact(i+j, impact::tToTargetA) = tVec[j] / 3.1;
+        }
+    }
+
+    #endif
     
     void impactWorker(int id, shell *s, bool addTraj){
         while(counter < length){
@@ -426,7 +527,7 @@ class shellCalc{
         return (fabs(angle) > normalizationR) * (fabs(angle) - normalizationR);
     }
 
-    #ifdef USE_SIMD
+    #ifdef USE_AVX2_INTRINSICS
 
     inline __m256d calcNormalizationRSIMD(const __m256d angle, const double normalizationR){
         return _mm256_max_pd(
@@ -525,6 +626,7 @@ class shellCalc{
     double dtf = 0.0001;
     double xf0 = 0, yf0 = 0;
 
+    #ifdef USE_AVX2_INTRINSICS
     void postPenTraj(const unsigned int i, shell& s, double v_x, double v_y, double v_z, double thickness){
         const double k = s.get_k();
         const double cw_2 = s.get_cw_2();
@@ -577,6 +679,207 @@ class shellCalc{
             s.getPostPen(i, post::xwf) = 0;
         }
     }
+
+    void multiPostPen(int i, const double thickness, shell& s){
+        //std::cout<<index<<"\n";
+        //unsigned int i = index * vSize;
+        __m256d hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV;
+        __m256d v0V, pPVV, ePenetrationV, eThickness, hFAngleV, vFAngleV;
+        __m256d v_x, v_y, v_z;
+        unsigned int distIndex = (i < s.impactSize) ? i : i % s.impactSize;
+        unsigned int anglesIndex = i / s.impactSize;
+
+        unsigned int j, k = 0;
+
+        if(i + vSize <= s.postPenSize){
+            hAngleV = _mm256_loadu_pd(&s.postPenData[i]);
+        }else{
+            for(j = 0; (i + j)< s.postPenSize; j++){
+                hAngleV[j] = s.postPenData[i+j];
+            }
+        }
+
+        if(distIndex < s.impactSize - vSize + 1){
+            vAngleV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactAHR));
+            ePenetrationV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::rawPen));
+            v0V = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactV));
+        }else{
+            for(j = 0; (j + distIndex < s.impactSize) && (j < vSize); j++){
+                vAngleV[j] = s.getImpact(distIndex + j, impact::impactAHR);
+                ePenetrationV[j] = s.getImpact(distIndex + j, impact::rawPen);
+                v0V[j] = s.getImpact(distIndex + j, impact::impactV);
+            }
+            if(anglesIndex < s.postPenSize / s.impactSize){
+                for(; (j < vSize); j++){
+                    vAngleV[j] = s.getImpact(k, impact::impactAHR);
+                    ePenetrationV[j] = s.getImpact(k, impact::rawPen);
+                    v0V[j] = s.getImpact(k, impact::impactV);
+                    k++;
+                }
+            }
+        }
+
+        hAngleV = _mm256_mul_pd(hAngleV, _mm256_set1_pd(M_PI/180));            
+        cAngleV = xacos(_mm256_mul_pd(xcos(hAngleV), xcos(vAngleV)));
+        nCAngleV = calcNormalizationRSIMD(cAngleV, s.get_normalizationR());
+        eThickness = _mm256_div_pd(_mm256_set1_pd(thickness), xcos(nCAngleV));
+            
+        pPVV = _mm256_max_pd(_mm256_mul_pd(v0V, 
+            _mm256_sub_pd(_mm256_set1_pd(1), 
+                xexp(_mm256_sub_pd(_mm256_set1_pd(1),
+                    _mm256_div_pd(ePenetrationV, eThickness)
+                )))
+        ), _mm256_set1_pd(0));
+
+        aAngleV = _mm256_div_pd(nCAngleV, cAngleV);
+        hFAngleV = _mm256_mul_pd(hAngleV, aAngleV);
+        vFAngleV = _mm256_mul_pd(vAngleV, aAngleV);
+        
+        __m256d vFAngleVCos = xcos(vFAngleV);
+        v_x = _mm256_mul_pd(pPVV,
+            _mm256_mul_pd(vFAngleVCos, xcos(hFAngleV))
+        );
+        v_y = _mm256_mul_pd(pPVV, xsin(vFAngleV));
+        v_z = _mm256_mul_pd(pPVV,
+            _mm256_mul_pd(vFAngleVCos, xsin(hFAngleV))
+        );
+
+        for(unsigned int j=0; (j<vSize) && (j+i < s.postPenSize); j++){
+            postPenTraj(i+j, s, v_x[j], v_y[j], v_z[j], eThickness[j]);
+        }
+        //std::cout<<index<<" Completed\n";
+    }
+    #else
+
+    void postPenTraj(const unsigned int i, shell& s, double v_x, double v_y, double v_z, double thickness){
+        const double k = s.get_k();
+        const double cw_2 = s.get_cw_2();
+        double T, p, rho, t; 
+
+        /* [indices]           0     1     2      
+         * pos                 x     y     z      
+         * velocities          v_x   v_y   v_z    
+         * velocitiesSquared   v_x^2 v_y^2 v_z^2  
+         * dragIntermediary    ad_x  ad_y  ad_z   
+         * xz_dragIntermediary ad_x  ad_z       
+         */
+        double pos[3], velocities[3], velocitiesSquared[3], dragIntermediary[3];
+        double xz_dragIntermediary[2]; 
+        pos[0] = xf0, pos[1] = yf0, pos[2] = xf0;
+        velocities[0] = v_x, velocities[1] = v_y, velocities[2] = v_z;
+        t = 0;
+        if(v_x > 0){
+            while(t < s.get_fuseTime()){
+                #pragma simd
+                for(int l=0; l<3; l++){
+                    pos[l] += velocities[l] * dtf;
+                }
+                
+                //Calculate air density - likely unnecessary for this section as distances are so short
+                T = t0 - L*pos[1];
+                p = p0*pow((1-L*pos[1]/t0),(g*M/(R*L)));
+                rho = p*M/(R*T);
+
+                //Calculated drag deceleration
+                #pragma simd
+                for(int l=0; l<3; l++){
+                    velocitiesSquared[l] = velocities[l] * velocities[l];
+                }
+                //velocitiesSquared = _mm256_mul_pd(velocities, velocities); //velocitiesSquared = velocities * velocities
+
+                xz_dragIntermediary[0] = (k * rho) * (cw_1 * velocitiesSquared[0] + cw_2 * velocities[0]);
+                xz_dragIntermediary[1] = (k * rho) * (cw_1 * velocitiesSquared[2] + cw_2 * velocities[2]);
+                //xz_dragIntermediary = (k * rho) * (cw_1 * velocitiesSquared[2, 0] + cw_2 * velocities[2, 0])
+                
+                dragIntermediary[0] = xz_dragIntermediary[0]; //x
+                dragIntermediary[1] = (g - k*rho*(cw_1*velocitiesSquared[1]+cw_2*fabs(velocities[1]))*signum(velocities[1])); 
+                dragIntermediary[2] = xz_dragIntermediary[1]; //z
+
+                //velocities -= dtf * dragIntermediary
+                #pragma simd
+                for(int l=0; l<3; l++){
+                    velocities[l] -= dtf * dragIntermediary[l];
+                }
+                t += dtf;                                                                             
+            }
+            s.getPostPen(i, post::x) = pos[0];
+            s.getPostPen(i, post::y) = pos[1];
+            s.getPostPen(i, post::z) = pos[2];
+            s.getPostPen(i, post::xwf) = (thickness >= s.get_threshold()) * pos[0] + !(thickness >= s.get_threshold()) * -1;
+        }else{
+            s.getPostPen(i, post::x) = 0;
+            s.getPostPen(i, post::y) = 0;
+            s.getPostPen(i, post::z) = 0;
+            s.getPostPen(i, post::xwf) = 0;
+        }
+    }
+
+    void multiPostPen(int i, const double thickness, shell& s){
+        //std::cout<<index<<"\n";
+        //unsigned int i = index * vSize;
+        double hAngleV[vSize], vAngleV[vSize];
+        double v0V[vSize], penetrationV[vSize], eThicknessV[vSize];
+        double v_x[vSize], v_y[vSize], v_z[vSize];
+        unsigned int distIndex = (i < s.impactSize) ? i : i % s.impactSize;
+        unsigned int anglesIndex = i / s.impactSize;
+
+        unsigned int j, k = 0;
+
+        if(i + vSize <= s.postPenSize){
+            std::copy_n(s.getPostPenPtr(i, post::angle), vSize, hAngleV);
+        }else{
+            for(j = 0; (i + j)< s.postPenSize; j++){
+                hAngleV[j] = s.postPenData[i+j];
+            }
+        }
+
+        if(distIndex < s.impactSize - vSize + 1){
+            std::copy_n(s.getImpactPtr(distIndex, impact::impactAHR), vSize, vAngleV);
+            std::copy_n(s.getImpactPtr(distIndex, impact::rawPen)   , vSize, penetrationV);
+            std::copy_n(s.getImpactPtr(distIndex, impact::impactV)  , vSize, v0V);
+        }else{
+            for(j = 0; (j + distIndex < s.impactSize) && (j < vSize); j++){
+                vAngleV[j] = s.getImpact(distIndex + j, impact::impactAHR);
+                penetrationV[j] = s.getImpact(distIndex + j, impact::rawPen);
+                v0V[j] = s.getImpact(distIndex + j, impact::impactV);
+            }
+            if(anglesIndex < s.postPenSize / s.impactSize){
+                for(; (j < vSize); j++){
+                    vAngleV[j] = s.getImpact(k, impact::impactAHR);
+                    penetrationV[j] = s.getImpact(k, impact::rawPen);
+                    v0V[j] = s.getImpact(k, impact::impactV);
+                    k++;
+                }
+            }
+        }
+
+        #pragma simd
+        for(int l=0; l<vSize; l++){
+            double HA_R = hAngleV[l] * M_PI / 180;
+            double cAngle = acos(cos(HA_R) * cos(vAngleV[l]));
+            double nCAngle = calcNormalizationR(cAngle, s.get_normalizationR());
+
+            double eThickness = thickness / cos(nCAngle);
+            double pPV = v0V[l] * (1 - exp(1 - penetrationV[l] / eThickness));
+
+            double aAngle = nCAngle / cAngle;
+            double hFAngle = HA_R * aAngle;
+            double vFAngle = vAngleV[l] * aAngle;
+
+            v_x[l] = pPV * cos(vFAngle) * cos(hFAngle);
+            v_z[l] = pPV * cos(vFAngle) * sin(hFAngle);
+            v_y[l] = pPV * sin(vFAngle);
+            eThicknessV[l] = eThickness;
+
+        }
+
+        for(unsigned int j=0; (j<vSize) && (j+i < s.postPenSize); j++){
+            postPenTraj(i+j, s, v_x[j], v_y[j], v_z[j], eThicknessV[j]);
+        }
+        //std::cout<<index<<" Completed\n";
+    }
+
+    #endif
 
     //template<typename T>
     void fillCopy(int id, shell* s, std::vector<double>* angles){
@@ -675,76 +978,6 @@ class shellCalc{
             }
         }
         threadCount.fetch_add(1, std::memory_order_relaxed);
-    }
-    
-    void multiPostPen(int i, const double thickness, shell& s){
-        //std::cout<<index<<"\n";
-        //unsigned int i = index * vSize;
-        __m256d hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV;
-        __m256d v0V, pPVV, ePenetrationV, eThickness, hFAngleV, vFAngleV;
-        __m256d v_x, v_y, v_z;
-        unsigned int distIndex = (i < s.impactSize) ? i : i % s.impactSize;
-        unsigned int anglesIndex = i / s.impactSize;
-
-        unsigned int j, k = 0;
-
-        if(i + vSize <= s.postPenSize){
-            hAngleV = _mm256_loadu_pd(&s.postPenData[i]);
-        }else{
-            for(j = 0; (i + j)< s.postPenSize; j++){
-                hAngleV[j] = s.postPenData[i+j];
-            }
-        }
-
-        if(distIndex < s.impactSize - vSize + 1){
-            vAngleV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactAHR));
-            ePenetrationV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::rawPen));
-            v0V = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactV));
-        }else{
-            for(j = 0; (j + distIndex < s.impactSize) && (j < vSize); j++){
-                vAngleV[j] = s.getImpact(distIndex + j, impact::impactAHR);
-                ePenetrationV[j] = s.getImpact(distIndex + j, impact::rawPen);
-                v0V[j] = s.getImpact(distIndex + j, impact::impactV);
-            }
-            if(anglesIndex < s.postPenSize / s.impactSize){
-                for(; (j < vSize); j++){
-                    vAngleV[j] = s.getImpact(k, impact::impactAHR);
-                    ePenetrationV[j] = s.getImpact(k, impact::rawPen);
-                    v0V[j] = s.getImpact(k, impact::impactV);
-                    k++;
-                }
-            }
-        }
-
-        hAngleV = _mm256_mul_pd(hAngleV, _mm256_set1_pd(M_PI/180));            
-        cAngleV = xacos(_mm256_mul_pd(xcos(hAngleV), xcos(vAngleV)));
-        nCAngleV = calcNormalizationRSIMD(cAngleV, s.get_normalizationR());
-        eThickness = _mm256_div_pd(_mm256_set1_pd(thickness), xcos(nCAngleV));
-            
-        pPVV = _mm256_max_pd(_mm256_mul_pd(v0V, 
-            _mm256_sub_pd(_mm256_set1_pd(1), 
-                xexp(_mm256_sub_pd(_mm256_set1_pd(1),
-                    _mm256_div_pd(ePenetrationV, eThickness)
-                )))
-        ), _mm256_set1_pd(0));
-
-        aAngleV = _mm256_div_pd(nCAngleV, cAngleV);
-        hFAngleV = _mm256_mul_pd(hAngleV, aAngleV);
-        vFAngleV = _mm256_mul_pd(vAngleV, aAngleV);
-        
-        __m256d vFAngleVCos = xcos(vFAngleV);
-        v_x = _mm256_mul_pd(pPVV,
-            _mm256_mul_pd(vFAngleVCos, xcos(hFAngleV))
-        );
-        v_y = _mm256_mul_pd(pPVV, xsin(vFAngleV));
-        v_z = _mm256_mul_pd(pPVV,
-            _mm256_mul_pd(vFAngleVCos, xsin(hFAngleV))
-        );
-
-        for(unsigned int j=0; (j<vSize) && (j+i < s.postPenSize); j++){
-            postPenTraj(i+j, s, v_x[j], v_y[j], v_z[j], eThickness[j]);
-        }
-        //std::cout<<index<<" Completed\n";
     }
 };
 
