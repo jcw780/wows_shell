@@ -10,7 +10,7 @@ int main(){
 
     shell::shell* test;
     shell::shellCalc sc;
-    unsigned int runs = 1;
+    unsigned int runs = 10;
     for(int i=0; i<runs; i++){
         test = new shell::shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76, .033);
         auto t1 = std::chrono::high_resolution_clock::now();
