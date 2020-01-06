@@ -31,8 +31,8 @@ typedef __m256d fVType
 
 #endif
 
-#include "threadPool.hpp"
 
+#include "concurrentqueue/concurrentqueue.h"
 #include <iostream>
 #include <iomanip>
 #include <string>
@@ -260,9 +260,10 @@ class shell{
 
 class shellCalc{
     private:
-    
-
-
+    //Threading
+    std::atomic<int> counter, threadCount;
+    int assigned, length;
+    moodycamel::ConcurrentQueue<int> workQueue;
 
     //Physical Constants     Description                    Units
     double g = 9.81;         //Gravitational Constant       m/(s^2)
@@ -338,6 +339,7 @@ class shellCalc{
     }
 
     void multiTraj(const unsigned int i, shell& s, const bool addTraj){
+        //int i = index * vSize;
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_pPPC();
         __m256d angleSIMD, angleRSIMD, temp, v0SIMD = _mm256_set1_pd(s.get_v0());
@@ -405,6 +407,19 @@ class shellCalc{
         );
     }
     
+    void impactWorker(int id, shell *s, bool addTraj){
+        while(counter < length){
+            int index;
+            if(workQueue.try_dequeue(index)){
+                multiTraj(index, *s, addTraj);
+                counter.fetch_add(1, std::memory_order_relaxed);
+            }else{
+                std::this_thread::yield();
+            }
+        }
+        threadCount.fetch_add(1, std::memory_order_relaxed);
+    }
+
     public:
     double calcNormalizationR(const double angle, const double normalizationR){ //Input in radians
         return (fabs(angle) > normalizationR) * (fabs(angle) - normalizationR);
@@ -454,7 +469,7 @@ class shellCalc{
     }
 
     void calculateImpact(shell& s, bool addTraj){
-        unsigned int i;
+        //unsigned int i;
         s.impactSize = (unsigned int) (max - min) / precision;
         s.impactSizeAligned = vSize - (s.impactSize % vSize) + s.impactSize;
 
@@ -462,10 +477,45 @@ class shellCalc{
         s.impactData.resize(impact::maxColumns * s.impactSizeAligned);
 
         //omp_set_num_threads(6);
-        #pragma omp parallel for schedule(dynamic, 2)
-        for(i=0; i<s.impactSize; i+=vSize){
-            multiTraj(i, s, addTraj);
+        //#pragma omp parallel for schedule(dynamic, 2)
+        length = s.impactSize / vSize;
+
+        if(length > std::thread::hardware_concurrency()){
+            assigned = std::thread::hardware_concurrency();
+        }else{
+            assigned = length;
         }
+        counter = 0;
+        threadCount = 0;
+        std::vector<std::thread> threads;
+        shell* sPtr = &s;
+        for(int i=0; i<assigned - 1; i++){
+            threads.emplace_back([=]{impactWorker(i, sPtr, addTraj);});
+        }
+
+        int buffer[32];
+        int bCounter = 0;
+        for(int i=0; i<s.impactSize; i+=vSize){
+            buffer[bCounter] = i;
+            bCounter++;
+            if(bCounter == 32){
+                workQueue.enqueue_bulk(buffer, bCounter);
+                bCounter = 0;
+            }
+            //multiTraj(i, s, addTraj);
+        }
+        workQueue.enqueue_bulk(buffer, bCounter);
+
+        impactWorker(assigned - 1, sPtr, addTraj);
+
+        while(threadCount < assigned){
+            std::this_thread::yield();
+        }
+        
+        for(int i=0; i<assigned-1; i++){
+            threads[i].join();
+        }
+
         s.completedImpact = true;
     }
 
@@ -527,27 +577,43 @@ class shellCalc{
         }
     }
 
-    template<typename T>
-    struct fcArgs{
-        std::vector<T>* angles;
-        shell* s;
-    };
+    //template<typename T>
+    void fillCopy(int id, shell* s, std::vector<double>* angles){
+        //std::cout<<id<<"\n";
+        for(int i=angles->size() * id / assigned; i<angles->size() * (id + 1) / assigned; i++){
+            std::fill_n(s->postPenData.begin() + i * s->impactSize, s->impactSize, (double) angles->at(i));
+            std::copy_n(s->getImpactPtr(0, impact::distance), s->impactSize, s->postPenData.begin() + s->postPenSize + i * s->impactSize);
+        }
+        counter.fetch_add(1, std::memory_order_relaxed);
+    }
 
-    template<typename T>
-    void parallelFillCopy(int i, struct fcArgs<T> f){
-        shell& s = *f.s;
-        std::vector<T>& angles = *f.angles;
-        std::fill_n(s.postPenData.begin() + i * s.impactSize, s.impactSize, (double) angles[i]);
-        std::copy_n(s.getImpactPtr(0, impact::distance), s.impactSize, s.postPenData.begin() + s.postPenSize + i * s.impactSize);
+    //template<typename T>
+    void parallelFillCopy(shell* s, std::vector<double>* angles){
+        std::vector<std::thread> threads;
+        counter = 0;
+        length = angles->size();
+        if(length < std::thread::hardware_concurrency()){
+            assigned = length;
+        }else{
+            assigned = std::thread::hardware_concurrency();
+        }
+        for(int i=0; i<assigned - 1; i++){
+            threads.push_back(std::thread([=]{fillCopy(i, s, angles);} ) );
+        }
+        fillCopy(assigned - 1, s, angles);
+        while(counter < assigned){
+            std::this_thread::yield();
+        }
+        for(int i=0; i<assigned - 1; i++){
+            threads[i].join();
+        }
     }
 
     public:
     bool includeNormalization = true;
     bool nChangeTrajectory = true;
 
-    template<typename T>
-    void calculatePostPen(const double thickness, shell& s, std::vector<T>& angles){
-        static_assert(std::is_arithmetic<T>(), "Cannot use non numeric type");
+    void calculatePostPen(const double thickness, shell& s, std::vector<double>& angles){
 
         if(!s.completedImpact){
             std::cout<<"Standard Not Calculated - Running automatically\n";
@@ -557,83 +623,125 @@ class shellCalc{
         s.postPenSize = s.impactSize * angles.size();
         s.postPenData.resize(6 * s.postPenSize);
 
-        
-        /*#pragma omp parallel for
-        for(unsigned int i=0; i < angles.size(); i++){
-            std::fill_n(s.postPenData.begin() + i * s.impactSize, s.impactSize, (double) angles[i]);
-            std::copy_n(s.getImpactPtr(0, impact::distance), s.impactSize, s.postPenData.begin() + s.postPenSize + i * s.impactSize);
-        }*/
-        
+        parallelFillCopy(&s, &angles);        
 
-
-        #pragma omp parallel for
-        for(unsigned int i=0; i < s.postPenSize; i+=vSize){
-            __m256d hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV;
-            __m256d v0V, pPVV, ePenetrationV, eThickness, hFAngleV, vFAngleV;
-            __m256d v_x, v_y, v_z;
-            unsigned int distIndex = (i < s.impactSize) ? i : i % s.impactSize;
-            unsigned int anglesIndex = i / s.impactSize;
-
-            unsigned int j, k = 0;
-
-            if(i + vSize <= s.postPenSize){
-                hAngleV = _mm256_loadu_pd(&s.postPenData[i]);
-            }else{
-                for(j = 0; (i + j)< s.postPenSize; j++){
-                    hAngleV[j] = s.postPenData[i+j];
-                }
-            }
-
-            if(distIndex < s.impactSize - vSize + 1){
-                vAngleV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactAHR));
-                ePenetrationV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::rawPen));
-                v0V = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactV));
-            }else{
-                for(j = 0; (j + distIndex < s.impactSize) && (j < vSize); j++){
-                    vAngleV[j] = s.getImpact(distIndex + j, impact::impactAHR);
-                    ePenetrationV[j] = s.getImpact(distIndex + j, impact::rawPen);
-                    v0V[j] = s.getImpact(distIndex + j, impact::impactV);
-                }
-                if(anglesIndex < angles.size()){
-                    for(; (j < vSize); j++){
-                        vAngleV[j] = s.getImpact(k, impact::impactAHR);
-                        ePenetrationV[j] = s.getImpact(k, impact::rawPen);
-                        v0V[j] = s.getImpact(k, impact::impactV);
-                        k++;
-                    }
-                }
-            }
-
-            hAngleV = _mm256_mul_pd(hAngleV, _mm256_set1_pd(M_PI/180));            
-            cAngleV = xacos(_mm256_mul_pd(xcos(hAngleV), xcos(vAngleV)));
-            nCAngleV = calcNormalizationRSIMD(cAngleV, s.get_normalizationR());
-            eThickness = _mm256_div_pd(_mm256_set1_pd(thickness), xcos(nCAngleV));
-                
-            pPVV = _mm256_max_pd(_mm256_mul_pd(v0V, 
-                _mm256_sub_pd(_mm256_set1_pd(1), 
-                    xexp(_mm256_sub_pd(_mm256_set1_pd(1),
-                        _mm256_div_pd(ePenetrationV, eThickness)
-                    )))
-            ), _mm256_set1_pd(0));
-
-            aAngleV = _mm256_div_pd(nCAngleV, cAngleV);
-            hFAngleV = _mm256_mul_pd(hAngleV, aAngleV);
-            vFAngleV = _mm256_mul_pd(vAngleV, aAngleV);
-            
-            __m256d vFAngleVCos = xcos(vFAngleV);
-            v_x = _mm256_mul_pd(pPVV,
-                _mm256_mul_pd(vFAngleVCos, xcos(hFAngleV))
-            );
-            v_y = _mm256_mul_pd(pPVV, xsin(vFAngleV));
-            v_z = _mm256_mul_pd(pPVV,
-                _mm256_mul_pd(vFAngleVCos, xsin(hFAngleV))
-            );
-
-            for(unsigned int j=0; (j<vSize) && (j+i < s.postPenSize); j++){
-                postPenTraj(i+j, s, v_x[j], v_y[j], v_z[j], eThickness[j]);
+        std::vector<std::thread> threads;
+        counter = 0, threadCount = 0;
+        length = s.postPenSize/vSize;
+        if(length < std::thread::hardware_concurrency()){
+            assigned = length;
+        }else{
+            assigned = std::thread::hardware_concurrency();
+        }
+        int buffer[16];
+        int bCounter = 0;
+        for(int i=0; i<s.postPenSize; i+=vSize){
+            buffer[bCounter] = i;
+            bCounter++;
+            if(bCounter == 16){
+                workQueue.enqueue_bulk(buffer, 16);
+                bCounter = 0;
             }
         }
-        s.completedPostPen = true; 
+        workQueue.enqueue_bulk(buffer, bCounter);
+
+        shell* ptr = &s;
+        for(int i=0; i<assigned - 1; i++){
+            threads.emplace_back([=]{postPenWorker(i, thickness, ptr);});
+        }
+        postPenWorker(assigned - 1, thickness, &s);
+
+        while(threadCount < assigned){
+            std::this_thread::yield();
+        }
+
+        for(int i=0; i<assigned - 1; i++){
+            threads[i].join();
+        }
+    }
+
+    void postPenWorker(int thread, double thickness, shell* s){
+        while(counter < length){
+            int index;
+            if(workQueue.try_dequeue(index)){
+                multiPostPen(index, thickness, *s);
+                counter.fetch_add(1, std::memory_order_relaxed);
+            }
+            else{
+                std::this_thread::yield();
+            }
+        }
+        threadCount.fetch_add(1, std::memory_order_relaxed);
+    }
+    
+    void multiPostPen(int i, const double thickness, shell& s){
+        //std::cout<<index<<"\n";
+        //unsigned int i = index * vSize;
+        __m256d hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV;
+        __m256d v0V, pPVV, ePenetrationV, eThickness, hFAngleV, vFAngleV;
+        __m256d v_x, v_y, v_z;
+        unsigned int distIndex = (i < s.impactSize) ? i : i % s.impactSize;
+        unsigned int anglesIndex = i / s.impactSize;
+
+        unsigned int j, k = 0;
+
+        if(i + vSize <= s.postPenSize){
+            hAngleV = _mm256_loadu_pd(&s.postPenData[i]);
+        }else{
+            for(j = 0; (i + j)< s.postPenSize; j++){
+                hAngleV[j] = s.postPenData[i+j];
+            }
+        }
+
+        if(distIndex < s.impactSize - vSize + 1){
+            vAngleV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactAHR));
+            ePenetrationV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::rawPen));
+            v0V = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactV));
+        }else{
+            for(j = 0; (j + distIndex < s.impactSize) && (j < vSize); j++){
+                vAngleV[j] = s.getImpact(distIndex + j, impact::impactAHR);
+                ePenetrationV[j] = s.getImpact(distIndex + j, impact::rawPen);
+                v0V[j] = s.getImpact(distIndex + j, impact::impactV);
+            }
+            if(anglesIndex < s.postPenSize / s.impactSize){
+                for(; (j < vSize); j++){
+                    vAngleV[j] = s.getImpact(k, impact::impactAHR);
+                    ePenetrationV[j] = s.getImpact(k, impact::rawPen);
+                    v0V[j] = s.getImpact(k, impact::impactV);
+                    k++;
+                }
+            }
+        }
+
+        hAngleV = _mm256_mul_pd(hAngleV, _mm256_set1_pd(M_PI/180));            
+        cAngleV = xacos(_mm256_mul_pd(xcos(hAngleV), xcos(vAngleV)));
+        nCAngleV = calcNormalizationRSIMD(cAngleV, s.get_normalizationR());
+        eThickness = _mm256_div_pd(_mm256_set1_pd(thickness), xcos(nCAngleV));
+            
+        pPVV = _mm256_max_pd(_mm256_mul_pd(v0V, 
+            _mm256_sub_pd(_mm256_set1_pd(1), 
+                xexp(_mm256_sub_pd(_mm256_set1_pd(1),
+                    _mm256_div_pd(ePenetrationV, eThickness)
+                )))
+        ), _mm256_set1_pd(0));
+
+        aAngleV = _mm256_div_pd(nCAngleV, cAngleV);
+        hFAngleV = _mm256_mul_pd(hAngleV, aAngleV);
+        vFAngleV = _mm256_mul_pd(vAngleV, aAngleV);
+        
+        __m256d vFAngleVCos = xcos(vFAngleV);
+        v_x = _mm256_mul_pd(pPVV,
+            _mm256_mul_pd(vFAngleVCos, xcos(hFAngleV))
+        );
+        v_y = _mm256_mul_pd(pPVV, xsin(vFAngleV));
+        v_z = _mm256_mul_pd(pPVV,
+            _mm256_mul_pd(vFAngleVCos, xsin(hFAngleV))
+        );
+
+        for(unsigned int j=0; (j<vSize) && (j+i < s.postPenSize); j++){
+            postPenTraj(i+j, s, v_x[j], v_y[j], v_z[j], eThickness[j]);
+        }
+        //std::cout<<index<<" Completed\n";
     }
 };
 
