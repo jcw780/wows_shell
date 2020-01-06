@@ -1,7 +1,7 @@
 #define _USE_MATH_DEFINES
 //#include <cmath>
 #include <math.h>
-#include <omp.h>
+//#include <omp.h>
 //#include <immintrin.h>
 //#include <x86intrin.h>
 //#include "constant.h"
