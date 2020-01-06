@@ -658,6 +658,8 @@ class shellCalc{
         for(int i=0; i<assigned - 1; i++){
             threads[i].join();
         }
+        s.completedPostPen = true;
+        
     }
 
     void postPenWorker(int thread, double thickness, shell* s){
