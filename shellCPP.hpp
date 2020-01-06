@@ -264,6 +264,7 @@ class shellCalc{
     std::atomic<int> counter, threadCount;
     int assigned, length;
     moodycamel::ConcurrentQueue<int> workQueue;
+    constexpr int workQueueBufferSize = 16;
 
     //Physical Constants     Description                    Units
     double g = 9.81;         //Gravitational Constant       m/(s^2)
@@ -480,6 +481,7 @@ class shellCalc{
         //#pragma omp parallel for schedule(dynamic, 2)
         length = s.impactSize / vSize;
 
+        //replace with unified thread manager - so we don't make and delete threads everytime something is run
         if(length > std::thread::hardware_concurrency()){
             assigned = std::thread::hardware_concurrency();
         }else{
@@ -493,19 +495,18 @@ class shellCalc{
             threads.emplace_back([=]{impactWorker(i, sPtr, addTraj);});
         }
 
-        int buffer[32];
+        int buffer[workQueueBufferSize];
         int bCounter = 0;
         for(int i=0; i<s.impactSize; i+=vSize){
             buffer[bCounter] = i;
             bCounter++;
-            if(bCounter == 32){
+            if(bCounter == workQueueBufferSize){
                 workQueue.enqueue_bulk(buffer, bCounter);
                 bCounter = 0;
             }
             //multiTraj(i, s, addTraj);
         }
         workQueue.enqueue_bulk(buffer, bCounter);
-
         impactWorker(assigned - 1, sPtr, addTraj);
 
         while(threadCount < assigned){
@@ -633,13 +634,13 @@ class shellCalc{
         }else{
             assigned = std::thread::hardware_concurrency();
         }
-        int buffer[16];
+        int buffer[workQueueBufferSize];
         int bCounter = 0;
         for(int i=0; i<s.postPenSize; i+=vSize){
             buffer[bCounter] = i;
             bCounter++;
-            if(bCounter == 16){
-                workQueue.enqueue_bulk(buffer, 16);
+            if(bCounter == workQueueBufferSize){
+                workQueue.enqueue_bulk(buffer, bCounter);
                 bCounter = 0;
             }
         }
@@ -661,7 +662,7 @@ class shellCalc{
         s.completedPostPen = true;
         
     }
-
+    private:
     void postPenWorker(int thread, double thickness, shell* s){
         while(counter < length){
             int index;
