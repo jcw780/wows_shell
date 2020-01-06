@@ -1,7 +1,7 @@
 #define _USE_MATH_DEFINES
 //#include <cmath>
 #include <math.h>
-#include <omp.h>
+//#include <omp.h>
 //#include <immintrin.h>
 //#include <x86intrin.h>
 //#include "constant.h"
@@ -31,6 +31,8 @@ typedef __m256d fVType
 
 #endif
 
+
+#include "concurrentqueue/concurrentqueue.h"
 #include <iostream>
 #include <iomanip>
 #include <string>
@@ -40,6 +42,9 @@ typedef __m256d fVType
 #include <cstring>
 #include <algorithm>
 #include <type_traits>
+#include <thread>
+#include <atomic>
+#include <functional>
 		
 /*
 double operator"" _kg (long double input){return input;}
@@ -53,6 +58,8 @@ double operator"" _fps(long double input){return input * 0.3048;}
  * May be used to implement a hash table in the future
  */
 namespace shell{
+
+
 
 namespace impact{
 static constexpr unsigned int maxColumns = 13;
@@ -253,6 +260,11 @@ class shell{
 
 class shellCalc{
     private:
+    //Threading
+    std::atomic<int> counter, threadCount;
+    int assigned, length;
+    moodycamel::ConcurrentQueue<int> workQueue;
+
     //Physical Constants     Description                    Units
     double g = 9.81;         //Gravitational Constant       m/(s^2)
     double t0 = 288;         //Temperature at Sea Level     K
@@ -326,49 +338,8 @@ class shellCalc{
         tSIMD[j] = t;
     }
 
-    /*template<>
-    void singleTraj<false>(const unsigned int i, const unsigned int j, shell&s, __m256d& vx, __m256d& vy, __m256d& tSIMD){
-        static constexpr unsigned int __TrajBuffer__ = 128;
-        const double k = s.get_k();
-        const double cw_2 = s.get_cw_2();
-
-        double T, p, rho, t; //x, y, v_x, v_y;
-        __m128d pos, velocity, velocitySquared, dragIntermediary;
-        unsigned int counter;
-
-        //setting initial values
-        velocity[0] = vx[j];                         //x component of velocity v_x
-        velocity[1] = vy[j];                         //y component of velocity v_y
-        pos[0] = x0;                                 //x start x0
-        pos[1] = y0;                                 //y start y0
-        t = 0;                                       //t start
-
-        while(pos[1] >= 0){
-            for(counter = 0; counter < __TrajBuffer__ && pos[1] >= 0; counter++){
-                pos = _mm_fmadd_pd(_mm_set1_pd(dt), velocity, pos); //positions += velocity * dt
-                //Calculating air density
-                T = t0 - L*pos[1];                       //Calculating air temperature at altitude
-                p = p0*pow((1-L*pos[1]/t0),(g*M/(R*L))); //Calculating air pressure at altitude
-                rho = p*M/(R*T);                         //Use ideal gas law to calculate air density
-
-                //Calculate drag deceleration
-                velocitySquared = _mm_mul_pd(velocity, velocity);                                                     //v^2 = v * v
-                dragIntermediary[0] = k*rho*(cw_1*velocitySquared[0] + cw_2*velocity[0]);                             //for horizontal (x) component
-                dragIntermediary[1] = g - k*rho*(cw_1*velocitySquared[1]+cw_2*fabs(velocity[1]))*signum(velocity[1]); //for vertical   (y) component
-
-                //Adjust for next cycle
-                velocity = _mm_fmadd_pd(_mm_set1_pd(-1 * dt), dragIntermediary, velocity); //v -= drag * dt
-                t += dt;                                                                   //adjust time
-            }
-
-        }
-        s.getImpact(i + j, impact::distance) = pos[0];
-        vx[j] = velocity[0];
-        vy[j] = velocity[1];
-        tSIMD[j] = t;
-    }*/
-
     void multiTraj(const unsigned int i, shell& s, const bool addTraj){
+        //int i = index * vSize;
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_pPPC();
         __m256d angleSIMD, angleRSIMD, temp, v0SIMD = _mm256_set1_pd(s.get_v0());
@@ -436,6 +407,19 @@ class shellCalc{
         );
     }
     
+    void impactWorker(int id, shell *s, bool addTraj){
+        while(counter < length){
+            int index;
+            if(workQueue.try_dequeue(index)){
+                multiTraj(index, *s, addTraj);
+                counter.fetch_add(1, std::memory_order_relaxed);
+            }else{
+                std::this_thread::yield();
+            }
+        }
+        threadCount.fetch_add(1, std::memory_order_relaxed);
+    }
+
     public:
     double calcNormalizationR(const double angle, const double normalizationR){ //Input in radians
         return (fabs(angle) > normalizationR) * (fabs(angle) - normalizationR);
@@ -485,7 +469,7 @@ class shellCalc{
     }
 
     void calculateImpact(shell& s, bool addTraj){
-        unsigned int i;
+        //unsigned int i;
         s.impactSize = (unsigned int) (max - min) / precision;
         s.impactSizeAligned = vSize - (s.impactSize % vSize) + s.impactSize;
 
@@ -493,10 +477,45 @@ class shellCalc{
         s.impactData.resize(impact::maxColumns * s.impactSizeAligned);
 
         //omp_set_num_threads(6);
-        #pragma omp parallel for schedule(dynamic, 2)
-        for(i=0; i<s.impactSize; i+=vSize){
-            multiTraj(i, s, addTraj);
+        //#pragma omp parallel for schedule(dynamic, 2)
+        length = s.impactSize / vSize;
+
+        if(length > std::thread::hardware_concurrency()){
+            assigned = std::thread::hardware_concurrency();
+        }else{
+            assigned = length;
         }
+        counter = 0;
+        threadCount = 0;
+        std::vector<std::thread> threads;
+        shell* sPtr = &s;
+        for(int i=0; i<assigned - 1; i++){
+            threads.emplace_back([=]{impactWorker(i, sPtr, addTraj);});
+        }
+
+        int buffer[32];
+        int bCounter = 0;
+        for(int i=0; i<s.impactSize; i+=vSize){
+            buffer[bCounter] = i;
+            bCounter++;
+            if(bCounter == 32){
+                workQueue.enqueue_bulk(buffer, bCounter);
+                bCounter = 0;
+            }
+            //multiTraj(i, s, addTraj);
+        }
+        workQueue.enqueue_bulk(buffer, bCounter);
+
+        impactWorker(assigned - 1, sPtr, addTraj);
+
+        while(threadCount < assigned){
+            std::this_thread::yield();
+        }
+        
+        for(int i=0; i<assigned-1; i++){
+            threads[i].join();
+        }
+
         s.completedImpact = true;
     }
 
@@ -558,13 +577,43 @@ class shellCalc{
         }
     }
 
+    //template<typename T>
+    void fillCopy(int id, shell* s, std::vector<double>* angles){
+        //std::cout<<id<<"\n";
+        for(int i=angles->size() * id / assigned; i<angles->size() * (id + 1) / assigned; i++){
+            std::fill_n(s->postPenData.begin() + i * s->impactSize, s->impactSize, (double) angles->at(i));
+            std::copy_n(s->getImpactPtr(0, impact::distance), s->impactSize, s->postPenData.begin() + s->postPenSize + i * s->impactSize);
+        }
+        counter.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    //template<typename T>
+    void parallelFillCopy(shell* s, std::vector<double>* angles){
+        std::vector<std::thread> threads;
+        counter = 0;
+        length = angles->size();
+        if(length < std::thread::hardware_concurrency()){
+            assigned = length;
+        }else{
+            assigned = std::thread::hardware_concurrency();
+        }
+        for(int i=0; i<assigned - 1; i++){
+            threads.push_back(std::thread([=]{fillCopy(i, s, angles);} ) );
+        }
+        fillCopy(assigned - 1, s, angles);
+        while(counter < assigned){
+            std::this_thread::yield();
+        }
+        for(int i=0; i<assigned - 1; i++){
+            threads[i].join();
+        }
+    }
+
     public:
     bool includeNormalization = true;
     bool nChangeTrajectory = true;
 
-    template<typename T>
-    void calculatePostPen(const double thickness, shell& s, std::vector<T>& angles){
-        static_assert(std::is_arithmetic<T>(), "Cannot use non numeric type");
+    void calculatePostPen(const double thickness, shell& s, std::vector<double>& angles){
 
         if(!s.completedImpact){
             std::cout<<"Standard Not Calculated - Running automatically\n";
@@ -574,84 +623,128 @@ class shellCalc{
         s.postPenSize = s.impactSize * angles.size();
         s.postPenData.resize(6 * s.postPenSize);
 
+        parallelFillCopy(&s, &angles);        
 
-        #pragma omp parallel for
-        for(unsigned int i=0; i < angles.size(); i++){
-            std::fill_n(s.postPenData.begin() + i * s.impactSize, s.impactSize, (double) angles[i]);
-            std::copy_n(s.getImpactPtr(0, impact::distance), s.impactSize, s.postPenData.begin() + s.postPenSize + i * s.impactSize);
+        std::vector<std::thread> threads;
+        counter = 0, threadCount = 0;
+        length = s.postPenSize/vSize;
+        if(length < std::thread::hardware_concurrency()){
+            assigned = length;
+        }else{
+            assigned = std::thread::hardware_concurrency();
         }
-
-        #pragma omp parallel for
-        for(unsigned int i=0; i < s.postPenSize; i+=vSize){
-            __m256d hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV;
-            __m256d v0V, pPVV, ePenetrationV, eThickness, hFAngleV, vFAngleV;
-            __m256d v_x, v_y, v_z;
-            unsigned int distIndex = (i < s.impactSize) ? i : i % s.impactSize;
-            unsigned int anglesIndex = i / s.impactSize;
-
-            unsigned int j, k = 0;
-
-            if(i + vSize <= s.postPenSize){
-                hAngleV = _mm256_loadu_pd(&s.postPenData[i]);
-            }else{
-                for(j = 0; (i + j)< s.postPenSize; j++){
-                    hAngleV[j] = s.postPenData[i+j];
-                }
-            }
-
-            if(distIndex < s.impactSize - vSize + 1){
-                vAngleV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactAHR));
-                ePenetrationV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::rawPen));
-                v0V = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactV));
-            }else{
-                for(j = 0; (j + distIndex < s.impactSize) && (j < vSize); j++){
-                    vAngleV[j] = s.getImpact(distIndex + j, impact::impactAHR);
-                    ePenetrationV[j] = s.getImpact(distIndex + j, impact::rawPen);
-                    v0V[j] = s.getImpact(distIndex + j, impact::impactV);
-                }
-                if(anglesIndex < angles.size()){
-                    for(; (j < vSize); j++){
-                        vAngleV[j] = s.getImpact(k, impact::impactAHR);
-                        ePenetrationV[j] = s.getImpact(k, impact::rawPen);
-                        v0V[j] = s.getImpact(k, impact::impactV);
-                        k++;
-                    }
-                }
-            }
-
-            hAngleV = _mm256_mul_pd(hAngleV, _mm256_set1_pd(M_PI/180));            
-            cAngleV = xacos(_mm256_mul_pd(xcos(hAngleV), xcos(vAngleV)));
-            nCAngleV = calcNormalizationRSIMD(cAngleV, s.get_normalizationR());
-            eThickness = _mm256_div_pd(_mm256_set1_pd(thickness), xcos(nCAngleV));
-                
-            pPVV = _mm256_max_pd(_mm256_mul_pd(v0V, 
-                _mm256_sub_pd(_mm256_set1_pd(1), 
-                    xexp(_mm256_sub_pd(_mm256_set1_pd(1),
-                        _mm256_div_pd(ePenetrationV, eThickness)
-                    )))
-            ), _mm256_set1_pd(0));
-
-            aAngleV = _mm256_div_pd(nCAngleV, cAngleV);
-            hFAngleV = _mm256_mul_pd(hAngleV, aAngleV);
-            vFAngleV = _mm256_mul_pd(vAngleV, aAngleV);
-            
-            __m256d vFAngleVCos = xcos(vFAngleV);
-            v_x = _mm256_mul_pd(pPVV,
-                _mm256_mul_pd(vFAngleVCos, xcos(hFAngleV))
-            );
-            v_y = _mm256_mul_pd(pPVV, xsin(vFAngleV));
-            v_z = _mm256_mul_pd(pPVV,
-                _mm256_mul_pd(vFAngleVCos, xsin(hFAngleV))
-            );
-
-            for(unsigned int j=0; (j<vSize) && (j+i < s.postPenSize); j++){
-                postPenTraj(i+j, s, v_x[j], v_y[j], v_z[j], eThickness[j]);
+        int buffer[16];
+        int bCounter = 0;
+        for(int i=0; i<s.postPenSize; i+=vSize){
+            buffer[bCounter] = i;
+            bCounter++;
+            if(bCounter == 16){
+                workQueue.enqueue_bulk(buffer, 16);
+                bCounter = 0;
             }
         }
-        s.completedPostPen = true; 
+        workQueue.enqueue_bulk(buffer, bCounter);
+
+        shell* ptr = &s;
+        for(int i=0; i<assigned - 1; i++){
+            threads.emplace_back([=]{postPenWorker(i, thickness, ptr);});
+        }
+        postPenWorker(assigned - 1, thickness, &s);
+
+        while(threadCount < assigned){
+            std::this_thread::yield();
+        }
+
+        for(int i=0; i<assigned - 1; i++){
+            threads[i].join();
+        }
+        s.completedPostPen = true;
+        
     }
 
+    void postPenWorker(int thread, double thickness, shell* s){
+        while(counter < length){
+            int index;
+            if(workQueue.try_dequeue(index)){
+                multiPostPen(index, thickness, *s);
+                counter.fetch_add(1, std::memory_order_relaxed);
+            }
+            else{
+                std::this_thread::yield();
+            }
+        }
+        threadCount.fetch_add(1, std::memory_order_relaxed);
+    }
+    
+    void multiPostPen(int i, const double thickness, shell& s){
+        //std::cout<<index<<"\n";
+        //unsigned int i = index * vSize;
+        __m256d hAngleV, vAngleV, cAngleV, nCAngleV, aAngleV;
+        __m256d v0V, pPVV, ePenetrationV, eThickness, hFAngleV, vFAngleV;
+        __m256d v_x, v_y, v_z;
+        unsigned int distIndex = (i < s.impactSize) ? i : i % s.impactSize;
+        unsigned int anglesIndex = i / s.impactSize;
 
+        unsigned int j, k = 0;
+
+        if(i + vSize <= s.postPenSize){
+            hAngleV = _mm256_loadu_pd(&s.postPenData[i]);
+        }else{
+            for(j = 0; (i + j)< s.postPenSize; j++){
+                hAngleV[j] = s.postPenData[i+j];
+            }
+        }
+
+        if(distIndex < s.impactSize - vSize + 1){
+            vAngleV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactAHR));
+            ePenetrationV = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::rawPen));
+            v0V = _mm256_loadu_pd(s.getImpactPtr(distIndex, impact::impactV));
+        }else{
+            for(j = 0; (j + distIndex < s.impactSize) && (j < vSize); j++){
+                vAngleV[j] = s.getImpact(distIndex + j, impact::impactAHR);
+                ePenetrationV[j] = s.getImpact(distIndex + j, impact::rawPen);
+                v0V[j] = s.getImpact(distIndex + j, impact::impactV);
+            }
+            if(anglesIndex < s.postPenSize / s.impactSize){
+                for(; (j < vSize); j++){
+                    vAngleV[j] = s.getImpact(k, impact::impactAHR);
+                    ePenetrationV[j] = s.getImpact(k, impact::rawPen);
+                    v0V[j] = s.getImpact(k, impact::impactV);
+                    k++;
+                }
+            }
+        }
+
+        hAngleV = _mm256_mul_pd(hAngleV, _mm256_set1_pd(M_PI/180));            
+        cAngleV = xacos(_mm256_mul_pd(xcos(hAngleV), xcos(vAngleV)));
+        nCAngleV = calcNormalizationRSIMD(cAngleV, s.get_normalizationR());
+        eThickness = _mm256_div_pd(_mm256_set1_pd(thickness), xcos(nCAngleV));
+            
+        pPVV = _mm256_max_pd(_mm256_mul_pd(v0V, 
+            _mm256_sub_pd(_mm256_set1_pd(1), 
+                xexp(_mm256_sub_pd(_mm256_set1_pd(1),
+                    _mm256_div_pd(ePenetrationV, eThickness)
+                )))
+        ), _mm256_set1_pd(0));
+
+        aAngleV = _mm256_div_pd(nCAngleV, cAngleV);
+        hFAngleV = _mm256_mul_pd(hAngleV, aAngleV);
+        vFAngleV = _mm256_mul_pd(vAngleV, aAngleV);
+        
+        __m256d vFAngleVCos = xcos(vFAngleV);
+        v_x = _mm256_mul_pd(pPVV,
+            _mm256_mul_pd(vFAngleVCos, xcos(hFAngleV))
+        );
+        v_y = _mm256_mul_pd(pPVV, xsin(vFAngleV));
+        v_z = _mm256_mul_pd(pPVV,
+            _mm256_mul_pd(vFAngleVCos, xsin(hFAngleV))
+        );
+
+        for(unsigned int j=0; (j<vSize) && (j+i < s.postPenSize); j++){
+            postPenTraj(i+j, s, v_x[j], v_y[j], v_z[j], eThickness[j]);
+        }
+        //std::cout<<index<<" Completed\n";
+    }
 };
 
 }

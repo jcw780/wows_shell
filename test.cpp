@@ -22,14 +22,15 @@ int main(){
         }
     }
     //test->printStdData();
-    std::cout << "completed" << std::endl;
+    //std::cout << "completed" << std::endl;
     std::cout << total / runs / 1000000000 << std::endl;
     //test.calculateStd();
 
     
     std::vector<double> angle = {0, 1};
-    
+    //std::cout<<"Started\n";
     sc.calculatePostPen(100, *test, angle);
+    //std::cout<<"Ended\n";
     test->printPostPenData();
 
     return 0;
