@@ -423,7 +423,6 @@ class shellCalc{
 
         while(pos[1] >= 0){
             for(counter = 0; counter < __TrajBuffer__ && pos[1] >= 0; counter++){
-                #pragma simd
                 for(int l=0; l<2; l++){
                     pos[l] += velocity[l] * dt;
                 }
@@ -435,7 +434,6 @@ class shellCalc{
 
                 //Calculate drag deceleration
                 double dragIntermediary[2], velocitySquared[2];
-                #pragma simd
                 for(int l=0; l<2; l++){
                     velocitySquared[l] = velocity[l] * velocity[l]; //v^2 = v * v
                 }
@@ -444,7 +442,6 @@ class shellCalc{
                 dragIntermediary[1] = g - k*rho*(cw_1*velocitySquared[1]+cw_2*fabs(velocity[1]))*signum(velocity[1]); //for vertical   (y) component
 
                 //Adjust for next cycle
-                #pragma simd
                 for(int l=0; l<2; l++){ //v -= drag * dt
                     velocity[l] -= dragIntermediary[l] * dt;
                 }
@@ -467,7 +464,6 @@ class shellCalc{
         const double normalizationR = s.get_pPPC();
 
         double vx[vSize], vy[vSize], tVec[vSize];
-        #pragma simd
         for(int j=0; j<vSize; j++){
             s.getImpact(i + j, impact::launchA) = min + precision * (i+ j);
 
@@ -481,8 +477,6 @@ class shellCalc{
             singleTraj(i, j, s, vx, vy, tVec);
         }   
 
-        
-        #pragma simd
         for(int j=0; j<vSize; j++){
             double IA_R = atan(vy[j] / vx[j]);
             s.getImpact(i+j, impact::impactAHR) = IA_R;
@@ -509,7 +503,7 @@ class shellCalc{
 
     #endif
     
-    void impactWorker(int id, shell *s, bool addTraj){
+    void impactWorker(int threadId, shell *s, bool addTraj){
         while(counter < length){
             int index;
             if(workQueue.try_dequeue(index)){
@@ -770,7 +764,6 @@ class shellCalc{
         t = 0;
         if(v_x > 0){
             while(t < s.get_fuseTime()){
-                #pragma simd
                 for(int l=0; l<3; l++){
                     pos[l] += velocities[l] * dtf;
                 }
@@ -781,7 +774,7 @@ class shellCalc{
                 rho = p*M/(R*T);
 
                 //Calculated drag deceleration
-                #pragma simd
+                
                 for(int l=0; l<3; l++){
                     velocitiesSquared[l] = velocities[l] * velocities[l];
                 }
@@ -796,7 +789,6 @@ class shellCalc{
                 dragIntermediary[2] = xz_dragIntermediary[1]; //z
 
                 //velocities -= dtf * dragIntermediary
-                #pragma simd
                 for(int l=0; l<3; l++){
                     velocities[l] -= dtf * dragIntermediary[l];
                 }
@@ -853,7 +845,6 @@ class shellCalc{
             }
         }
 
-        #pragma simd
         for(int l=0; l<vSize; l++){
             double HA_R = hAngleV[l] * M_PI / 180;
             double cAngle = acos(cos(HA_R) * cos(vAngleV[l]));
@@ -966,7 +957,7 @@ class shellCalc{
         
     }
     private:
-    void postPenWorker(int thread, double thickness, shell* s){
+    void postPenWorker(int threadID, double thickness, shell* s){
         while(counter < length){
             int index;
             if(workQueue.try_dequeue(index)){
