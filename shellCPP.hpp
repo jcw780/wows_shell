@@ -503,7 +503,7 @@ class shellCalc{
 
     #endif
     
-    void impactWorker(int threadId, shell *s, bool addTraj){
+    void impactWorker(int threadId, shell *s, bool addTraj){ //threadID is largely there for debugging
         while(counter < length){
             int index;
             if(workQueue.try_dequeue(index)){
@@ -564,28 +564,29 @@ class shellCalc{
         }
     }
 
-    void calculateImpact(shell& s, bool addTraj){
-        //unsigned int i;
+    void calculateImpact(shell& s, bool addTraj, unsigned int nThreads=std::thread::hardware_concurrency()){
         s.impactSize = (unsigned int) (max - min) / precision;
         s.impactSizeAligned = vSize - (s.impactSize % vSize) + s.impactSize;
-
         s.trajectories.resize(2 * s.impactSize);
         s.impactData.resize(impact::maxColumns * s.impactSizeAligned);
 
-        //omp_set_num_threads(6);
-        //#pragma omp parallel for schedule(dynamic, 2)
-        length = s.impactSize / vSize;
-
         //replace with unified thread manager - so we don't make and delete threads everytime something is run
-        if(length > std::thread::hardware_concurrency()){
-            assigned = std::thread::hardware_concurrency();
+        if(nThreads  > std::thread::hardware_concurrency()){
+            nThreads = std::thread::hardware_concurrency();
+        }
+        length = ceil((double) s.impactSize / vSize);
+        if(length > nThreads){
+            assigned = nThreads;
         }else{
             assigned = length;
         }
+
+        //assigned = 1;
         counter = 0;
         threadCount = 0;
         std::vector<std::thread> threads;
         shell* sPtr = &s;
+        threads.reserve(assigned - 1);
         for(int i=0; i<assigned - 1; i++){
             threads.emplace_back([=]{impactWorker(i, sPtr, addTraj);});
         }
@@ -607,11 +608,10 @@ class shellCalc{
         while(threadCount < assigned){
             std::this_thread::yield();
         }
-        
+        std::cout<<s.impactSize<<" "<<length<<" "<<counter<<"\n";
         for(int i=0; i<assigned-1; i++){
             threads[i].join();
         }
-
         s.completedImpact = true;
     }
 
@@ -883,14 +883,14 @@ class shellCalc{
     }
 
     //template<typename T>
-    void parallelFillCopy(shell* s, std::vector<double>* angles){
+    void parallelFillCopy(shell* s, std::vector<double>* angles, unsigned int nThreads){
         std::vector<std::thread> threads;
         counter = 0;
         length = angles->size();
-        if(length < std::thread::hardware_concurrency()){
+        if(length < nThreads){
             assigned = length;
         }else{
-            assigned = std::thread::hardware_concurrency();
+            assigned = nThreads;
         }
         for(int i=0; i<assigned - 1; i++){
             threads.push_back(std::thread([=]{fillCopy(i, s, angles);} ) );
@@ -908,7 +908,7 @@ class shellCalc{
     bool includeNormalization = true;
     bool nChangeTrajectory = true;
 
-    void calculatePostPen(const double thickness, shell& s, std::vector<double>& angles){
+    void calculatePostPen(const double thickness, shell& s, std::vector<double>& angles, unsigned int nThreads=std::thread::hardware_concurrency()){
 
         if(!s.completedImpact){
             std::cout<<"Standard Not Calculated - Running automatically\n";
@@ -918,15 +918,15 @@ class shellCalc{
         s.postPenSize = s.impactSize * angles.size();
         s.postPenData.resize(6 * s.postPenSize);
 
-        parallelFillCopy(&s, &angles);        
+        parallelFillCopy(&s, &angles, nThreads);        
 
         std::vector<std::thread> threads;
         counter = 0, threadCount = 0;
-        length = s.postPenSize/vSize;
-        if(length < std::thread::hardware_concurrency()){
+        length = ceil((double) s.postPenSize/vSize);
+        if(length < nThreads){
             assigned = length;
         }else{
-            assigned = std::thread::hardware_concurrency();
+            assigned = nThreads;
         }
         int buffer[workQueueBufferSize];
         int bCounter = 0;

@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+    
+<meta charset="UTF-8">
+<script>
+    var safe = false;
+    var Module = {
+        onRuntimeInitialized: function() {
+            
+            runFunc();
+            safe = true;
+        }
+    };
+    //console.log(safe);
+    
+    function runFunc(){
+        var instance = new Module.shell(780, .460, 2574, 1460, 6, .292, 77, .033);
+        console.log(instance);
+        instance.calcImpact();
+        instance.printImpact();
+        console.log("ran");
+        var angles = [0.0, 10.0, 20.0];
+        instance.calcPostPen(100, angles);
+        console.log("ran");
+        instance.printPostPen();
+        instance.delete();
+    }
+    if(safe){
+        runFunc();
+    }
+    //}
+
+
+
+  </script>
+  <script src="shellWasm.js"></script>
+
+  <body>
+      <button type="button" onclick="runFunc()">Test</button>
+  </body>
+
+</html>
