@@ -1,7 +1,7 @@
 # ShellCPP
 Cpp header only library for calculating shell performance in World of Warships
 ## Compatibility
-Should be compatible with most platforms - code is written to take advantage of multithreading and vectorization though 
+Should be compatible with most platforms - though code is written to take advantage of multithreading and vectorization
 ## Current Functionality:
 Calculate [For Various Distances]: 
 ### At Impact
