@@ -12,9 +12,9 @@
         }
     };
     //console.log(safe);
-    
+    var instance;
     function runFunc(){
-        var instance = new Module.shell(780, .460, 2574, 1460, 6, .292, 77, .033);
+        instance = new Module.shell(780, .460, 2574, 1460, 6, .292, 77, .033);
         console.log(instance);
         instance.calcImpact();
         instance.printImpact();
@@ -23,7 +23,7 @@
         instance.calcPostPen(100, angles);
         console.log("ran");
         instance.printPostPen();
-        instance.delete();
+        //instance.delete();
     }
     if(safe){
         runFunc();

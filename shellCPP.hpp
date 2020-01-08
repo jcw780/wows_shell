@@ -608,7 +608,7 @@ class shellCalc{
         while(threadCount < assigned){
             std::this_thread::yield();
         }
-        std::cout<<s.impactSize<<" "<<length<<" "<<counter<<"\n";
+        //std::cout<<s.impactSize<<" "<<length<<" "<<counter<<"\n";
         for(int i=0; i<assigned-1; i++){
             threads[i].join();
         }
