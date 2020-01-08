@@ -17,10 +17,10 @@
         instance = new Module.shell(780, .460, 2574, 1460, 6, .292, 77, .033);
         console.log(instance);
         instance.calcImpact();
-        instance.printImpact();
+        //instance.printImpact();
         console.log("ran");
-        var angles = [0.0, 10.0, 20.0];
-        instance.calcPostPen(100, angles);
+        var angles = [0.0, 10.0, 20.0, 30.0];
+        instance.calcPostPen(70, angles);
         console.log("ran");
         instance.printPostPen();
         //instance.delete();

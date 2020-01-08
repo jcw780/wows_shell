@@ -29,7 +29,7 @@ int main(){
     
     std::vector<double> angle = {0, 1};
     //std::cout<<"Started\n";
-    sc.calculatePostPen(100, *test, angle);
+    sc.calculatePostPen(70, *test, angle);
     //std::cout<<"Ended\n";
     test->printPostPenData();
 
