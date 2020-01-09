@@ -24,8 +24,8 @@ class shellCombined{
         calc.calculateImpact(s, false);
     }
 
-    void calcPostPen(double thickness, std::vector<double> angles){
-        calc.calculatePostPen(thickness, s, angles);
+    void calcPostPen(const double thickness, const double inclination, std::vector<double> angles){
+        calc.calculatePostPen(thickness, inclination, s, angles);
     }
 
     void printImpact(){
