@@ -532,7 +532,7 @@ class shellCalc{
         }
     }
 
-    void multiPostPen(int i, const double thickness, shell& s){
+    void multiPostPen(int i, const double thickness, const double inclination, shell& s){
         //std::cout<<index<<"\n";
         //unsigned int i = index * vSize;
         double hAngleV[vSize], vAngleV[vSize];
@@ -571,9 +571,10 @@ class shellCalc{
             }
         }
 
+        double inclination_R = M_PI / 180 * inclination;
         for(int l=0; l<vSize; l++){
-            double HA_R = hAngleV[l] * M_PI / 180; //lateral  angle radians
-            double VA_R = vAngleV[l];              //vertical angle radians
+            double HA_R = hAngleV[l] * M_PI / 180;  //lateral  angle radians
+            double VA_R = vAngleV[l] + inclination_R; //vertical angle radians
             double cAngle = acos(cos(HA_R) * cos(VA_R));
             double nCAngle = calcNormalizationR(cAngle, s.get_normalizationR());
 
@@ -583,8 +584,11 @@ class shellCalc{
             double hFAngle = atan(tan(nCAngle) * tan(HA_R) / tan(cAngle));
             double vFAngle = atan(tan(nCAngle) * cos(hFAngle) * tan(VA_R) / cos(HA_R) / tan(cAngle));
 
-            v_x[l] = pPV * cos(vFAngle) * cos(hFAngle);
-            v_z[l] = pPV * cos(vFAngle) * sin(hFAngle);
+            double v_x0 = pPV * cos(vFAngle) * cos(hFAngle);
+            double v_y0 = pPV * cos(vFAngle) * sin(hFAngle);
+
+            v_x[l] = v_x0 * cos(inclination_R) + v_y0 * sin(inclination_R);
+            v_z[l] = v_y0 * cos(inclination_R) + v_x0 * sin(inclination_R);
             v_y[l] = pPV * sin(vFAngle);
             eThicknessV[l] = eThickness;
 
@@ -632,7 +636,7 @@ class shellCalc{
     bool includeNormalization = true;
     bool nChangeTrajectory = true;
 
-    void calculatePostPen(const double thickness, shell& s, std::vector<double>& angles, unsigned int nThreads=std::thread::hardware_concurrency()){
+    void calculatePostPen(const double thickness, const double inclination, shell& s, std::vector<double>& angles, unsigned int nThreads=std::thread::hardware_concurrency()){
 
         if(!s.completedImpact){
             std::cout<<"Standard Not Calculated - Running automatically\n";
@@ -666,9 +670,9 @@ class shellCalc{
 
         shell* ptr = &s;
         for(int i=0; i<assigned - 1; i++){
-            threads.emplace_back([=]{postPenWorker(i, thickness, ptr);});
+            threads.emplace_back([=]{postPenWorker(i, thickness, inclination, ptr);});
         }
-        postPenWorker(assigned - 1, thickness, &s);
+        postPenWorker(assigned - 1, thickness, inclination, &s);
 
         while(threadCount < assigned){
             std::this_thread::yield();
@@ -681,11 +685,11 @@ class shellCalc{
         
     }
     private:
-    void postPenWorker(int threadID, double thickness, shell* s){
+    void postPenWorker(int threadID, const double thickness, const double inclination, shell* s){
         while(counter < length){
             int index;
             if(workQueue.try_dequeue(index)){
-                multiPostPen(index, thickness, *s);
+                multiPostPen(index, thickness, inclination, *s);
                 counter.fetch_add(1, std::memory_order_relaxed);
             }
             else{

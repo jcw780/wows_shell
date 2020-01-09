@@ -35,9 +35,9 @@ class shellCombined{
         }
     }
 
-    void calcPostPen(double thickness, emscripten::val v){
+    void calcPostPen(const double thickness, const double inclination, emscripten::val v){
         std::vector<double> input = std::move(emscripten::vecFromJSArray<double>(v));
-        calc.calculatePostPen(thickness, s, input, 1); //atomics don't work yet 
+        calc.calculatePostPen(thickness, inclination, s, input, 1); //atomics don't work yet 
     }
 
     int postPenSize(){
