@@ -21,15 +21,15 @@ int main(){
             delete test;
         }
     }
-    test->printImpactData();
+    //test->printImpactData();
     //std::cout << "completed" << std::endl;
     std::cout << total / runs / 1000000000 << std::endl;
     //test.calculateStd();
 
     
-    std::vector<double> angle = {0, 1};
+    std::vector<double> angle = {0};
     //std::cout<<"Started\n";
-    sc.calculatePostPen(70, *test, angle);
+    sc.calculatePostPen(70, -20, *test, angle);
     //std::cout<<"Ended\n";
     test->printPostPenData();
 
