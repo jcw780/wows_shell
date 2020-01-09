@@ -267,7 +267,7 @@ class shellCalc{
     static_assert(std::numeric_limits<double>::is_iec559, "Type is not IEE754 compliant");
     static constexpr unsigned int vSize = (256 / 8) / sizeof(double);
     
-
+    template<bool AddTraj>
     void singleTraj(const unsigned int i, const unsigned int j, shell&s, double* vx, double* vy, double* tVec){
         static constexpr unsigned int __TrajBuffer__ = 128;
         const double k = s.get_k();
@@ -277,8 +277,10 @@ class shellCalc{
         //__m128d pos, velocity, velocitySquared, dragIntermediary;
         double pos[2], velocity[2];
         int counter;
-        s.trajectories[2*(i+j)  ].reserve(__TrajBuffer__);
-        s.trajectories[2*(i+j)+1].reserve(__TrajBuffer__);
+        if constexpr(AddTraj){
+            s.trajectories[2*(i+j)  ].reserve(__TrajBuffer__);
+            s.trajectories[2*(i+j)+1].reserve(__TrajBuffer__);
+        }
         double xT[__TrajBuffer__], yT[__TrajBuffer__];
 
         //setting initial values
@@ -314,12 +316,16 @@ class shellCalc{
                 for(int l=0; l<2; l++){ //v -= drag * dt
                     velocity[l] -= dragIntermediary[l] * dt;
                 }
-                t += dt;                                                                   //adjust time
-                xT[counter] = pos[0];                                                      
-                yT[counter] = pos[1];
+                t += dt; //adjust time
+                if constexpr(AddTraj){
+                    xT[counter] = pos[0];                                                      
+                    yT[counter] = pos[1];
+                }
             }
-            s.trajectories[2*(i+j)  ].insert(s.trajectories[2*(i+j)  ].end(), xT, &xT[counter]);
-            s.trajectories[2*(i+j)+1].insert(s.trajectories[2*(i+j)+1].end(), yT, &yT[counter]);
+            if constexpr(AddTraj){
+                s.trajectories[2*(i+j)  ].insert(s.trajectories[2*(i+j)  ].end(), xT, &xT[counter]);
+                s.trajectories[2*(i+j)+1].insert(s.trajectories[2*(i+j)+1].end(), yT, &yT[counter]);
+            }
 
         }
         s.getImpact(i + j, impact::distance) = pos[0];
@@ -328,7 +334,8 @@ class shellCalc{
         tVec[j] = t;
     }
 
-    void multiTraj(const unsigned int i, shell& s, const bool addTraj){
+    template<bool AddTraj>
+    void multiTraj(const unsigned int i, shell& s){
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_pPPC();
 
@@ -343,7 +350,7 @@ class shellCalc{
         }
 
         for(int j = 0; (j+i<s.impactSize) && (j < vSize); j++){
-            singleTraj(i, j, s, vx, vy, tVec);
+            singleTraj<AddTraj>(i, j, s, vx, vy, tVec);
         }   
 
         for(int j=0; j<vSize; j++){
@@ -370,11 +377,12 @@ class shellCalc{
         }
     }
     
-    void impactWorker(int threadId, shell *s, bool addTraj){ //threadID is largely there for debugging
+    template<bool AddTraj>
+    void impactWorker(int threadId, shell *s){ //threadID is largely there for debugging
         while(counter < length){
             int index;
             if(workQueue.try_dequeue(index)){
-                multiTraj(index, *s, addTraj);
+                multiTraj<AddTraj>(index, *s);
                 counter.fetch_add(1, std::memory_order_relaxed);
             }else{
                 std::this_thread::yield();
@@ -438,23 +446,42 @@ class shellCalc{
         std::vector<std::thread> threads;
         shell* sPtr = &s;
         threads.reserve(assigned - 1);
-        for(int i=0; i<assigned - 1; i++){
-            threads.emplace_back([=]{impactWorker(i, sPtr, addTraj);});
-        }
-
-        int buffer[workQueueBufferSize];
-        int bCounter = 0;
-        for(int i=0; i<s.impactSize; i+=vSize){
-            buffer[bCounter] = i;
-            bCounter++;
-            if(bCounter == workQueueBufferSize){
-                workQueue.enqueue_bulk(buffer, bCounter);
-                bCounter = 0;
+        if(addTraj){
+            for(int i=0; i<assigned - 1; i++){
+                threads.emplace_back([=]{impactWorker<true>(i, sPtr);});
             }
-            //multiTraj(i, s, addTraj);
+
+            int buffer[workQueueBufferSize];
+            int bCounter = 0;
+            for(int i=0; i<s.impactSize; i+=vSize){
+                buffer[bCounter] = i;
+                bCounter++;
+                if(bCounter == workQueueBufferSize){
+                    workQueue.enqueue_bulk(buffer, bCounter);
+                    bCounter = 0;
+                }
+                //multiTraj(i, s, addTraj);
+            }
+            workQueue.enqueue_bulk(buffer, bCounter);
+            impactWorker<true>(assigned - 1, sPtr);
+        }else{
+            for(int i=0; i<assigned - 1; i++){
+                threads.emplace_back([=]{impactWorker<false>(i, sPtr);});
+            }
+            int buffer[workQueueBufferSize];
+            int bCounter = 0;
+            for(int i=0; i<s.impactSize; i+=vSize){
+                buffer[bCounter] = i;
+                bCounter++;
+                if(bCounter == workQueueBufferSize){
+                    workQueue.enqueue_bulk(buffer, bCounter);
+                    bCounter = 0;
+                }
+                //multiTraj(i, s, addTraj);
+            }
+            workQueue.enqueue_bulk(buffer, bCounter);
+            impactWorker<false>(assigned - 1, sPtr);
         }
-        workQueue.enqueue_bulk(buffer, bCounter);
-        impactWorker(assigned - 1, sPtr, addTraj);
 
         while(threadCount < assigned){
             std::this_thread::yield();
