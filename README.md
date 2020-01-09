@@ -9,6 +9,7 @@ angle of impact, impact velocity, raw belt/deck penetration, penetration adjuste
 ### Post-Penetration
 shell detonation distances - some assumptiongs were made with regards to normalization changing shell direction
 ## Extensions
-Python - can't compile right now some new features need inclusion, WebAssembly - used in https://jcw780.github.io/overpen_calculator/ 
+Python
+WebAssembly - used in https://jcw780.github.io/overpen_calculator/ 
 
 
