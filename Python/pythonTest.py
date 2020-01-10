@@ -3,7 +3,7 @@ import numpy as np
 s = shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76.0, .033 )
 s.calcImpact()
 print("Standard Done")
-s.calcPostPen(400.0, 0, [0, 10, 20])
+s.calcPostPen(400.0, 0, [0, 10, 20], True, False)
 print("Postpen done")
 
 n1 = s.getImpact()
@@ -28,7 +28,7 @@ for y in range(n2.shape[1]):
         pS = F'{pS} {n2r[x, y]}'
     print(pS)
 
-s.calcPostPen(100.0, 0, [0, 10])
+s.calcPostPen(100.0, 0, [0, 10], True, True)
 
 s.printPostPen()
 n2 = s.getPostPen()

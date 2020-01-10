@@ -498,68 +498,77 @@ class shellCalc{
     double dtf = 0.0001;
     double xf0 = 0, yf0 = 0;
 
+    template<bool fast>
     void postPenTraj(const unsigned int i, shell& s, double v_x, double v_y, double v_z, double thickness){
-        const double k = s.get_k();
-        const double cw_2 = s.get_cw_2();
-        double T, p, rho, t; 
-
-        /* [indices]           0     1     2      
-         * pos                 x     y     z      
-         * velocities          v_x   v_y   v_z    
-         * velocitiesSquared   v_x^2 v_y^2 v_z^2  
-         * dragIntermediary    ad_x  ad_y  ad_z   
-         * xz_dragIntermediary ad_x  ad_z       
-         */
-        double pos[3], velocities[3], velocitiesSquared[3], dragIntermediary[3];
-        double xz_dragIntermediary[2]; 
-        pos[0] = xf0, pos[1] = yf0, pos[2] = xf0;
-        velocities[0] = v_x, velocities[1] = v_y, velocities[2] = v_z;
-        t = 0;
-        if(v_x > 0){
-            while(t < s.get_fuseTime()){
-                for(int l=0; l<3; l++){
-                    pos[l] += velocities[l] * dtf;
-                }
-                
-                //Calculate air density - likely unnecessary for this section as distances are so short
-                T = t0 - L*pos[1];
-                p = p0*pow((1-L*pos[1]/t0),(g*M/(R*L)));
-                rho = p*M/(R*T);
-
-                //Calculated drag deceleration
-                
-                for(int l=0; l<3; l++){
-                    velocitiesSquared[l] = velocities[l] * velocities[l];
-                }
-                //velocitiesSquared = _mm256_mul_pd(velocities, velocities); //velocitiesSquared = velocities * velocities
-
-                xz_dragIntermediary[0] = (k * rho) * (cw_1 * velocitiesSquared[0] + cw_2 * velocities[0]);
-                xz_dragIntermediary[1] = (k * rho) * (cw_1 * velocitiesSquared[2] + cw_2 * velocities[2]);
-                //xz_dragIntermediary = (k * rho) * (cw_1 * velocitiesSquared[2, 0] + cw_2 * velocities[2, 0])
-                
-                dragIntermediary[0] = xz_dragIntermediary[0]; //x
-                dragIntermediary[1] = (g - k*rho*(cw_1*velocitiesSquared[1]+cw_2*fabs(velocities[1]))*signum(velocities[1])); 
-                dragIntermediary[2] = xz_dragIntermediary[1]; //z
-
-                //velocities -= dtf * dragIntermediary
-                for(int l=0; l<3; l++){
-                    velocities[l] -= dtf * dragIntermediary[l];
-                }
-                t += dtf;                                                                             
-            }
-            s.getPostPen(i, post::x) = pos[0];
-            s.getPostPen(i, post::y) = pos[1];
-            s.getPostPen(i, post::z) = pos[2];
-            s.getPostPen(i, post::xwf) = (thickness >= s.get_threshold()) * pos[0] + !(thickness >= s.get_threshold()) * -1;
+        if constexpr(fast){
+            double x = v_x * s.get_fuseTime();
+            s.getPostPen(i, post::x) = x;
+            s.getPostPen(i, post::y) = v_y * s.get_fuseTime();
+            s.getPostPen(i, post::z) = v_z * s.get_fuseTime();
+            s.getPostPen(i, post::xwf) = (thickness >= s.get_threshold()) * x + !(thickness >= s.get_threshold()) * -1;
         }else{
-            s.getPostPen(i, post::x) = 0;
-            s.getPostPen(i, post::y) = 0;
-            s.getPostPen(i, post::z) = 0;
-            s.getPostPen(i, post::xwf) = 0;
+            const double k = s.get_k();
+            const double cw_2 = s.get_cw_2();
+            double T, p, rho, t; 
+
+            /* [indices]           0     1     2      
+            * pos                 x     y     z      
+            * velocities          v_x   v_y   v_z    
+            * velocitiesSquared   v_x^2 v_y^2 v_z^2  
+            * dragIntermediary    ad_x  ad_y  ad_z   
+            * xz_dragIntermediary ad_x  ad_z       
+            */
+            double pos[3], velocities[3], velocitiesSquared[3], dragIntermediary[3];
+            double xz_dragIntermediary[2]; 
+            pos[0] = xf0, pos[1] = yf0, pos[2] = xf0;
+            velocities[0] = v_x, velocities[1] = v_y, velocities[2] = v_z;
+            t = 0;
+            if(v_x > 0){
+                while(t < s.get_fuseTime()){
+                    for(int l=0; l<3; l++){
+                        pos[l] += velocities[l] * dtf;
+                    }
+                    
+                    //Calculate air density - likely unnecessary for this section as distances are so short
+                    T = t0 - L*pos[1];
+                    p = p0*pow((1-L*pos[1]/t0),(g*M/(R*L)));
+                    rho = p*M/(R*T);
+
+                    //Calculated drag deceleration
+                    
+                    for(int l=0; l<3; l++){
+                        velocitiesSquared[l] = velocities[l] * velocities[l];
+                    }
+                    //velocitiesSquared = _mm256_mul_pd(velocities, velocities); //velocitiesSquared = velocities * velocities
+
+                    xz_dragIntermediary[0] = (k * rho) * (cw_1 * velocitiesSquared[0] + cw_2 * velocities[0]);
+                    xz_dragIntermediary[1] = (k * rho) * (cw_1 * velocitiesSquared[2] + cw_2 * velocities[2]);
+                    //xz_dragIntermediary = (k * rho) * (cw_1 * velocitiesSquared[2, 0] + cw_2 * velocities[2, 0])
+                    
+                    dragIntermediary[0] = xz_dragIntermediary[0]; //x
+                    dragIntermediary[1] = (g - k*rho*(cw_1*velocitiesSquared[1]+cw_2*fabs(velocities[1]))*signum(velocities[1])); 
+                    dragIntermediary[2] = xz_dragIntermediary[1]; //z
+
+                    //velocities -= dtf * dragIntermediary
+                    for(int l=0; l<3; l++){
+                        velocities[l] -= dtf * dragIntermediary[l];
+                    }
+                    t += dtf;                                                                             
+                }
+                s.getPostPen(i, post::x) = pos[0];
+                s.getPostPen(i, post::y) = pos[1];
+                s.getPostPen(i, post::z) = pos[2];
+                s.getPostPen(i, post::xwf) = (thickness >= s.get_threshold()) * pos[0] + !(thickness >= s.get_threshold()) * -1;
+            }else{
+                s.getPostPen(i, post::x) = 0;
+                s.getPostPen(i, post::y) = 0;
+                s.getPostPen(i, post::z) = 0;
+                s.getPostPen(i, post::xwf) = 0;
+            }
         }
     }
 
-    //template<bool changeDirection>
+    template<bool changeDirection, bool fast>
     void multiPostPen(int i, const double thickness, const double inclination_R, shell& s){
         //std::cout<<index<<"\n";
         //unsigned int i = index * vSize;
@@ -608,21 +617,27 @@ class shellCalc{
             double eThickness = thickness / cos(nCAngle);
             double pPV = v0V[l] * (1 - exp(1 - penetrationV[l] / eThickness));
 
-            double hFAngle = atan(tan(nCAngle) * tan(HA_R) / tan(cAngle));
-            double vFAngle = atan(tan(nCAngle) * cos(hFAngle) * tan(VA_R) / cos(HA_R) / tan(cAngle));
+            if constexpr(changeDirection){
+                double hFAngle = atan(tan(nCAngle) * tan(HA_R) / tan(cAngle));
+                double vFAngle = atan(tan(nCAngle) * cos(hFAngle) * tan(VA_R) / cos(HA_R) / tan(cAngle));
 
-            double v_x0 = pPV * cos(vFAngle) * cos(hFAngle);
-            double v_y0 = pPV * cos(vFAngle) * sin(hFAngle);
+                double v_x0 = pPV * cos(vFAngle) * cos(hFAngle);
+                double v_y0 = pPV * cos(vFAngle) * sin(hFAngle);
 
-            v_x[l] = v_x0 * cos(inclination_R) + v_y0 * sin(inclination_R);
-            v_z[l] = v_y0 * cos(inclination_R) + v_x0 * sin(inclination_R);
-            v_y[l] = pPV * sin(vFAngle);
+                v_x[l] = v_x0 * cos(inclination_R) + v_y0 * sin(inclination_R);
+                v_z[l] = v_y0 * cos(inclination_R) + v_x0 * sin(inclination_R);
+                v_y[l] = pPV * sin(vFAngle);
+            }else{
+                v_x[l] = pPV * cos(VA_R) * cos(HA_R);
+                v_z[l] = pPV * cos(VA_R) * sin(HA_R);
+                v_y[l] = pPV * sin(VA_R);
+            }
+
             eThicknessV[l] = eThickness;
-
         }
 
         for(unsigned int j=0; (j<vSize) && (j+i < s.postPenSize); j++){
-            postPenTraj(i+j, s, v_x[j], v_y[j], v_z[j], eThicknessV[j]);
+            postPenTraj<fast>(i+j, s, v_x[j], v_y[j], v_z[j], eThicknessV[j]);
         }
         //std::cout<<index<<" Completed\n";
     }
@@ -663,7 +678,29 @@ class shellCalc{
     bool includeNormalization = true;
     bool nChangeTrajectory = true;
 
-    void calculatePostPen(const double thickness, const double inclination, shell& s, std::vector<double>& angles, unsigned int nThreads=std::thread::hardware_concurrency()){
+    void calculatePostPen(const double thickness, const double inclination, shell& s, std::vector<double>& angles, const bool changeDirection=true,
+    const bool fast=false, const unsigned int nThreads=std::thread::hardware_concurrency()){
+        if(changeDirection){
+            calculatePostPen<true>( thickness, inclination, s, angles, fast, nThreads);
+        }else{
+            calculatePostPen<false>(thickness, inclination, s, angles, fast, nThreads);
+        }
+    }
+
+    private:
+    
+    template<bool changeDirection>
+    void calculatePostPen(const double thickness, const double inclination, shell& s, std::vector<double>& angles, 
+    const bool fast=false, const unsigned int nThreads=std::thread::hardware_concurrency()){
+        if(fast){
+            calculatePostPen<changeDirection, true>( thickness, inclination, s, angles, nThreads);
+        }else{
+            calculatePostPen<changeDirection, false>(thickness, inclination, s, angles, nThreads);
+        }
+    }
+
+    template<bool changeDirection, bool fast>
+    void calculatePostPen(const double thickness, const double inclination, shell& s, std::vector<double>& angles, const unsigned int nThreads){
 
         if(!s.completedImpact){
             std::cout<<"Standard Not Calculated - Running automatically\n";
@@ -697,9 +734,9 @@ class shellCalc{
         double inclination_R = M_PI / 180 * inclination;
         shell* ptr = &s;
         for(int i=0; i<assigned - 1; i++){
-            threads.emplace_back([=]{postPenWorker(i, thickness, inclination_R, ptr);});
+            threads.emplace_back([=]{postPenWorker<changeDirection, fast>(i, thickness, inclination_R, ptr);});
         }
-        postPenWorker(assigned - 1, thickness, inclination_R, &s);
+        postPenWorker<changeDirection, fast>(assigned - 1, thickness, inclination_R, &s);
 
         while(threadCount < assigned){
             std::this_thread::yield();
@@ -711,12 +748,13 @@ class shellCalc{
         s.completedPostPen = true;
         
     }
-    private:
+
+    template<bool changeDirection, bool fast>
     void postPenWorker(int threadID, const double thickness, const double inclination, shell* s){
         while(counter < length){
             int index;
             if(workQueue.try_dequeue(index)){
-                multiPostPen(index, thickness, inclination, *s);
+                multiPostPen<changeDirection, fast>(index, thickness, inclination, *s);
                 counter.fetch_add(1, std::memory_order_relaxed);
             }
             else{

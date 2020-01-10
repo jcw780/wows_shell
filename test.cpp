@@ -27,9 +27,9 @@ int main(){
     //test.calculateStd();
 
     
-    std::vector<double> angle = {0};
+    std::vector<double> angle = {10};
     //std::cout<<"Started\n";
-    sc.calculatePostPen(70, 0, *test, angle);
+    sc.calculatePostPen(70, -20, *test, angle, true, false);
     //std::cout<<"Ended\n";
     test->printPostPenData();
 
