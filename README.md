@@ -1,8 +1,8 @@
 # ShellCPP
 - C++ header only library for calculating shell performance in World of Warships
-## Original code for ballistic calculations and post penetration velocity formula comes from: 
+## Original Source:
 - Code: https://pastebin.com/1NEwkf7R
-- Post Penetration: https://www.reddit.com/r/WorldOfWarships/comments/560yg2/wows_ballistic_model_penetration/
+- Formulas: https://www.reddit.com/r/WorldOfWarships/comments/560yg2/wows_ballistic_model_penetration/
 ## Current Functionality:
 ### Shell Flight
 Shell flight path
