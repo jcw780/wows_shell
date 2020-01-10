@@ -11,17 +11,17 @@ Angle of Impact, Impact Velocity, Raw Belt/Deck Penetration, Penetration Adjuste
 Shell flight time (Real / In-game)
 ### Post-Penetration:
 Shell detonation distance after penetration at various ranges, ship angling, and armor vertical inclinations
-- some assumptiongs were made with regards to normalization changing shell direction - testing is needed
+- Some assumptiongs were made with regards to normalization changing shell direction - testing is needed
 - Added ability to modify the way the calculations are done 
 ## Compatibility:
 Should be compatible with most platforms
 Code is written to take advantage of multithreading and vectorization so platforms with such functionality (Multicore CPUs SSE/AVX support - basically every relatively recent desktop CPU) should perform better
 ## Extensions:
 ### Python 
-- written with Pybind11 - tested with Python 3.7.4 (Anaconda)
+- Written with Pybind11 - tested with Python 3.7.4 (Anaconda)
 ### WebAssembly 
-- written with Embind - threading does not working since atomics do not work yet
-- used in https://jcw780.github.io/overpen_calculator/ 
+- Written with Embind - threading does not working since atomics do not work yet
+- Used in https://jcw780.github.io/overpen_calculator/ 
 ## Future Goals:
 - Makefiles
 - Examples / Test Code Reorganization
