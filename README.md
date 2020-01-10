@@ -24,7 +24,7 @@ Code is written to take advantage of multithreading and vectorization so platfor
 - used in https://jcw780.github.io/overpen_calculator/ 
 ## Future Goals:
 - Makefiles
-- Examples - Test Code Reorganization
+- Examples / Test Code Reorganization
 
 
 
