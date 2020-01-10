@@ -22,7 +22,9 @@ Code is written to take advantage of multithreading and vectorization so platfor
 ### WebAssembly 
 - written with Embind - threading does not working since atomics do not work yet
 - used in https://jcw780.github.io/overpen_calculator/ 
-
+## Future Goals:
+- Makefiles
+- Examples - Test Code Reorganization
 
 
 
