@@ -559,7 +559,8 @@ class shellCalc{
         }
     }
 
-    void multiPostPen(int i, const double thickness, const double inclination, shell& s){
+    //template<bool changeDirection>
+    void multiPostPen(int i, const double thickness, const double inclination_R, shell& s){
         //std::cout<<index<<"\n";
         //unsigned int i = index * vSize;
         double hAngleV[vSize], vAngleV[vSize];
@@ -598,7 +599,6 @@ class shellCalc{
             }
         }
 
-        double inclination_R = M_PI / 180 * inclination;
         for(int l=0; l<vSize; l++){
             double HA_R = hAngleV[l] * M_PI / 180;  //lateral  angle radians
             double VA_R = vAngleV[l] + inclination_R; //vertical angle radians
@@ -694,12 +694,12 @@ class shellCalc{
             }
         }
         workQueue.enqueue_bulk(buffer, bCounter);
-
+        double inclination_R = M_PI / 180 * inclination;
         shell* ptr = &s;
         for(int i=0; i<assigned - 1; i++){
-            threads.emplace_back([=]{postPenWorker(i, thickness, inclination, ptr);});
+            threads.emplace_back([=]{postPenWorker(i, thickness, inclination_R, ptr);});
         }
-        postPenWorker(assigned - 1, thickness, inclination, &s);
+        postPenWorker(assigned - 1, thickness, inclination_R, &s);
 
         while(threadCount < assigned){
             std::this_thread::yield();
