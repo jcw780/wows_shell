@@ -66,7 +66,7 @@ class shellCombined{
         if(s.completedPostPen){
             constexpr std::size_t sT = sizeof(double);
             auto result = pybind11::array(pybind11::buffer_info(
-                s.getPostPenPtr(0, 0),                      
+                s.getPostPenPtr(0, 0, 0),                      
                 sT,                                         
                 pybind11::format_descriptor<double>::value, 
                 3,                                          

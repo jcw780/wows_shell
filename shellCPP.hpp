@@ -163,12 +163,12 @@ class shell{
         return impactData.data() + i + j * impactSizeAligned;
     }
 
-    double& getPostPen(unsigned int i, unsigned int j){
-        return postPenData[i + j * postPenSize];
+    double& getPostPen(unsigned int i, unsigned int j, unsigned int k){
+        return postPenData[i + j * postPenSize + k * impactSize];
     }
 
-    double* getPostPenPtr(unsigned int i, unsigned int j){
-        return postPenData.data() + i + j * postPenSize;
+    double* getPostPenPtr(unsigned int i, unsigned int j, unsigned int k){
+        return postPenData.data() + i + j * postPenSize + k * impactSize;
     }
 
     const double& get_v0(){
@@ -502,10 +502,10 @@ class shellCalc{
     void postPenTraj(const unsigned int i, shell& s, double v_x, double v_y, double v_z, double thickness){
         if constexpr(fast){
             double x = v_x * s.get_fuseTime();
-            s.getPostPen(i, post::x) = x;
-            s.getPostPen(i, post::y) = v_y * s.get_fuseTime();
-            s.getPostPen(i, post::z) = v_z * s.get_fuseTime();
-            s.getPostPen(i, post::xwf) = (thickness >= s.get_threshold()) * x + !(thickness >= s.get_threshold()) * -1;
+            s.getPostPen(i, post::x  , 0) = x;
+            s.getPostPen(i, post::y  , 0) = v_y * s.get_fuseTime();
+            s.getPostPen(i, post::z  , 0) = v_z * s.get_fuseTime();
+            s.getPostPen(i, post::xwf, 0) = (thickness >= s.get_threshold()) * x + !(thickness >= s.get_threshold()) * -1;
         }else{
             const double k = s.get_k();
             const double cw_2 = s.get_cw_2();
@@ -555,15 +555,15 @@ class shellCalc{
                     }
                     t += dtf;                                                                             
                 }
-                s.getPostPen(i, post::x) = pos[0];
-                s.getPostPen(i, post::y) = pos[1];
-                s.getPostPen(i, post::z) = pos[2];
-                s.getPostPen(i, post::xwf) = (thickness >= s.get_threshold()) * pos[0] + !(thickness >= s.get_threshold()) * -1;
+                s.getPostPen(i, post::x  , 0) = pos[0];
+                s.getPostPen(i, post::y  , 0) = pos[1];
+                s.getPostPen(i, post::z  , 0) = pos[2];
+                s.getPostPen(i, post::xwf, 0) = (thickness >= s.get_threshold()) * pos[0] + !(thickness >= s.get_threshold()) * -1;
             }else{
-                s.getPostPen(i, post::x) = 0;
-                s.getPostPen(i, post::y) = 0;
-                s.getPostPen(i, post::z) = 0;
-                s.getPostPen(i, post::xwf) = 0;
+                s.getPostPen(i, post::x  , 0) = 0;
+                s.getPostPen(i, post::y  , 0) = 0;
+                s.getPostPen(i, post::z  , 0) = 0;
+                s.getPostPen(i, post::xwf, 0) = 0;
             }
         }
     }
@@ -581,7 +581,7 @@ class shellCalc{
         unsigned int j, k = 0;
 
         if(i + vSize <= s.postPenSize){
-            std::copy_n(s.getPostPenPtr(i, post::angle), vSize, hAngleV);
+            std::copy_n(s.getPostPenPtr(i, post::angle, 0), vSize, hAngleV);
         }else{
             for(j = 0; (i + j)< s.postPenSize; j++){
                 hAngleV[j] = s.postPenData[i+j];
