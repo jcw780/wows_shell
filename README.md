@@ -14,9 +14,7 @@ Shell detonation distance after penetration at various ranges, ship angling, and
 - Some assumptiongs were made with regards to normalization changing shell direction - testing is needed
 - Added ability to modify the way the calculations are done 
 ## Compatibility:
-### Software:
-C++17 
-### Hardware: 
+- Code requires C++17 supporting compiler
 - Should be compatible with most platforms 
 - Code does take advantage of multithreading and vectorization (platforms supporting these should perform better)
 ## Extensions:
