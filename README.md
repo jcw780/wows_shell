@@ -14,8 +14,11 @@ Shell detonation distance after penetration at various ranges, ship angling, and
 - Some assumptiongs were made with regards to normalization changing shell direction - testing is needed
 - Added ability to modify the way the calculations are done 
 ## Compatibility:
-Should be compatible with most platforms
-Code is written to take advantage of multithreading and vectorization so platforms with such functionality (Multicore CPUs SSE/AVX support - basically every relatively recent desktop CPU) should perform better
+### Software:
+C++17 
+### Hardware: 
+- Should be compatible with most platforms 
+- Code does take advantage of multithreading and vectorization (platforms supporting these should perform better)
 ## Extensions:
 ### Python 
 - Written with Pybind11 - tested with Python 3.7.4 (Anaconda)
