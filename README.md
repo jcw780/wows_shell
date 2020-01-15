@@ -1,6 +1,6 @@
 # ShellCPP
 - C++ header only library for calculating shell performance in World of Warships
-## Original Source:
+## Original Information / Source Code:
 - Code: https://pastebin.com/1NEwkf7R
 - Formulas: https://www.reddit.com/r/WorldOfWarships/comments/560yg2/wows_ballistic_model_penetration/
 ## Current Functionality:
@@ -14,8 +14,9 @@ Shell detonation distance after penetration at various ranges, ship angling, and
 - Some assumptiongs were made with regards to normalization changing shell direction - testing is needed
 - Added ability to modify the way the calculations are done 
 ## Compatibility:
-Should be compatible with most platforms
-Code is written to take advantage of multithreading and vectorization so platforms with such functionality (Multicore CPUs SSE/AVX support - basically every relatively recent desktop CPU) should perform better
+- Requires C++17 supporting compiler
+- Should be compatible with most platforms (not extensively tested)
+- Takes advantage of multithreading and vectorization (platforms supporting these should perform better)
 ## Extensions:
 ### Python 
 - Written with Pybind11 - tested with Python 3.7.4 (Anaconda)
