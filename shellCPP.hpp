@@ -337,7 +337,7 @@ class shellCalc{
     template<bool AddTraj>
     void multiTraj(const unsigned int i, shell& s){
         const double pPPC = s.get_pPPC();
-        const double normalizationR = s.get_pPPC();
+        const double normalizationR = s.get_normalizationR();
 
         double vx[vSize], vy[vSize], tVec[vSize];
         for(int j=0; j<vSize; j++){

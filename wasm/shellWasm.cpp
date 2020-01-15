@@ -35,6 +35,10 @@ class shellCombined{
         }
     }
 
+    double getImpactPoint(const int i, const int j){
+        return s.getImpact(i, j);
+    }
+
     void calcPostPen(const double thickness, const double inclination, emscripten::val v, const bool changeDirection, const bool fast){
         std::vector<double> input = std::move(emscripten::vecFromJSArray<double>(v));
         calc.calculatePostPen(thickness, inclination, s, input, changeDirection, fast, 1); //atomics don't work yet 
@@ -51,6 +55,10 @@ class shellCombined{
             throw std::runtime_error("Impact data not generated");
         }
     }
+
+    double getPostPenPoint(const int i, const int j, const int k){
+        return s.getPostPen(i, j, k);
+    }   
 
     void printImpact(){
         if(s.completedImpact){
@@ -79,10 +87,12 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
     emscripten::class_<shellCombined>("shell")
         .constructor<double, double, double, double, double, double, /*std::string&,*/ double, double>()
         .function("calcImpact"          , &shellCombined::calcImpact)
+        .function("getImpactPoint"      , &shellCombined::getImpactPoint)
         .function("impactData"          , &shellCombined::impactData)
         .function("getImpactSize"       , &shellCombined::impactSize)
         .function("getImpactSizeAligned", &shellCombined::impactSizeAligned)
         .function("calcPostPen"         , &shellCombined::calcPostPen)
+        .function("getPostPenPoint"     , &shellCombined::getPostPenPoint)
         .function("postPenData"         , &shellCombined::postPenData)
         .function("getPostPenSize"      , &shellCombined::postPenSize)
         .function("printImpact"         , &shellCombined::printImpact)

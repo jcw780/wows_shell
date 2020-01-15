@@ -21,7 +21,7 @@ int main(){
             delete test;
         }
     }
-    //test->printImpactData();
+    test->printImpactData();
     //std::cout << "completed" << std::endl;
     std::cout << total / runs / 1000000000 << std::endl;
     //test.calculateStd();

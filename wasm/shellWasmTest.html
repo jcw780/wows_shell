@@ -21,9 +21,17 @@
         console.log("ran");
         var angles = [10];
         instance.calcPostPen(70, -20, angles, true, false);
+        
         console.log("ran");
-        instance.printPostPen();
+        //instance.printPostPen();
         //instance.delete();
+        for(var i=0; i<instance.getImpactSize(); i++){
+            //console.log(i);
+            console.log(i, instance.getPostPenPoint(i, Module.postPenDataIndex.distance.value, 0),
+                instance.getPostPenPoint(i, Module.postPenDataIndex.x.value, 0),
+                instance.getPostPenPoint(i, Module.postPenDataIndex.xwf.value, 0)
+            );
+        }
     }
     if(safe){
         runFunc();
