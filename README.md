@@ -26,7 +26,7 @@ Shell detonation distance after penetration at various ranges, ship angling, and
 ## Future Goals:
 - Makefiles
 - Examples / Test Code Reorganization
-
+- New Features: Maximum lateral angle etc.
 
 
 
