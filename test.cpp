@@ -29,7 +29,10 @@ int main(){
     
     std::vector<double> angle = {10};
     //std::cout<<"Started\n";
+    auto t1 = std::chrono::high_resolution_clock::now();
     sc.calculatePostPen(70, -20, *test, angle, true, false);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    std::cout<<(double)std::chrono::duration_cast<std::chrono::nanoseconds>( t2 - t1 ).count() / 1000000000<<"\n";
     //std::cout<<"Ended\n";
     test->printPostPenData();
 
