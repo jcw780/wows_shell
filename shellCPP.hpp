@@ -263,6 +263,7 @@ class shellCalc{
     double x0 = 0, y0 = 0;   //Starting x0, y0              m
     double dt = .01;         //Time step                    s
 
+    //For vectorization - though not 100% necessary anymore since intrinsics were removed
     static_assert(sizeof(double) == 8, "Size of double is not 8 - required for AVX2"); //Use float64 in the future
     static_assert(std::numeric_limits<double>::is_iec559, "Type is not IEE754 compliant");
     static constexpr unsigned int vSize = (256 / 8) / sizeof(double);
@@ -634,7 +635,7 @@ class shellCalc{
         //std::cout<<index<<" Completed\n";
     }
 
-    //template<typename T>
+    //Probably unnecessary... 
     void fillCopy(int id, shell* s, std::vector<double>* angles){
         //std::cout<<id<<"\n";
         for(int i=angles->size() * id / assigned; i<angles->size() * (id + 1) / assigned; i++){
@@ -644,7 +645,6 @@ class shellCalc{
         counter.fetch_add(1, std::memory_order_relaxed);
     }
 
-    //template<typename T>
     void parallelFillCopy(shell* s, std::vector<double>* angles, unsigned int nThreads){
         std::vector<std::thread> threads;
         counter = 0;
@@ -678,8 +678,6 @@ class shellCalc{
             calculatePostPen<false>(thickness, inclination, s, angles, fast, nThreads);
         }
     }
-
-    private:
     
     template<bool changeDirection>
     void calculatePostPen(const double thickness, const double inclination, shell& s, std::vector<double>& angles, 
@@ -741,6 +739,7 @@ class shellCalc{
         
     }
 
+    private: 
     template<bool changeDirection, bool fast>
     void postPenWorker(int threadID, const double thickness, const double inclination, shell* s){
         while(counter < length){
