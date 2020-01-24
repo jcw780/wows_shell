@@ -424,6 +424,15 @@ class shellCalc{
     }
 
     void calculateImpact(shell& s, bool addTraj, unsigned int nThreads=std::thread::hardware_concurrency()){
+        if(addTraj){
+            calculateImpact<true>(s, nThreads);
+        }else{
+            calculateImpact<false>(s, nThreads);
+        }
+    }
+
+    template<bool AddTraj>
+    void calculateImpact(shell& s, unsigned int nThreads=std::thread::hardware_concurrency()){
         s.impactSize = (unsigned int) (max - min) / precision;
         s.impactSizeAligned = vSize - (s.impactSize % vSize) + s.impactSize;
         s.trajectories.resize(2 * s.impactSize);
@@ -446,42 +455,25 @@ class shellCalc{
         std::vector<std::thread> threads;
         shell* sPtr = &s;
         threads.reserve(assigned - 1);
-        if(addTraj){
-            for(int i=0; i<assigned - 1; i++){
-                threads.emplace_back([=]{impactWorker<true>(i, sPtr);});
-            }
 
-            int buffer[workQueueBufferSize];
-            int bCounter = 0;
-            for(int i=0; i<s.impactSize; i+=vSize){
-                buffer[bCounter] = i;
-                bCounter++;
-                if(bCounter == workQueueBufferSize){
-                    workQueue.enqueue_bulk(buffer, bCounter);
-                    bCounter = 0;
-                }
-                //multiTraj(i, s, addTraj);
-            }
-            workQueue.enqueue_bulk(buffer, bCounter);
-            impactWorker<true>(assigned - 1, sPtr);
-        }else{
-            for(int i=0; i<assigned - 1; i++){
-                threads.emplace_back([=]{impactWorker<false>(i, sPtr);});
-            }
-            int buffer[workQueueBufferSize];
-            int bCounter = 0;
-            for(int i=0; i<s.impactSize; i+=vSize){
-                buffer[bCounter] = i;
-                bCounter++;
-                if(bCounter == workQueueBufferSize){
-                    workQueue.enqueue_bulk(buffer, bCounter);
-                    bCounter = 0;
-                }
-                //multiTraj(i, s, addTraj);
-            }
-            workQueue.enqueue_bulk(buffer, bCounter);
-            impactWorker<false>(assigned - 1, sPtr);
+        for(int i=0; i<assigned - 1; i++){
+            threads.emplace_back([=]{impactWorker<AddTraj>(i, sPtr);});
         }
+
+        int buffer[workQueueBufferSize];
+        int bCounter = 0;
+        for(int i=0; i<s.impactSize; i+=vSize){
+            buffer[bCounter] = i;
+            bCounter++;
+            if(bCounter == workQueueBufferSize){
+                workQueue.enqueue_bulk(buffer, bCounter);
+                bCounter = 0;
+            }
+            //multiTraj(i, s, addTraj);
+        }
+        workQueue.enqueue_bulk(buffer, bCounter);
+        impactWorker<AddTraj>(assigned - 1, sPtr);
+        
 
         while(threadCount < assigned){
             std::this_thread::yield();
