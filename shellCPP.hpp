@@ -1,6 +1,6 @@
 #define _USE_MATH_DEFINES
-//#include <cmath>
-#include <math.h>
+#include <cmath>
+//#include <math.h>
 //#include <omp.h>
 //#include <immintrin.h>
 //#include <x86intrin.h>
@@ -93,10 +93,10 @@ class shell{
     //Condenses initial values into values used by calculations
     //[Reduces repeated computations]
     void preProcess(){
-        k = 0.5 * cD * pow((caliber/2),2) * M_PI / mass; //condensed drag coefficient
-        cw_2 = 100+1000/3*caliber; //quadratic drag coefficient
+        k = 0.5 * cD * pow((caliber/2),2) * M_PI / mass;                           //condensed drag coefficient
+        cw_2 = 100+1000/3*caliber;                                                 //quadratic drag coefficient
         pPPC = 0.5561613 * krupp/2400 * pow(mass,0.55) / pow((caliber*1000),0.65); //condensed penetration coefficient
-        normalizationR = normalization / 180 * M_PI; //normalization (radians)
+        normalizationR = normalization / 180 * M_PI;                               //normalization (radians)
     }
 
     public:
@@ -138,16 +138,16 @@ class shell{
 
     void setValues(const double v0, const double caliber, const double krupp, const double mass,
     const double normalization, const double cD, const std::string& name, const double threshold, const double fuseTime = .033){
-        this->fuseTime = fuseTime;
-        this->v0 = v0;
-        this->caliber = caliber;
-        this->krupp = krupp;
-        this->mass = mass;
-        this->normalization = normalization;
-        this->cD = cD;
-        this->name = name;
-
-        if(threshold){
+                                             //Description                          Used in: | Impact | Post Penetration
+        this->fuseTime = fuseTime;           //Shell fusetime                                | No     | Yes
+        this->v0 = v0;                       //Shell muzzle velocity                         | Yes    | No
+        this->caliber = caliber;             //Shell caliber                                 | Yes    | Yes
+        this->krupp = krupp;                 //Shell krupp                                   | Yes    | Yes
+        this->mass = mass;                   //Shell mass                                    | Yes    | Yes
+        this->normalization = normalization; //Shell normalization                           | Yes    | Yes
+        this->cD = cD;                       //Shell air drag coefficient                    | Yes    | Yes
+        this->name = name;                   //Shell name                                    | No     | No
+        if(threshold){                       //Shell fusing threshold                        | No     | Yes
             this->threshold = threshold;
         }else{
             this->threshold = caliber / 6;
@@ -248,20 +248,20 @@ class shellCalc{
     moodycamel::ConcurrentQueue<int> workQueue;
     static constexpr int workQueueBufferSize = 16;
 
-    //Physical Constants     Description                    Units
-    double g = 9.81;         //Gravitational Constant       m/(s^2)
-    double t0 = 288;         //Temperature at Sea Level     K
-    double L = 0.0065;       //Atmospheric Lapse Rate       C/m
-    double p0 = 101325;      //Pressure at Sea Level        Pa
-    double R = 8.31447;      //Ideal Gas Constant           J/(mol K)
-    double M = 0.0289644;    //Molarity of Air at Sea Level kg/mol
+    //Physical Constants       Description                  | Units
+    double g = 9.81;         //Gravitational Constant       | m/(s^2)
+    double t0 = 288;         //Temperature at Sea Level     | K
+    double L = 0.0065;       //Atmospheric Lapse Rate       | C/m
+    double p0 = 101325;      //Pressure at Sea Level        | Pa
+    double R = 8.31447;      //Ideal Gas Constant           | J/(mol K)
+    double M = 0.0289644;    //Molarity of Air at Sea Level | kg/mol
     double cw_1 = 1;
     //Calculation Parameters 
-    double max = 25;         //Max Angle                    degrees
-    double min = 0;          //Min Angle                    degrees
-    double precision = .1;   //Angle Step                   degrees
-    double x0 = 0, y0 = 0;   //Starting x0, y0              m
-    double dt = .01;         //Time step                    s
+    double max = 25;         //Max Angle                    | degrees
+    double min = 0;          //Min Angle                    | degrees
+    double precision = .1;   //Angle Step                   | degrees
+    double x0 = 0, y0 = 0;   //Starting x0, y0              | m
+    double dt = .01;         //Time step                    | s
 
     //For vectorization - though not 100% necessary anymore since intrinsics were removed
     static_assert(sizeof(double) == 8, "Size of double is not 8 - required for AVX2"); //Use float64 in the future
@@ -294,7 +294,7 @@ class shellCalc{
         t = 0;                                       //t start
 
         while(pos[1] >= 0){
-            for(counter = 0; counter < __TrajBuffer__ && pos[1] >= 0; counter++){
+            for(counter = 0; (counter < __TrajBuffer__) & (pos[1] >= 0); counter++){
                 for(int l=0; l<2; l++){
                     pos[l] += velocity[l] * dt;
                 }
@@ -335,6 +335,7 @@ class shellCalc{
         tVec[j] = t;
     }
 
+    //Kind of here for vectorization purposes
     template<bool AddTraj>
     void multiTraj(const unsigned int i, shell& s){
         const double pPPC = s.get_pPPC();
@@ -342,15 +343,15 @@ class shellCalc{
 
         double vx[vSize], vy[vSize], tVec[vSize];
         for(int j=0; j<vSize; j++){
-            s.getImpact(i + j, impact::launchA) = min + precision * (i+ j);
-
+            //s.getImpact(i + j, impact::launchA) = min + precision * (i+ j);
+            s.getImpact(i + j, impact::launchA) = std::fma(precision, (i+j), min);
             double radianLaunch = s.getImpact(i + j, impact::launchA) * M_PI / 180;
             vx[j] = s.get_v0() * cos(radianLaunch);
             vy[j] = s.get_v0() * sin(radianLaunch);
 
         }
 
-        for(int j = 0; (j+i<s.impactSize) && (j < vSize); j++){
+        for(int j = 0; (j+i<s.impactSize) & (j < vSize); j++){
             singleTraj<AddTraj>(i, j, s, vx, vy, tVec);
         }   
 
@@ -379,7 +380,7 @@ class shellCalc{
     }
     
     template<bool AddTraj>
-    void impactWorker(int threadId, shell *s){ //threadID is largely there for debugging
+    void impactWorker(int threadId, shell * const s){ //threadID is largely there for debugging
         while(counter < length){
             int index;
             if(workQueue.try_dequeue(index)){
@@ -470,7 +471,7 @@ class shellCalc{
                 workQueue.enqueue_bulk(buffer, bCounter);
                 bCounter = 0;
             }
-            //multiTraj(i, s, addTraj);
+
         }
         workQueue.enqueue_bulk(buffer, bCounter);
         impactWorker<AddTraj>(assigned - 1, sPtr);
@@ -479,7 +480,7 @@ class shellCalc{
         while(threadCount < assigned){
             std::this_thread::yield();
         }
-        //std::cout<<s.impactSize<<" "<<length<<" "<<counter<<"\n";
+
         for(int i=0; i<assigned-1; i++){
             threads[i].join();
         }
@@ -629,23 +630,24 @@ class shellCalc{
             eThicknessV[l] = eThickness;
         }
 
-        for(unsigned int j=0; (j<vSize) && (j+i < s.postPenSize); j++){
+        for(unsigned int j=0; (j<vSize) & (j+i < s.postPenSize); j++){
             postPenTraj<fast>(i+j, s, v_x[j], v_y[j], v_z[j], eThicknessV[j]);
         }
         //std::cout<<index<<" Completed\n";
     }
 
-    //Probably unnecessary... 
-    void fillCopy(int id, shell* s, std::vector<double>* angles){
+    //Probably unnecessary...
+    void fillCopy(int id, shell* const s, std::vector<double>* angles){
         //std::cout<<id<<"\n";
         for(int i=angles->size() * id / assigned; i<angles->size() * (id + 1) / assigned; i++){
-            std::fill_n(s->postPenData.begin() + i * s->impactSize, s->impactSize, (double) angles->at(i));
+            //std::fill_n(s->postPenData.begin() + i * s->impactSize, s->impactSize, (double) (*angles)[i]);
+            std::fill_n(s->getPostPenPtr(0, post::angle, i), s->impactSize, (double) (*angles)[i]);
             std::copy_n(s->getImpactPtr(0, impact::distance), s->impactSize, s->postPenData.begin() + s->postPenSize + i * s->impactSize);
         }
         counter.fetch_add(1, std::memory_order_relaxed);
     }
 
-    void parallelFillCopy(shell* s, std::vector<double>* angles, unsigned int nThreads){
+    void parallelFillCopy(shell* const s, std::vector<double>* angles, unsigned int nThreads){
         std::vector<std::thread> threads;
         counter = 0;
         length = angles->size();
@@ -672,7 +674,9 @@ class shellCalc{
 
     void calculatePostPen(const double thickness, const double inclination, shell& s, std::vector<double>& angles, const bool changeDirection=true,
     const bool fast=false, const unsigned int nThreads=std::thread::hardware_concurrency()){
-        if(changeDirection){
+        //Specifies whether normalization alters the trajectory of the shell
+        //Though effect is not too significant either way
+        if(changeDirection){ 
             calculatePostPen<true>( thickness, inclination, s, angles, fast, nThreads);
         }else{
             calculatePostPen<false>(thickness, inclination, s, angles, fast, nThreads);
@@ -682,6 +686,8 @@ class shellCalc{
     template<bool changeDirection>
     void calculatePostPen(const double thickness, const double inclination, shell& s, std::vector<double>& angles, 
     const bool fast=false, const unsigned int nThreads=std::thread::hardware_concurrency()){
+        //Specifies whether to perform ballistic calculations or just multiply velocity by fusetime
+        //Is faster but post-penetration already runs really fast...
         if(fast){
             calculatePostPen<changeDirection, true>( thickness, inclination, s, angles, nThreads);
         }else{
@@ -691,7 +697,6 @@ class shellCalc{
 
     template<bool changeDirection, bool fast>
     void calculatePostPen(const double thickness, const double inclination, shell& s, std::vector<double>& angles, const unsigned int nThreads){
-
         if(!s.completedImpact){
             std::cout<<"Standard Not Calculated - Running automatically\n";
             calculateImpact(s, false);

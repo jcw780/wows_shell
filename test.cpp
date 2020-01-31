@@ -21,20 +21,22 @@ int main(){
             delete test;
         }
     }
+    
     test->printImpactData();
+    test->printPostPenData();
+
     //std::cout << "completed" << std::endl;
-    std::cout << total / runs / 1000000000 << std::endl;
+    std::cout <<std::fixed<<std::setprecision(10)<< total / runs / 1000000000 << std::endl;
     //test.calculateStd();
 
     
     std::vector<double> angle = {10};
     //std::cout<<"Started\n";
     auto t1 = std::chrono::high_resolution_clock::now();
-    sc.calculatePostPen(70, -20, *test, angle, true, false);
+    sc.calculatePostPen(70, -20, *test, angle, true, true);
     auto t2 = std::chrono::high_resolution_clock::now();
-    std::cout<<(double)std::chrono::duration_cast<std::chrono::nanoseconds>( t2 - t1 ).count() / 1000000000<<"\n";
+    std::cout<<std::fixed<<std::setprecision(10)<< (double)std::chrono::duration_cast<std::chrono::nanoseconds>( t2 - t1 ).count() / 1000000000 <<"\n";
     //std::cout<<"Ended\n";
-    test->printPostPenData();
 
     return 0;
 
