@@ -267,6 +267,39 @@ class shellCalc{
     static_assert(sizeof(double) == 8, "Size of double is not 8 - required for AVX2"); //Use float64 in the future
     static_assert(std::numeric_limits<double>::is_iec559, "Type is not IEE754 compliant");
     static constexpr unsigned int vSize = (256 / 8) / sizeof(double);
+
+    template<typename O, typename F, typename... Args>
+    void mtFunctionRunner(int assigned, int size, O obj, F func, Args... args){
+        counter = 0, threadCount = 0;
+        std::vector<std::thread> threads;
+        threads.reserve(assigned - 1);
+
+        for(int i=0; i<assigned - 1; i++){
+            threads.emplace_back([=]{(obj->*func)(i, args...);});
+        }
+
+        int buffer[workQueueBufferSize];
+        int bCounter = 0;
+        for(int i=0; i<size; i+=vSize){
+            buffer[bCounter] = i;
+            bCounter++;
+            if(bCounter == workQueueBufferSize){
+                workQueue.enqueue_bulk(buffer, bCounter);
+                bCounter = 0;
+            }
+
+        }
+        workQueue.enqueue_bulk(buffer, bCounter);
+
+        (obj->*func)(assigned - 1, args...);
+        while(threadCount < assigned){
+            std::this_thread::yield();
+        }
+
+        for(int i=0; i<assigned-1; i++){
+            threads[i].join();
+        }
+    }
     
     template<bool AddTraj>
     void singleTraj(const unsigned int i, const unsigned int j, shell&s, double* vx, double* vy, double* tVec){
@@ -439,8 +472,7 @@ class shellCalc{
         s.impactSizeAligned = vSize - (s.impactSize % vSize) + s.impactSize;
         s.trajectories.resize(2 * s.impactSize);
         s.impactData.resize(impact::maxColumns * s.impactSizeAligned);
-
-        //replace with unified thread manager - so we don't make and delete threads everytime something is run
+        
         if(nThreads  > std::thread::hardware_concurrency()){
             nThreads = std::thread::hardware_concurrency();
         }
@@ -450,40 +482,8 @@ class shellCalc{
         }else{
             assigned = length;
         }
+        mtFunctionRunner(assigned, s.impactSize, this, &shellCalc::impactWorker<AddTraj>, &s);
 
-        //assigned = 1;
-        counter = 0;
-        threadCount = 0;
-        std::vector<std::thread> threads;
-        shell* sPtr = &s;
-        threads.reserve(assigned - 1);
-
-        for(int i=0; i<assigned - 1; i++){
-            threads.emplace_back([=]{impactWorker<AddTraj>(i, sPtr);});
-        }
-
-        int buffer[workQueueBufferSize];
-        int bCounter = 0;
-        for(int i=0; i<s.impactSize; i+=vSize){
-            buffer[bCounter] = i;
-            bCounter++;
-            if(bCounter == workQueueBufferSize){
-                workQueue.enqueue_bulk(buffer, bCounter);
-                bCounter = 0;
-            }
-
-        }
-        workQueue.enqueue_bulk(buffer, bCounter);
-        impactWorker<AddTraj>(assigned - 1, sPtr);
-        
-
-        while(threadCount < assigned){
-            std::this_thread::yield();
-        }
-
-        for(int i=0; i<assigned-1; i++){
-            threads[i].join();
-        }
         s.completedImpact = true;
     }
 
@@ -626,7 +626,6 @@ class shellCalc{
                 v_z[l] = pPV * cos(VA_R) * sin(HA_R);
                 v_y[l] = pPV * sin(VA_R);
             }
-
             eThicknessV[l] = eThickness;
         }
 
@@ -706,47 +705,23 @@ class shellCalc{
         s.postPenData.resize(6 * s.postPenSize);
 
         parallelFillCopy(&s, &angles, nThreads);        
-
-        std::vector<std::thread> threads;
-        counter = 0, threadCount = 0;
+        double inclination_R = M_PI / 180 * inclination;
         length = ceil((double) s.postPenSize/vSize);
+
         if(length < nThreads){
             assigned = length;
         }else{
             assigned = nThreads;
         }
-        int buffer[workQueueBufferSize];
-        int bCounter = 0;
-        for(int i=0; i<s.postPenSize; i+=vSize){
-            buffer[bCounter] = i;
-            bCounter++;
-            if(bCounter == workQueueBufferSize){
-                workQueue.enqueue_bulk(buffer, bCounter);
-                bCounter = 0;
-            }
-        }
-        workQueue.enqueue_bulk(buffer, bCounter);
-        double inclination_R = M_PI / 180 * inclination;
-        shell* ptr = &s;
-        for(int i=0; i<assigned - 1; i++){
-            threads.emplace_back([=]{postPenWorker<changeDirection, fast>(i, thickness, inclination_R, ptr);});
-        }
-        postPenWorker<changeDirection, fast>(assigned - 1, thickness, inclination_R, &s);
+        mtFunctionRunner(assigned, s.postPenSize, this, &shellCalc::postPenWorker<changeDirection, fast>, thickness, inclination_R, &s);
 
-        while(threadCount < assigned){
-            std::this_thread::yield();
-        }
-
-        for(int i=0; i<assigned - 1; i++){
-            threads[i].join();
-        }
         s.completedPostPen = true;
-        
     }
 
     private: 
     template<bool changeDirection, bool fast>
     void postPenWorker(int threadID, const double thickness, const double inclination, shell* s){
+        std::cout<<threadID<<" Entered \n";
         while(counter < length){
             int index;
             if(workQueue.try_dequeue(index)){
