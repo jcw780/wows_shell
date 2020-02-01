@@ -54,6 +54,15 @@ enum impactDataIndex{
 static_assert(tToTargetA == (maxColumns - 1), "Invalid standard columns");
 }
 
+namespace angle{
+static constexpr unsigned int maxColumns = 6;
+enum angleDataIndex{
+    ra0, ra0D, ra1, ra1D, armor, armorD
+
+};
+static_assert(armor == (maxColumns-1), "Invalid angle columns");
+}
+
 namespace post{
 static constexpr unsigned int maxColumns = 6;
 enum postPenDataIndex{
@@ -86,6 +95,8 @@ class shell{
     double normalization; //shell normalization degrees
     double threshold;     //fusing threshold    mm
     double fuseTime;      //fuse time           s
+    double ricochet0;     //ricochet angle 0    degrees
+    double ricochet1;     //ricochet angle 1    degrees
     std::string name;
 
     double k, cw_2, pPPC, normalizationR;
@@ -111,7 +122,7 @@ class shell{
     */
     std::vector<std::vector<double>> trajectories;
 
-    /*standard output - Indicies refer to multiples of size [Num Colums of 12
+    /*impact data - Indicies refer to multiples of size
     [0 : 1)-distance,          [1 : 2)-launch angle,      [2 : 3)-impact angle - R
     [3 : 4)-impact angle - D,  [4 : 5)-impact velocity,   [5 : 6)-raw pen,           
     [6 : 7)-effectivepenH,     [7 : 8)-effectivepenH w/N, [8 : 9)-IA_d,              
@@ -120,6 +131,14 @@ class shell{
     Refer to stdDataIndex enums defined above
     */
     std::vector<double> impactData;
+
+
+    /* Angles data
+     * [0:1)-ra0 max lateral angle
+     * [1:2)-ra1 max lateral angle
+     * [2:3)-penetration max lateral angle
+     */
+    std::vector<double> angleData;
 
     /* WARNING: LOCATION OF LATERAL ANGLE IN VECTOR CANNOT BE CHANGED OR ELSE SIMD ALIGNMENT MAY NOT BE GUARANTEED
      * [0:1) Lateral Angle [1:2) Distance 
@@ -132,12 +151,14 @@ class shell{
     shell() = default;
 
     shell(const double v0, const double caliber, const double krupp, const double mass,
-    const double normalization, const double cD, const std::string& name, const double threshold, const double fuseTime = .033){
-        setValues(v0, caliber, krupp, mass, normalization, cD, name, threshold, fuseTime);
+    const double normalization, const double cD, const std::string& name, const double threshold, const double fuseTime = .033,
+    const double ricochet0 = 45, const double ricochet1 = 60){
+        setValues(v0, caliber, krupp, mass, normalization, cD, name, threshold, fuseTime, ricochet0, ricochet1);
     }
 
     void setValues(const double v0, const double caliber, const double krupp, const double mass,
-    const double normalization, const double cD, const std::string& name, const double threshold, const double fuseTime = .033){
+    const double normalization, const double cD, const std::string& name, const double threshold, const double fuseTime = .033,
+    const double ricochet0 = 45, const double ricochet1 = 60){
                                              //Description                          Used in: | Impact | Post Penetration
         this->fuseTime = fuseTime;           //Shell fusetime                                | No     | Yes
         this->v0 = v0;                       //Shell muzzle velocity                         | Yes    | No
@@ -147,6 +168,8 @@ class shell{
         this->normalization = normalization; //Shell normalization                           | Yes    | Yes
         this->cD = cD;                       //Shell air drag coefficient                    | Yes    | Yes
         this->name = name;                   //Shell name                                    | No     | No
+        this->ricochet0 = ricochet0;         //Ricochet Angle 0                              | No     | Yes
+        this->ricochet1 = ricochet1;         //Ricochet Angle 1                              | No     | Yes
         if(threshold){                       //Shell fusing threshold                        | No     | Yes
             this->threshold = threshold;
         }else{
@@ -161,6 +184,14 @@ class shell{
 
     double* getImpactPtr(unsigned int i, unsigned int j){
         return impactData.data() + i + j * impactSizeAligned;
+    }
+
+    double& getAngle(unsigned int i, unsigned int j){
+        return angleData[i + j * impactSizeAligned];
+    }
+
+    double* getAnglePtr(unsigned int i, unsigned int j){
+        return angleData.data() + i + j * impactSizeAligned;
     }
 
     double& getPostPen(unsigned int i, unsigned int j, unsigned int k){
@@ -191,6 +222,12 @@ class shell{
     }
     const double& get_fuseTime(){
         return fuseTime;
+    }
+    const double& get_ricochet0(){
+        return ricochet0;
+    }
+    const double& get_ricochet1(){
+        return ricochet1;
     }
     
     //Could be split up into two classes
@@ -268,14 +305,46 @@ class shellCalc{
     static_assert(std::numeric_limits<double>::is_iec559, "Type is not IEE754 compliant");
     static constexpr unsigned int vSize = (256 / 8) / sizeof(double);
 
+    public:
+    double calcNormalizationR(const double angle, const double normalizationR){ //Input in radians
+        return (fabs(angle) > normalizationR) * (fabs(angle) - normalizationR);
+    }
+
+    inline int signum(double x){
+        return ((0.0) < x) - (x < (0.0));
+    }
+
+    shellCalc() = default;
+    //Replace with setter in the future
+    void editTestParameters(double max, double min, double precision, double x0, double y0, double dt){
+        if(!max){
+            this->max = max;
+        }
+        if(!min){
+            this->min = min;
+        }
+        if(!precision){
+            this->precision = precision;
+        }
+        if(!x0){
+            this->x0 = x0;
+        }
+        if(!y0){
+            this->y0 = y0;
+        }
+        if(!dt){
+            this->dt = dt;
+        }
+    }
+
+    private:
+    //mini 'threadpool' used to multithread some of the functions
     template<typename O, typename F, typename... Args>
     void mtFunctionRunner(int assigned, int size, O obj, F func, Args... args){
         counter = 0, threadCount = 0;
-        std::vector<std::thread> threads;
-        threads.reserve(assigned - 1);
-
+        std::vector<std::thread> threads(assigned - 1);
         for(int i=0; i<assigned - 1; i++){
-            threads.emplace_back([=]{(obj->*func)(i, args...);});
+            threads[i] = std::thread([=]{(obj->*func)(i, args...);});
         }
 
         int buffer[workQueueBufferSize];
@@ -427,37 +496,6 @@ class shellCalc{
     }
 
     public:
-    double calcNormalizationR(const double angle, const double normalizationR){ //Input in radians
-        return (fabs(angle) > normalizationR) * (fabs(angle) - normalizationR);
-    }
-
-    inline int signum(double x){
-        return ((0.0) < x) - (x < (0.0));
-    }
-
-    shellCalc() = default;
-    //Replace with setter in the future
-    void editTestParameters(double max, double min, double precision, double x0, double y0, double dt){
-        if(!max){
-            this->max = max;
-        }
-        if(!min){
-            this->min = min;
-        }
-        if(!precision){
-            this->precision = precision;
-        }
-        if(!x0){
-            this->x0 = x0;
-        }
-        if(!y0){
-            this->y0 = y0;
-        }
-        if(!dt){
-            this->dt = dt;
-        }
-    }
-
     void calculateImpact(shell& s, bool addTraj, unsigned int nThreads=std::thread::hardware_concurrency()){
         if(addTraj){
             calculateImpact<true>(s, nThreads);
@@ -486,6 +524,49 @@ class shellCalc{
 
         s.completedImpact = true;
     }
+
+    void multiCheckAngles(const unsigned int i, double thickness, double inclination_R, shell &s){
+        for(int j=0; j<vSize; j++){
+            double fallAngleAdjusted = s.getImpact(i+j, impact::impactDataIndex::impactAHR) - inclination_R;
+            double rawPen = s.getImpact(i+j, impact::impactDataIndex::rawPen);
+            double criticalAngles[] = {s.get_ricochet0(), s.get_ricochet1(), (acos(thickness / rawPen) + s.get_normalizationR()) * (rawPen >= thickness)};
+            double out[3];
+            for(int k=0; k<3; k++){
+                if(criticalAngles[k] < M_PI / 2){
+                    out[k] = acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted)); 
+                }else{
+                    out[k] = M_PI / 2;
+                }
+            }
+            s.getAngle(i+j, angle::angleDataIndex::ra0)   = out[0];
+            s.getAngle(i+j, angle::angleDataIndex::ra1)   = out[1];
+            s.getAngle(i+j, angle::angleDataIndex::armor) = out[2];
+
+            for(int k=0; k<3; k++){
+                out[k] *= 180 / M_PI;
+            }
+            s.getAngle(i+j, angle::angleDataIndex::ra0D)   = out[0];
+            s.getAngle(i+j, angle::angleDataIndex::ra1D)   = out[1];
+            s.getAngle(i+j, angle::angleDataIndex::armorD) = out[2];
+        }
+    }
+
+    void postPenWorker(int threadID, const double thickness, const double inclination, shell* s){
+        //std::cout<<threadID<<" Entered \n";
+        while(counter < length){
+            int index;
+            if(workQueue.try_dequeue(index)){
+                multiCheckAngles(index, thickness, inclination, *s);
+                counter.fetch_add(1, std::memory_order_relaxed);
+            }
+            else{
+                std::this_thread::yield();
+            }
+        }
+        threadCount.fetch_add(1, std::memory_order_relaxed);
+    }
+
+
 
     //Post-Penetration Section
     private:
@@ -721,7 +802,7 @@ class shellCalc{
     private: 
     template<bool changeDirection, bool fast>
     void postPenWorker(int threadID, const double thickness, const double inclination, shell* s){
-        std::cout<<threadID<<" Entered \n";
+        //std::cout<<threadID<<" Entered \n";
         while(counter < length){
             int index;
             if(workQueue.try_dequeue(index)){
