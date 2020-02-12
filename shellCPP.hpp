@@ -57,10 +57,11 @@ static_assert(tToTargetA == (maxColumns - 1), "Invalid standard columns");
 namespace angle{
 static constexpr unsigned int maxColumns = 6;
 enum angleDataIndex{
-    ra0, ra0D, ra1, ra1D, armor, armorD
-
+    ra0  , ra0D, 
+    ra1  , ra1D, 
+    armor, armorD
 };
-static_assert(armor == (maxColumns-1), "Invalid angle columns");
+static_assert(armorD == (maxColumns-1), "Invalid angle columns");
 }
 
 namespace post{
@@ -99,7 +100,7 @@ class shell{
     double ricochet1;     //ricochet angle 1    degrees
     std::string name;
 
-    double k, cw_2, pPPC, normalizationR;
+    double k, cw_2, pPPC, normalizationR, ricochet0R, ricochet1R; 
 
     //Condenses initial values into values used by calculations
     //[Reduces repeated computations]
@@ -108,6 +109,8 @@ class shell{
         cw_2 = 100+1000/3*caliber;                                                 //quadratic drag coefficient
         pPPC = 0.5561613 * krupp/2400 * pow(mass,0.55) / pow((caliber*1000),0.65); //condensed penetration coefficient
         normalizationR = normalization / 180 * M_PI;                               //normalization (radians)
+        ricochet0R = ricochet0 / 180 * M_PI;
+        ricochet1R = ricochet1 / 180 * M_PI;
     }
 
     public:
@@ -135,8 +138,11 @@ class shell{
 
     /* Angles data
      * [0:1)-ra0 max lateral angle
-     * [1:2)-ra1 max lateral angle
-     * [2:3)-penetration max lateral angle
+     * [1:2)-ra0 max lateral angle
+     * [2:3)-ra1 max lateral angle
+     * [3:4)-ra1 max lateral angle
+     * [4:5)-penetration max lateral angle
+     * [5:6)-penetration max lateral angle
      */
     std::vector<double> angleData;
 
@@ -229,6 +235,12 @@ class shell{
     const double& get_ricochet1(){
         return ricochet1;
     }
+    const double& get_ricochet0R(){
+        return ricochet0R;
+    }
+    const double& get_ricochet1R(){
+        return ricochet1R;
+    }
     
     //Could be split up into two classes
     shellParams returnShipParams(){
@@ -243,6 +255,15 @@ class shell{
         ret.threshold = threshold;
         ret.v0 = v0;
         return ret;
+    }
+
+    void printAngleData(){
+        for(unsigned int i=0; i<impactSize; i++){
+            for(unsigned int j=0; j<angle::maxColumns; j++){
+                std::cout<< std::fixed<< std::setprecision(4) << angleData[i + j * impactSizeAligned] << " "; 
+            }
+            std::cout<<"\n";
+        }
     }
 
     void printPostPenData(){
@@ -370,6 +391,8 @@ class shellCalc{
         }
     }
     
+    //Impact Calculations
+
     template<bool AddTraj>
     void singleTraj(const unsigned int i, const unsigned int j, shell&s, double* vx, double* vy, double* tVec){
         static constexpr unsigned int __TrajBuffer__ = 128;
@@ -525,15 +548,34 @@ class shellCalc{
         s.completedImpact = true;
     }
 
+    //Angle Data Section
+    private:
+    //template<bool allPen>
     void multiCheckAngles(const unsigned int i, double thickness, double inclination_R, shell &s){
         for(int j=0; j<vSize; j++){
             double fallAngleAdjusted = s.getImpact(i+j, impact::impactDataIndex::impactAHR) - inclination_R;
             double rawPen = s.getImpact(i+j, impact::impactDataIndex::rawPen);
-            double criticalAngles[] = {s.get_ricochet0(), s.get_ricochet1(), (acos(thickness / rawPen) + s.get_normalizationR()) * (rawPen >= thickness)};
+
+            double penetrationCriticalAngle;
+            /*
+            if(rawPen >= thickness){
+                penetrationCriticalAngle = (acos(thickness / rawPen) + s.get_normalizationR());
+            }else{
+                penetrationCriticalAngle = 0;
+            }*/
+            penetrationCriticalAngle = (acos(thickness / rawPen) + s.get_normalizationR());
+            penetrationCriticalAngle = std::isnan(penetrationCriticalAngle) ? 0 : penetrationCriticalAngle;
+
+            double criticalAngles[] = {s.get_ricochet0R(), s.get_ricochet1R(), penetrationCriticalAngle};
             double out[3];
             for(int k=0; k<3; k++){
                 if(criticalAngles[k] < M_PI / 2){
+                    //if(criticalAngles[k] < fallAngleAdjusted){
+                    //    out[k] = 0;
+                    //}else{
                     out[k] = acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted)); 
+                    //}
+                    out[k] = std::isnan(out[k]) ? 0 : out[k];
                 }else{
                     out[k] = M_PI / 2;
                 }
@@ -551,12 +593,12 @@ class shellCalc{
         }
     }
 
-    void postPenWorker(int threadID, const double thickness, const double inclination, shell* s){
+    void checkAngleWorker(int threadID, const double thickness, const double inclination_R, shell* s){
         //std::cout<<threadID<<" Entered \n";
         while(counter < length){
             int index;
             if(workQueue.try_dequeue(index)){
-                multiCheckAngles(index, thickness, inclination, *s);
+                multiCheckAngles(index, thickness, inclination_R, *s);
                 counter.fetch_add(1, std::memory_order_relaxed);
             }
             else{
@@ -566,9 +608,26 @@ class shellCalc{
         threadCount.fetch_add(1, std::memory_order_relaxed);
     }
 
+    public:
+    void calculateAngles(const double thickness, const double inclination_R, shell& s, const unsigned int nThreads=std::thread::hardware_concurrency()){
+        if(!s.completedImpact){
+            std::cout<<"Standard Not Calculated - Running automatically\n";
+            calculateImpact<false>(s);
+        }
 
+        s.angleData.resize(angle::maxColumns * s.impactSizeAligned);
+ 
+        length = ceil((double) s.postPenSize/vSize);
+        if(length < nThreads){
+            assigned = length;
+        }else{
+            assigned = nThreads;
+        }
+        mtFunctionRunner(assigned, s.impactSize, this, &shellCalc::checkAngleWorker, thickness, inclination_R, &s);
+    }
 
     //Post-Penetration Section
+
     private:
     double dtf = 0.0001;
     double xf0 = 0, yf0 = 0;
@@ -779,7 +838,7 @@ class shellCalc{
     void calculatePostPen(const double thickness, const double inclination, shell& s, std::vector<double>& angles, const unsigned int nThreads){
         if(!s.completedImpact){
             std::cout<<"Standard Not Calculated - Running automatically\n";
-            calculateImpact(s, false);
+            calculateImpact<false>(s);
         }
 
         s.postPenSize = s.impactSize * angles.size();

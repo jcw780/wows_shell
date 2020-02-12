@@ -32,8 +32,11 @@ int main(){
     sc.calculatePostPen(70, -20, *test, angle, true, true);
     auto t2 = std::chrono::high_resolution_clock::now();
 
+    sc.calculateAngles(70, -20 / 180 * M_PI, *test);
+
     test->printImpactData();
     test->printPostPenData();
+    test->printAngleData();
 
     std::cout <<std::fixed<<std::setprecision(10)<< total / runs / 1000000000 << std::endl;
     std::cout<<std::fixed<<std::setprecision(10)<< (double)std::chrono::duration_cast<std::chrono::nanoseconds>( t2 - t1 ).count() / 1000000000 <<"\n";
