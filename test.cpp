@@ -33,6 +33,7 @@ int main(){
     auto t2 = std::chrono::high_resolution_clock::now();
 
     sc.calculateAngles(70, -20 / 180 * M_PI, *test);
+    
 
     test->printImpactData();
     test->printPostPenData();
