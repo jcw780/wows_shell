@@ -1,10 +1,5 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
-//#include <math.h>
-//#include <omp.h>
-//#include <immintrin.h>
-//#include <x86intrin.h>
-//#include "constant.h"
 
 //#define USE_SIMD
 
@@ -25,7 +20,6 @@ typedef double fPType;
 #include <string>
 #include <thread>
 #include <type_traits>
-#include <unordered_map>
 #include <vector>
 
 /*
@@ -37,9 +31,6 @@ double operator"" _mps(long double input){return input;}
 double operator"" _fps(long double input){return input * 0.3048;}
 */
 
-/* Base shell characteristics
- * May be used to implement a hash table in the future
- */
 namespace shell {
 
 namespace impact {
@@ -63,9 +54,9 @@ static_assert(tToTargetA == (maxColumns - 1), "Invalid standard columns");
 } // namespace impact
 
 namespace angle {
-static constexpr unsigned int maxColumns = 6;
-enum angleDataIndex { ra0, ra0D, ra1, ra1D, armor, armorD };
-static_assert(armorD == (maxColumns - 1), "Invalid angle columns");
+static constexpr unsigned int maxColumns = 8;
+enum angleDataIndex { ra0, ra0D, ra1, ra1D, armor, armorD, fuse, fuseD };
+static_assert(fuseD == (maxColumns - 1), "Invalid angle columns");
 } // namespace angle
 
 namespace post {
@@ -74,6 +65,9 @@ enum postPenDataIndex { angle, distance, x, y, z, xwf };
 static_assert(xwf == (maxColumns - 1), "Invaild postpen columns");
 } // namespace post
 
+/* Base shell characteristics
+ * May be used to implement a hash table in the future
+ */
 typedef struct {
     double v0;
     double caliber;
@@ -105,12 +99,15 @@ private:                  // Description         units
     // Condenses initial values into values used by calculations
     //[Reduces repeated computations]
     void preProcess() {
-        k = 0.5 * cD * pow((caliber / 2), 2) * M_PI /
-            mass;                        // condensed drag coefficient
-        cw_2 = 100 + 1000 / 3 * caliber; // quadratic drag coefficient
+        k = 0.5 * cD * pow((caliber / 2), 2) * M_PI / mass;
+        // condensed drag coefficient
+        cw_2 = 100 + 1000 / 3 * caliber;
+        // quadratic drag coefficient
         pPPC = 0.5561613 * krupp / 2400 * pow(mass, 0.55) /
-               pow((caliber * 1000), 0.65); // condensed penetration coefficient
-        normalizationR = normalization / 180 * M_PI; // normalization (radians)
+               pow((caliber * 1000), 0.65);
+        // condensed penetration coefficient
+        normalizationR = normalization / 180 * M_PI;
+        // normalization (radians)
         ricochet0R = ricochet0 / 180 * M_PI;
         ricochet1R = ricochet1 / 180 * M_PI;
     }
@@ -118,9 +115,8 @@ private:                  // Description         units
 public:
     unsigned int impactSize,
         postPenSize; // number of distances in: standard, postPen
-    unsigned int impactSizeAligned,
-        postPenSizeAligned; // Not 100% necessary - sizes adjusted to fulfill
-                            // alignment
+    unsigned int impactSizeAligned, postPenSizeAligned;
+    // Not 100% necessary - sizes adjusted to fulfill alignment
     bool completedImpact = false, completedPostPen = false;
 
     /*trajectories output
@@ -244,6 +240,7 @@ public:
             }
             std::cout << "\n";
         }
+        std::cout << "Completed Angle Data\n";
     }
 
     void printPostPenData() {
@@ -559,9 +556,16 @@ public:
 
     // Angle Data Section
 private:
-    // template<bool allPen>
-    void multiCheckAngles(const unsigned int i, double thickness,
-                          double inclination_R, shell &s) {
+    // template <short fusing> explanation
+    // Possible Values:
+    // 0 - Never Fusing
+    // 1 - Check
+    // 2 - Always Fusing
+    template <short fusing>
+    void multiCheckAngles(const unsigned int i, const double thickness,
+                          const double inclination_R, const double fusingAngle,
+                          shell &s) {
+        static_assert(fusing <= 2 && fusing >= 0, "Invalid fusing parameter");
         for (int j = 0; j < vSize; j++) {
             double fallAngleAdjusted =
                 s.getImpact(i + j, impact::impactDataIndex::impactAHR) -
@@ -577,14 +581,16 @@ private:
                                            : penetrationCriticalAngle;
 
             double criticalAngles[] = {s.get_ricochet0R(), s.get_ricochet1R(),
-                                       penetrationCriticalAngle};
-            double out[3];
+                                       penetrationCriticalAngle, fusingAngle};
+            double out[4];
             for (int k = 0; k < 2; k++) {
                 out[k] = acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
                 out[k] = std::isnan(out[k]) ? 0 : out[k];
             }
 
-            for (int k = 2; k < angle::maxColumns / 2; k++) {
+            // for (int k = 2; k < angle::maxColumns / 2; k++)
+            {
+                int k = angle::armor / 2;
                 if (criticalAngles[k] < M_PI / 2) {
                     out[k] =
                         acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
@@ -593,27 +599,48 @@ private:
                     out[k] = M_PI / 2;
                 }
             }
+            {
+                int k = angle::fuse / 2;
+                if constexpr (fusing == 0) {
+                    std::cout << "0" << fusingAngle << "\n";
+                    out[k] = M_PI / 2;
+                } else if (fusing == 1) {
+                    std::cout << "1 " << fusingAngle << "\n";
+                    out[k] =
+                        acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
+                    out[k] = std::isnan(out[k]) ? 0 : out[k];
+                } else if (fusing == 2) {
+                    std::cout << "2 " << fusingAngle << "\n";
+                    out[k] = 0;
+                }
+            }
 
             s.getAngle(i + j, angle::angleDataIndex::ra0) = out[0];
             s.getAngle(i + j, angle::angleDataIndex::ra1) = out[1];
             s.getAngle(i + j, angle::angleDataIndex::armor) = out[2];
+            s.getAngle(i + j, angle::angleDataIndex::fuse) = out[3];
 
-            for (int k = 0; k < 3; k++) {
+            for (int k = 0; k < angle::maxColumns / 2; k++) {
                 out[k] *= 180 / M_PI;
             }
+
             s.getAngle(i + j, angle::angleDataIndex::ra0D) = out[0];
             s.getAngle(i + j, angle::angleDataIndex::ra1D) = out[1];
             s.getAngle(i + j, angle::angleDataIndex::armorD) = out[2];
+            s.getAngle(i + j, angle::angleDataIndex::fuseD) = out[3];
         }
     }
 
+    template <short fusing>
     void checkAngleWorker(int threadID, const double thickness,
-                          const double inclination_R, shell *s) {
+                          const double inclination_R, const double fusingAngle,
+                          shell *s) {
         // std::cout<<threadID<<" Entered \n";
         while (counter < length) {
             int index;
             if (workQueue.try_dequeue(index)) {
-                multiCheckAngles(index, thickness, inclination_R, *s);
+                multiCheckAngles<fusing>(index, thickness, inclination_R,
+                                         fusingAngle, *s);
                 counter.fetch_add(1, std::memory_order_relaxed);
             } else {
                 std::this_thread::yield();
@@ -639,9 +666,26 @@ public:
         } else {
             assigned = nThreads;
         }
-        mtFunctionRunner(assigned, s.impactSize, this,
-                         &shellCalc::checkAngleWorker, thickness, inclination_R,
-                         &s);
+
+        double fusingAngle;
+        fusingAngle =
+            acos(thickness / s.get_threshold()) + s.get_normalizationR();
+
+        if (std::isnan(fusingAngle)) {
+            mtFunctionRunner(assigned, s.impactSize, this,
+                             &shellCalc::checkAngleWorker<2>, thickness,
+                             inclination_R, fusingAngle, &s);
+        } else {
+            if (fusingAngle > M_PI / 2) {
+                mtFunctionRunner(assigned, s.impactSize, this,
+                                 &shellCalc::checkAngleWorker<0>, thickness,
+                                 inclination_R, fusingAngle, &s);
+            } else {
+                mtFunctionRunner(assigned, s.impactSize, this,
+                                 &shellCalc::checkAngleWorker<1>, thickness,
+                                 inclination_R, fusingAngle, &s);
+            }
+        }
     }
 
     // Post-Penetration Section
@@ -878,9 +922,9 @@ public:
         const double thickness, const double inclination, shell &s,
         std::vector<double> &angles, const bool fast = false,
         const unsigned int nThreads = std::thread::hardware_concurrency()) {
-        // Specifies whether to perform ballistic calculations or just multiply
-        // velocity by fusetime Is faster but post-penetration already runs
-        // really fast...
+        /* Specifies whether to perform ballistic calculations or just multiply
+           velocity by fusetime.
+           It is faster but post-penetration already runs really fast... */
         if (fast) {
             calculatePostPen<changeDirection, true>(thickness, inclination, s,
                                                     angles, nThreads);
