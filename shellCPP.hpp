@@ -16,10 +16,8 @@ typedef double fPType;
 #include <functional>
 #include <iomanip>
 #include <iostream>
-#include <stdlib.h>
 #include <string>
 #include <thread>
-#include <type_traits>
 #include <vector>
 
 /*
@@ -684,7 +682,7 @@ private:
 
 public:
     void calculateAngles(
-        const double thickness, const double inclination_R, shell &s,
+        const double thickness, const double inclination, shell &s,
         const unsigned int nThreads = std::thread::hardware_concurrency()) {
         if (!s.completedImpact) {
             std::cout << "Standard Not Calculated - Running automatically\n";
@@ -702,6 +700,7 @@ public:
             assigned = nThreads;
         }
 
+        double inclination_R = inclination / 180 * M_PI;
         double fusingAngle;
         fusingAngle =
             acos(thickness / s.get_threshold()) + s.get_normalizationR();
@@ -726,6 +725,9 @@ public:
     // Post-Penetration Section
 
 private:
+    // delta t (dtf) for fusing needs to be smaller than the delta t (dt) used
+    // for trajectories due to the shorter distances. Otherwise results become
+    // jagged - precision suffers.
     double dtf = 0.0001;
     double xf0 = 0, yf0 = 0;
 
@@ -900,8 +902,6 @@ private:
         // std::cout<<id<<"\n";
         for (int i = angles->size() * id / assigned;
              i < angles->size() * (id + 1) / assigned; i++) {
-            // std::fill_n(s->postPenData.begin() + i * s->impactSize,
-            // s->impactSize, (double) (*angles)[i]);
             std::fill_n(s->get_postPenPtr(0, post::angle, i), s->impactSize,
                         (double)(*angles)[i]);
             std::copy_n(s->get_impactPtr(0, impact::distance), s->impactSize,
