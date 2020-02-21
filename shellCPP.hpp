@@ -598,7 +598,7 @@ private:
         static_assert(fusing <= 2 && fusing >= 0, "Invalid fusing parameter");
         for (int j = 0; j < vSize; j++) {
             double fallAngleAdjusted =
-                s.get_impact(i + j, impact::impactDataIndex::impactAHR) -
+                s.get_impact(i + j, impact::impactDataIndex::impactAHR) +
                 inclination_R;
             double rawPen =
                 s.get_impact(i + j, impact::impactDataIndex::rawPen);
@@ -868,7 +868,6 @@ private:
             double VA_R = vAngleV[l] + inclination_R; // vertical angle radians
             double cAngle = acos(cos(HA_R) * cos(VA_R));
             double nCAngle = calcNormalizationR(cAngle, s.get_normalizationR());
-
             double eThickness = thickness / cos(nCAngle);
             double pPV = v0V[l] * (1 - exp(1 - penetrationV[l] / eThickness));
 
