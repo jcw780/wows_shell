@@ -125,7 +125,8 @@ public:
         postPenSize; // number of distances in: standard, postPen
     unsigned int impactSizeAligned, postPenSizeAligned;
     // Not 100% necessary - sizes adjusted to fulfill alignment
-    bool completedImpact = false, completedPostPen = false;
+    bool completedImpact = false, completedCheckAngles = false,
+         completedPostPen = false;
 
     /*trajectories output
     [0           ]trajx 0        [1           ]trajy 1
@@ -383,7 +384,6 @@ private:
         counter = 0, threadCount = 0;
         std::vector<std::thread> threads(assigned - 1);
         for (int i = 0; i < assigned - 1; i++) {
-            // threads[i] = std::thread([=] { (obj->*func)(i, args...); });
             threads[i] =
                 std::thread([=] { mtWorker(i, object, function, args...); });
         }
@@ -400,7 +400,6 @@ private:
         }
         workQueue.enqueue_bulk(buffer, bCounter);
 
-        //(obj->*func)(assigned - 1, args...);
         mtWorker(assigned - 1, object, function, args...);
         while (threadCount < assigned) {
             std::this_thread::yield();
@@ -431,6 +430,8 @@ private:
     void singleTraj(const unsigned int i, const unsigned int j, shell &s,
                     double *vx, double *vy, double *tVec) {
         static constexpr unsigned int __TrajBuffer__ = 128;
+        // likely unnecessary - just part of a feature that was never
+        // implemented
         const double k = s.get_k();
         const double cw_2 = s.get_cw_2();
 
@@ -711,6 +712,7 @@ public:
                                  inclination_R, fusingAngle, &s);
             }
         }
+        s.completedCheckAngles = true;
     }
 
     // Post-Penetration Section
@@ -925,9 +927,6 @@ private:
     }
 
 public:
-    bool includeNormalization = true;
-    bool nChangeTrajectory = true;
-
     void calculatePostPen(
         const double thickness, const double inclination, shell &s,
         std::vector<double> &angles, const bool changeDirection = true,
