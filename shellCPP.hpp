@@ -378,11 +378,14 @@ public:
 private:
     // mini 'threadpool' used to kick off multithreaded functions
     template <typename O, typename F, typename... Args>
-    void mtFunctionRunner(int assigned, int size, O obj, F func, Args... args) {
+    void mtFunctionRunner(int assigned, int size, O object, F function,
+                          Args... args) {
         counter = 0, threadCount = 0;
         std::vector<std::thread> threads(assigned - 1);
         for (int i = 0; i < assigned - 1; i++) {
-            threads[i] = std::thread([=] { (obj->*func)(i, args...); });
+            // threads[i] = std::thread([=] { (obj->*func)(i, args...); });
+            threads[i] =
+                std::thread([=] { mtWorker(i, object, function, args...); });
         }
 
         int buffer[workQueueBufferSize];
@@ -397,7 +400,8 @@ private:
         }
         workQueue.enqueue_bulk(buffer, bCounter);
 
-        (obj->*func)(assigned - 1, args...);
+        //(obj->*func)(assigned - 1, args...);
+        mtWorker(assigned - 1, object, function, args...);
         while (threadCount < assigned) {
             std::this_thread::yield();
         }
@@ -405,6 +409,21 @@ private:
         for (int i = 0; i < assigned - 1; i++) {
             threads[i].join();
         }
+    }
+
+    template <typename O, typename F, typename... Args>
+    void mtWorker(const int threadID, O object, F function, Args... args) {
+        // threadID is largely there for debugging
+        while (counter < length) {
+            int index;
+            if (workQueue.try_dequeue(index)) {
+                (object->*function)(index, args...);
+                counter.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                std::this_thread::yield();
+            }
+        }
+        threadCount.fetch_add(1, std::memory_order_relaxed);
     }
 
     // Impact Calculations Region
@@ -491,7 +510,9 @@ private:
     }
 
     // Several trajectories done in one chunk to allow for vectorization
-    template <bool AddTraj> void multiTraj(const unsigned int i, shell &s) {
+    template <bool AddTraj>
+    void multiTraj(const unsigned int i, shell *const shellPointer) {
+        shell &s = *shellPointer;
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_normalizationR();
 
@@ -536,20 +557,6 @@ private:
         }
     }
 
-    template <bool AddTraj> void impactWorker(int threadId, shell *const s) {
-        // threadID is largely there for debugging
-        while (counter < length) {
-            int index;
-            if (workQueue.try_dequeue(index)) {
-                multiTraj<AddTraj>(index, *s);
-                counter.fetch_add(1, std::memory_order_relaxed);
-            } else {
-                std::this_thread::yield();
-            }
-        }
-        threadCount.fetch_add(1, std::memory_order_relaxed);
-    }
-
 public:
     void calculateImpact(
         shell &s, bool addTraj,
@@ -579,7 +586,7 @@ public:
             assigned = length;
         }
         mtFunctionRunner(assigned, s.impactSize, this,
-                         &shellCalc::impactWorker<AddTraj>, &s);
+                         &shellCalc::multiTraj<AddTraj>, &s);
 
         s.completedImpact = true;
     }
@@ -594,8 +601,10 @@ private:
     template <short fusing>
     void multiCheckAngles(const unsigned int i, const double thickness,
                           const double inclination_R, const double fusingAngle,
-                          shell &s) {
+                          shell *const shellPointer) {
         static_assert(fusing <= 2 && fusing >= 0, "Invalid fusing parameter");
+        shell &s = *shellPointer;
+
         for (int j = 0; j < vSize; j++) {
             double fallAngleAdjusted =
                 s.get_impact(i + j, impact::impactDataIndex::impactAHR) +
@@ -662,24 +671,6 @@ private:
         }
     }
 
-    template <short fusing>
-    void checkAngleWorker(int threadID, const double thickness,
-                          const double inclination_R, const double fusingAngle,
-                          shell *s) {
-        // std::cout<<threadID<<" Entered \n";
-        while (counter < length) {
-            int index;
-            if (workQueue.try_dequeue(index)) {
-                multiCheckAngles<fusing>(index, thickness, inclination_R,
-                                         fusingAngle, *s);
-                counter.fetch_add(1, std::memory_order_relaxed);
-            } else {
-                std::this_thread::yield();
-            }
-        }
-        threadCount.fetch_add(1, std::memory_order_relaxed);
-    }
-
 public:
     void calculateAngles(
         const double thickness, const double inclination, shell &s,
@@ -707,16 +698,16 @@ public:
 
         if (std::isnan(fusingAngle)) {
             mtFunctionRunner(assigned, s.impactSize, this,
-                             &shellCalc::checkAngleWorker<2>, thickness,
+                             &shellCalc::multiCheckAngles<2>, thickness,
                              inclination_R, fusingAngle, &s);
         } else {
             if (fusingAngle > M_PI / 2) {
                 mtFunctionRunner(assigned, s.impactSize, this,
-                                 &shellCalc::checkAngleWorker<0>, thickness,
+                                 &shellCalc::multiCheckAngles<0>, thickness,
                                  inclination_R, fusingAngle, &s);
             } else {
                 mtFunctionRunner(assigned, s.impactSize, this,
-                                 &shellCalc::checkAngleWorker<1>, thickness,
+                                 &shellCalc::multiCheckAngles<1>, thickness,
                                  inclination_R, fusingAngle, &s);
             }
         }
@@ -821,7 +812,8 @@ private:
 
     template <bool changeDirection, bool fast>
     void multiPostPen(int i, const double thickness, const double inclination_R,
-                      shell &s) {
+                      shell *const shellPointer) {
+        shell &s = *shellPointer;
         // std::cout<<index<<"\n";
         // unsigned int i = index * vSize;
         double hAngleV[vSize], vAngleV[vSize];
@@ -991,28 +983,10 @@ public:
             assigned = nThreads;
         }
         mtFunctionRunner(assigned, s.postPenSize, this,
-                         &shellCalc::postPenWorker<changeDirection, fast>,
+                         &shellCalc::multiPostPen<changeDirection, fast>,
                          thickness, inclination_R, &s);
 
         s.completedPostPen = true;
-    }
-
-private:
-    template <bool changeDirection, bool fast>
-    void postPenWorker(int threadID, const double thickness,
-                       const double inclination, shell *s) {
-        // std::cout<<threadID<<" Entered \n";
-        while (counter < length) {
-            int index;
-            if (workQueue.try_dequeue(index)) {
-                multiPostPen<changeDirection, fast>(index, thickness,
-                                                    inclination, *s);
-                counter.fetch_add(1, std::memory_order_relaxed);
-            } else {
-                std::this_thread::yield();
-            }
-        }
-        threadCount.fetch_add(1, std::memory_order_relaxed);
     }
 };
 

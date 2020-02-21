@@ -35,8 +35,8 @@ int main() {
 
     sc.calculateAngles(410, -20, *test);
 
-    // test->printImpactData();
-    // test->printPostPenData();
+    test->printImpactData();
+    test->printPostPenData();
     test->printAngleData();
 
     std::cout << std::fixed << std::setprecision(10)
