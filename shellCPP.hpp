@@ -1,14 +1,6 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-//#define USE_SIMD
-
-#ifdef _SINGLE_PRECISION
-typedef float fPType;
-#else
-typedef double fPType;
-#endif
-
 #include "concurrentqueue/concurrentqueue.h"
 #include <algorithm>
 #include <atomic>
@@ -19,15 +11,6 @@ typedef double fPType;
 #include <string>
 #include <thread>
 #include <vector>
-
-/*
-double operator"" _kg (long double input){return input;}
-double operator"" _lbs(long double input){return input * 0.453592;}
-
-
-double operator"" _mps(long double input){return input;}
-double operator"" _fps(long double input){return input * 0.3048;}
-*/
 
 namespace shell {
 
@@ -125,7 +108,7 @@ public:
         postPenSize; // number of distances in: standard, postPen
     unsigned int impactSizeAligned, postPenSizeAligned;
     // Not 100% necessary - sizes adjusted to fulfill alignment
-    bool completedImpact = false, completedCheckAngles = false,
+    bool completedImpact = false, completedAngles = false,
          completedPostPen = false;
 
     /*trajectories output
@@ -592,7 +575,7 @@ public:
         s.completedImpact = true;
     }
 
-    // Angle Data Section
+    // Check Angles Section
 private:
     // template <short fusing> explanation
     // Possible Values:
@@ -600,9 +583,9 @@ private:
     // 1 - Check
     // 2 - Always Fusing
     template <short fusing>
-    void multiCheckAngles(const unsigned int i, const double thickness,
-                          const double inclination_R, const double fusingAngle,
-                          shell *const shellPointer) {
+    void multiAngles(const unsigned int i, const double thickness,
+                     const double inclination_R, const double fusingAngle,
+                     shell *const shellPointer) {
         static_assert(fusing <= 2 && fusing >= 0, "Invalid fusing parameter");
         shell &s = *shellPointer;
 
@@ -699,20 +682,20 @@ public:
 
         if (std::isnan(fusingAngle)) {
             mtFunctionRunner(assigned, s.impactSize, this,
-                             &shellCalc::multiCheckAngles<2>, thickness,
+                             &shellCalc::multiAngles<2>, thickness,
                              inclination_R, fusingAngle, &s);
         } else {
             if (fusingAngle > M_PI / 2) {
                 mtFunctionRunner(assigned, s.impactSize, this,
-                                 &shellCalc::multiCheckAngles<0>, thickness,
+                                 &shellCalc::multiAngles<0>, thickness,
                                  inclination_R, fusingAngle, &s);
             } else {
                 mtFunctionRunner(assigned, s.impactSize, this,
-                                 &shellCalc::multiCheckAngles<1>, thickness,
+                                 &shellCalc::multiAngles<1>, thickness,
                                  inclination_R, fusingAngle, &s);
             }
         }
-        s.completedCheckAngles = true;
+        s.completedAngles = true;
     }
 
     // Post-Penetration Section
@@ -758,7 +741,6 @@ private:
                     for (int l = 0; l < 3; l++) {
                         pos[l] += velocities[l] * dtf;
                     }
-
                     // Calculate air density - likely unnecessary for this
                     // section as distances are so short
                     T = t0 - L * pos[1];
@@ -770,10 +752,7 @@ private:
                     for (int l = 0; l < 3; l++) {
                         velocitiesSquared[l] = velocities[l] * velocities[l];
                     }
-                    // velocitiesSquared = _mm256_mul_pd(velocities,
-                    // velocities);
-                    // //velocitiesSquared = velocities * velocities
-
+                    // velocitiesSquared = velocities * velocities
                     xz_dragIntermediary[0] =
                         (k * rho) *
                         (cw_1 * velocitiesSquared[0] + cw_2 * velocities[0]);
@@ -782,7 +761,6 @@ private:
                         (cw_1 * velocitiesSquared[2] + cw_2 * velocities[2]);
                     // xz_dragIntermediary = (k * rho) * (cw_1 *
                     // velocitiesSquared[2, 0] + cw_2 * velocities[2, 0])
-
                     dragIntermediary[0] = xz_dragIntermediary[0]; // x
                     dragIntermediary[1] =
                         (g - k * rho *
@@ -790,11 +768,10 @@ private:
                                   cw_2 * fabs(velocities[1])) *
                                  signum(velocities[1]));
                     dragIntermediary[2] = xz_dragIntermediary[1]; // z
-
-                    // velocities -= dtf * dragIntermediary
                     for (int l = 0; l < 3; l++) {
                         velocities[l] -= dtf * dragIntermediary[l];
                     }
+                    // velocities -= dtf * dragIntermediary
                     t += dtf;
                 }
                 s.get_postPen(i, post::x, 0) = pos[0];
