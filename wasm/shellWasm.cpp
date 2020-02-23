@@ -19,12 +19,13 @@ public:
                     threshold, ricochet0, ricochet1, "ship");
     }
 
+    // Impact Wrappers
+
     void calcImpact() {
         calc.calculateImpact(s, false, 1); // atomics don't work yet
     }
 
     int impactSize() { return s.impactSize; }
-
     int impactSizeAligned() { return s.impactSizeAligned; }
 
     std::vector<double> impactData() {
@@ -36,8 +37,30 @@ public:
     }
 
     double getImpactPoint(const int i, const int j) {
+        // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return s.get_impact(i, j);
     }
+
+    // Angle Data Wrappers
+
+    void calcAngles(const double thickness, const double inclination) {
+        calc.calculateAngles(thickness, inclination, s, 1);
+    }
+
+    std::vector<double> angleData() {
+        if (s.completedAngles) {
+            return s.angleData;
+        } else {
+            throw std::runtime_error("Angle data not generated");
+        }
+    }
+
+    double getAnglePoint(const int row, const int impact) {
+        // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
+        return s.get_angle(row, impact);
+    }
+
+    // Post Penetration Wrappers
 
     void calcPostPen(const double thickness, const double inclination,
                      emscripten::val v, const bool changeDirection,
@@ -59,14 +82,25 @@ public:
     }
 
     double getPostPenPoint(const int i, const int j, const int k) {
+        // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return s.get_postPen(i, j, k);
     }
+
+    // Print Functions
 
     void printImpact() {
         if (s.completedImpact) {
             s.printImpactData();
         } else {
             throw std::runtime_error("Impact data not generated");
+        }
+    }
+
+    void printAngles() {
+        if (s.completedAngles) {
+            s.printAngleData();
+        } else {
+            throw std::runtime_error("Angle data not generated");
         }
     }
 
@@ -88,13 +122,16 @@ public:
 // Testline: s = shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76.0, .033 )
 EMSCRIPTEN_BINDINGS(shellWasm) {
     emscripten::class_<shellCombined>("shell")
-        .constructor<double, double, double, double, double, double,
-                     /*std::string&,*/ double, double>()
+        .constructor<double, double, double, double, double, double, double,
+                     double, double, double>()
         .function("calcImpact", &shellCombined::calcImpact)
         .function("getImpactPoint", &shellCombined::getImpactPoint)
         .function("impactData", &shellCombined::impactData)
         .function("getImpactSize", &shellCombined::impactSize)
         .function("getImpactSizeAligned", &shellCombined::impactSizeAligned)
+        .function("calcAngles", &shellCombined::calcAngles)
+        .function("angleData", &shellCombined::angleData)
+        .function("getAnglePoint", &shellCombined::getAnglePoint)
         .function("calcPostPen", &shellCombined::calcPostPen)
         .function("getPostPenPoint", &shellCombined::getPostPenPoint)
         .function("postPenData", &shellCombined::postPenData)
@@ -119,6 +156,17 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .value("ePenDN", shell::impact::impactDataIndex::ePenDN)
         .value("tToTarget", shell::impact::impactDataIndex::tToTarget)
         .value("tToTargetA", shell::impact::impactDataIndex::tToTargetA);
+
+    emscripten::enum_<shell::angle::angleDataIndex>("angleDataIndex")
+        .value("distance", shell::angle::angleDataIndex::distance)
+        .value("ra0", shell::angle::angleDataIndex::ra0)
+        .value("ra0D", shell::angle::angleDataIndex::ra0D)
+        .value("ra1", shell::angle::angleDataIndex::ra1)
+        .value("ra1D", shell::angle::angleDataIndex::ra1D)
+        .value("armor", shell::angle::angleDataIndex::armor)
+        .value("armorD", shell::angle::angleDataIndex::armorD)
+        .value("fuse", shell::angle::angleDataIndex::fuse)
+        .value("fuseD", shell::angle::angleDataIndex::fuseD);
 
     emscripten::enum_<shell::post::postPenDataIndex>("postPenDataIndex")
         .value("angle", shell::post::postPenDataIndex::angle)

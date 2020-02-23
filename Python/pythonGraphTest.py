@@ -29,13 +29,11 @@ plt.plot(impact[int(impactDataIndex.distance),:], impact[int(impactDataIndex.ePe
 
 '''
 '''
-
 plt.plot(angle[int(angleDataIndex.distance), :], angle[int(angleDataIndex.fuseD), :])
 plt.plot(angle[int(angleDataIndex.distance), :], angle[int(angleDataIndex.armorD), :])
 plt.plot(angle[int(angleDataIndex.distance), :], angle[int(angleDataIndex.ra0D), :])
 plt.plot(angle[int(angleDataIndex.distance), :], angle[int(angleDataIndex.ra1D), :])
 '''
-
 '''
 for i in range(len(angles)):
     plt.plot(postPen[int(postPenDataIndex.distance),i,:], postPen[int(postPenDataIndex.xwf),i,:])
