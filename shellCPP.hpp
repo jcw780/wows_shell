@@ -556,7 +556,6 @@ private:
                      shell *const shellPointer) {
         static_assert(fusing <= 2 && fusing >= 0, "Invalid fusing parameter");
         shell &s = *shellPointer;
-
         for (int j = 0; j < vSize; j++) {
             double fallAngleAdjusted =
                 s.get_impact(i + j, impact::impactDataIndex::impactAHR) +
@@ -636,7 +635,7 @@ public:
         std::copy_n(s.get_impactPtr(0, impact::distance), s.impactSize,
                     s.get_anglePtr(0, angle::distance));
 
-        length = ceil((double)s.postPenSize / vSize);
+        length = ceil((double)s.impactSize / vSize);
         if (length < nThreads) {
             assigned = length;
         } else {
@@ -647,7 +646,6 @@ public:
         double fusingAngle;
         fusingAngle =
             acos(thickness / s.get_threshold()) + s.get_normalizationR();
-
         if (std::isnan(fusingAngle)) {
             mtFunctionRunner(assigned, s.impactSize, this,
                              &shellCalc::multiAngles<2>, thickness,

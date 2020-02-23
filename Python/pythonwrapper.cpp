@@ -91,13 +91,13 @@ public:
         }
     }
 
-    pybind11::array_t<double> getAngle() {
+    pybind11::array_t<double> getAngles() {
         if (s.completedImpact) {
             constexpr std::size_t sT = sizeof(double);
             auto result = pybind11::array(pybind11::buffer_info(
-                s.get_impactPtr(0, 0), /* Pointer to data (nullptr -> ask NumPy
+                s.get_anglePtr(0, 0), /* Pointer to data (nullptr -> ask NumPy
                                          to allocate!) */
-                sT,                    /* Size of one item */
+                sT,                   /* Size of one item */
                 pybind11::format_descriptor<double>::value, /* Buffer format */
                 2, /* How many dimensions? */
                 std::vector<std::size_t>{
@@ -133,15 +133,18 @@ public:
 PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::class_<shellCombined>(m, "shell", pybind11::buffer_protocol())
         .def(pybind11::init<double, double, double, double, double, double,
-                            std::string &, double, double>())
+                            double, double, double, double, std::string &>())
         .def("setValues", &shellCombined::setValues)
         .def("calcImpact", &shellCombined::calcImpact)
+        .def("calcAngles", &shellCombined::calcAngles)
         .def("calcPostPen", &shellCombined::calcPostPen)
         .def("getImpact", &shellCombined::getImpact)
         // pybind11::return_value_policy::reference)
+        .def("getAngles", &shellCombined::getAngles)
         .def("getPostPen", &shellCombined::getPostPen)
         // pybind11::return_value_policy::reference)
         .def("printImpact", &shellCombined::printImpact)
+        .def("printAngles", &shellCombined::printAngles)
         .def("printPostPen", &shellCombined::printPostPen);
 
     // Enums
