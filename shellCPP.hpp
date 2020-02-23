@@ -1,14 +1,6 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-//#define USE_SIMD
-
-#ifdef _SINGLE_PRECISION
-typedef float fPType;
-#else
-typedef double fPType;
-#endif
-
 #include "concurrentqueue/concurrentqueue.h"
 #include <algorithm>
 #include <atomic>
@@ -16,20 +8,9 @@ typedef double fPType;
 #include <functional>
 #include <iomanip>
 #include <iostream>
-#include <stdlib.h>
 #include <string>
 #include <thread>
-#include <type_traits>
 #include <vector>
-
-/*
-double operator"" _kg (long double input){return input;}
-double operator"" _lbs(long double input){return input * 0.453592;}
-
-
-double operator"" _mps(long double input){return input;}
-double operator"" _fps(long double input){return input * 0.3048;}
-*/
 
 namespace shell {
 
@@ -54,8 +35,18 @@ static_assert(tToTargetA == (maxColumns - 1), "Invalid standard columns");
 } // namespace impact
 
 namespace angle {
-static constexpr unsigned int maxColumns = 8;
-enum angleDataIndex { ra0, ra0D, ra1, ra1D, armor, armorD, fuse, fuseD };
+static constexpr unsigned int maxColumns = 9;
+enum angleDataIndex {
+    distance,
+    ra0,
+    ra0D,
+    ra1,
+    ra1D,
+    armor,
+    armorD,
+    fuse,
+    fuseD
+};
 static_assert(fuseD == (maxColumns - 1), "Invalid angle columns");
 } // namespace angle
 
@@ -64,21 +55,6 @@ static constexpr unsigned int maxColumns = 6;
 enum postPenDataIndex { angle, distance, x, y, z, xwf };
 static_assert(xwf == (maxColumns - 1), "Invaild postpen columns");
 } // namespace post
-
-/* Base shell characteristics
- * May be used to implement a hash table in the future
- */
-typedef struct {
-    double v0;
-    double caliber;
-    double krupp;
-    double mass;
-    double cD;
-    double normalization;
-    double threshold;
-    double fuseTime;
-    // std::string name;
-} shellParams;
 
 class shell {
 private:                  // Description         units
@@ -98,6 +74,7 @@ private:                  // Description         units
 
     // Condenses initial values into values used by calculations
     //[Reduces repeated computations]
+public:
     void preProcess() {
         k = 0.5 * cD * pow((caliber / 2), 2) * M_PI / mass;
         // condensed drag coefficient
@@ -112,12 +89,12 @@ private:                  // Description         units
         ricochet1R = ricochet1 / 180 * M_PI;
     }
 
-public:
     unsigned int impactSize,
         postPenSize; // number of distances in: standard, postPen
     unsigned int impactSizeAligned, postPenSizeAligned;
     // Not 100% necessary - sizes adjusted to fulfill alignment
-    bool completedImpact = false, completedPostPen = false;
+    bool completedImpact = false, completedAngles = false,
+         completedPostPen = false;
 
     /*trajectories output
     [0           ]trajx 0        [1           ]trajy 1
@@ -147,20 +124,19 @@ public:
 
     shell() = default;
 
-    shell(const double v0, const double caliber, const double krupp,
-          const double mass, const double normalization, const double cD,
-          const std::string &name, const double threshold,
-          const double fuseTime = .033, const double ricochet0 = 45,
-          const double ricochet1 = 60) {
-        setValues(v0, caliber, krupp, mass, normalization, cD, name, threshold,
-                  fuseTime, ricochet0, ricochet1);
+    shell(const double caliber, const double v0, const double cD,
+          const double mass, const double krupp, const double normalization,
+          const double fuseTime, const double threshold, const double ricochet0,
+          const double ricochet1, const std::string &name) {
+        setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
+                  threshold, ricochet0, ricochet1, name);
     }
 
-    void setValues(const double v0, const double caliber, const double krupp,
-                   const double mass, const double normalization,
-                   const double cD, const std::string &name,
-                   const double threshold, const double fuseTime = .033,
-                   const double ricochet0 = 45, const double ricochet1 = 60) {
+    void setValues(const double caliber, const double v0, const double cD,
+                   const double mass, const double krupp,
+                   const double normalization, const double fuseTime,
+                   const double threshold, const double ricochet0,
+                   const double ricochet1, const std::string &name) {
         //                                                    Impact   PostPen
         this->fuseTime = fuseTime; // Shell fusetime        | No     | Yes
         this->v0 = v0;             // Shell muzzle velocity | Yes    | No
@@ -173,70 +149,76 @@ public:
         this->name = name; // Shell name  | No     | No
         this->ricochet0 = ricochet0; // Ricochet Angle 0 | No     | Yes
         this->ricochet1 = ricochet1; // Ricochet Angle 1 | No     | Yes
-        if (threshold) {             // Shell fusing threshold | No     | Yes
-            this->threshold = threshold;
-        } else {
-            this->threshold = caliber / 6;
-        }
+                                     // Shell fusing threshold | No     | Yes
+        this->threshold = threshold;
+
         preProcess();
     }
+    // Setter Functions
+    // Note: Be sure to call preprocess after changing to make sure calculations
+    // are correct
+    void set_v0(const double v0) { this->v0 = v0; }
+    void set_caliber(const double caliber) { this->caliber = caliber; }
+    void set_krupp(const double krupp) { this->krupp = krupp; }
+    void set_mass(const double mass) { this->mass = mass; }
+    void set_normalization(const double normalization) {
+        this->normalization = normalization;
+    }
+    void set_cD(const double cD) { this->cD = cD; }
+    void set_name(const std::string &name) { this->name = name; }
+    void set_threshold(const double threshold) { this->threshold = threshold; }
+    void set_fuseTime(const double fuseTime) { this->fuseTime = fuseTime; }
+    void set_ricochet0(const double ricochet0) { this->ricochet0 = ricochet0; }
+    void set_ricochet1(const double ricochet1) { this->ricochet1 = ricochet1; }
+
     // Getter Functions
-    double &getImpact(unsigned int i, unsigned int j) {
-        return impactData[i + j * impactSizeAligned];
+    double &get_impact(unsigned int row, unsigned int impact) {
+        return impactData[row + impact * impactSizeAligned];
     }
 
-    double *getImpactPtr(unsigned int i, unsigned int j) {
-        return impactData.data() + i + j * impactSizeAligned;
+    double *get_impactPtr(unsigned int row, unsigned int impact) {
+        return impactData.data() + row + impact * impactSizeAligned;
     }
 
-    double &getAngle(unsigned int i, unsigned int j) {
-        return angleData[i + j * impactSizeAligned];
+    double &get_angle(unsigned int row, unsigned int impact) {
+        return angleData[row + impact * impactSizeAligned];
     }
 
-    double *getAnglePtr(unsigned int i, unsigned int j) {
-        return angleData.data() + i + j * impactSizeAligned;
+    double *get_anglePtr(unsigned int row, unsigned int impact) {
+        return angleData.data() + row + impact * impactSizeAligned;
     }
 
-    double &getPostPen(unsigned int i, unsigned int j, unsigned int k) {
-        return postPenData[i + j * postPenSize + k * impactSize];
+    double &get_postPen(unsigned int row, unsigned int angle,
+                        unsigned int impact) {
+        return postPenData[row + angle * postPenSize + impact * impactSize];
     }
 
-    double *getPostPenPtr(unsigned int i, unsigned int j, unsigned int k) {
-        return postPenData.data() + i + j * postPenSize + k * impactSize;
+    double *get_postPenPtr(unsigned int row, unsigned int angle,
+                           unsigned int impact) {
+        return postPenData.data() + row + angle * postPenSize +
+               impact * impactSize;
     }
 
-    const double &get_v0() { return v0; }
-    const double &get_k() { return k; }
-    const double &get_cw_2() { return cw_2; }
-    const double &get_pPPC() { return pPPC; }
-    const double &get_normalizationR() { return normalizationR; }
-    const double &get_threshold() { return threshold; }
-    const double &get_fuseTime() { return fuseTime; }
-    const double &get_ricochet0() { return ricochet0; }
-    const double &get_ricochet1() { return ricochet1; }
-    const double &get_ricochet0R() { return ricochet0R; }
-    const double &get_ricochet1R() { return ricochet1R; }
+    // fixed
+    const double get_v0() { return v0; }
+    const double get_k() { return k; }
+    const double get_cw_2() { return cw_2; }
+    const double get_pPPC() { return pPPC; }
+    const double get_normalizationR() { return normalizationR; }
 
-    // Could be split up into two classes
-    shellParams returnShipParams() {
-        shellParams ret;
-        ret.caliber = caliber;
-        ret.cD = cD;
-        ret.fuseTime = fuseTime;
-        ret.krupp = krupp;
-        ret.mass = mass;
-        // ret.name = name;
-        ret.normalization = normalization;
-        ret.threshold = threshold;
-        ret.v0 = v0;
-        return ret;
-    }
+    // changeable
+    double &get_threshold() { return threshold; }
+    double &get_fuseTime() { return fuseTime; }
+    double &get_ricochet0() { return ricochet0; }
+    double &get_ricochet1() { return ricochet1; }
+    double &get_ricochet0R() { return ricochet0R; }
+    double &get_ricochet1R() { return ricochet1R; }
 
     void printAngleData() {
         for (unsigned int i = 0; i < impactSize; i++) {
             for (unsigned int j = 0; j < angle::maxColumns; j++) {
                 std::cout << std::fixed << std::setprecision(4)
-                          << angleData[i + j * impactSizeAligned] << " ";
+                          << get_angle(i, j) << " ";
             }
             std::cout << "\n";
         }
@@ -247,7 +229,7 @@ public:
         for (unsigned int i = 0; i < postPenSize; i++) {
             for (unsigned int j = 0; j < post::maxColumns; j++) {
                 std::cout << std::fixed << std::setprecision(4)
-                          << postPenData[i + j * postPenSize] << " ";
+                          << get_postPen(i, j, 0) << " ";
             }
             std::cout << "\n";
         }
@@ -258,7 +240,7 @@ public:
         for (unsigned int i = 0; i < impactSize; i++) {
             for (unsigned int j = 0; j < impact::maxColumns; j++) {
                 std::cout << std::fixed << std::setprecision(4)
-                          << getImpact(i, j) << " ";
+                          << get_impact(i, j) << " ";
             }
             std::cout << std::endl;
         }
@@ -302,8 +284,9 @@ private:
     double x0 = 0, y0 = 0; // Starting x0, y0              | m
     double dt = .01;       // Time step                    | s
 
-    // For vectorization - though not 100% necessary anymore since intrinsics
-    // were removed
+    // For vectorization - though probably not 100% necessary anymore since
+    // intrinsics were removed [intrinsics had no significant improvements in
+    // runtime]
     static_assert(
         sizeof(double) == 8,
         "Size of double is not 8 - required for AVX2"); // Use float64
@@ -345,13 +328,15 @@ public:
     }
 
 private:
-    // mini 'threadpool' used to multithread some of the functions
+    // mini 'threadpool' used to kick off multithreaded functions
     template <typename O, typename F, typename... Args>
-    void mtFunctionRunner(int assigned, int size, O obj, F func, Args... args) {
+    void mtFunctionRunner(int assigned, int size, O object, F function,
+                          Args... args) {
         counter = 0, threadCount = 0;
         std::vector<std::thread> threads(assigned - 1);
         for (int i = 0; i < assigned - 1; i++) {
-            threads[i] = std::thread([=] { (obj->*func)(i, args...); });
+            threads[i] =
+                std::thread([=] { mtWorker(i, object, function, args...); });
         }
 
         int buffer[workQueueBufferSize];
@@ -366,7 +351,7 @@ private:
         }
         workQueue.enqueue_bulk(buffer, bCounter);
 
-        (obj->*func)(assigned - 1, args...);
+        mtWorker(assigned - 1, object, function, args...);
         while (threadCount < assigned) {
             std::this_thread::yield();
         }
@@ -376,12 +361,28 @@ private:
         }
     }
 
-    // Impact Calculations
+    template <typename O, typename F, typename... Args>
+    void mtWorker(const int threadID, O object, F function, Args... args) {
+        // threadID is largely there for debugging
+        while (counter < length) {
+            int index;
+            if (workQueue.try_dequeue(index)) {
+                (object->*function)(index, args...);
+                counter.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                std::this_thread::yield();
+            }
+        }
+        threadCount.fetch_add(1, std::memory_order_relaxed);
+    }
 
+    // Impact Calculations Region
     template <bool AddTraj>
     void singleTraj(const unsigned int i, const unsigned int j, shell &s,
                     double *vx, double *vy, double *tVec) {
         static constexpr unsigned int __TrajBuffer__ = 128;
+        // likely unnecessary - just part of a feature that was never
+        // implemented
         const double k = s.get_k();
         const double cw_2 = s.get_cw_2();
 
@@ -454,24 +455,26 @@ private:
                     s.trajectories[2 * (i + j) + 1].end(), yT, &yT[counter]);
             }
         }
-        s.getImpact(i + j, impact::distance) = pos[0];
+        s.get_impact(i + j, impact::distance) = pos[0];
         vx[j] = velocity[0];
         vy[j] = velocity[1];
         tVec[j] = t;
     }
 
-    // Kind of here for vectorization purposes
-    template <bool AddTraj> void multiTraj(const unsigned int i, shell &s) {
+    // Several trajectories done in one chunk to allow for vectorization
+    template <bool AddTraj>
+    void multiTraj(const unsigned int i, shell *const shellPointer) {
+        shell &s = *shellPointer;
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_normalizationR();
 
         double vx[vSize], vy[vSize], tVec[vSize];
         for (int j = 0; j < vSize; j++) {
-            // s.getImpact(i + j, impact::launchA) = min + precision * (i+ j);
-            s.getImpact(i + j, impact::launchA) =
+            // s.get_impact(i + j, impact::launchA) = min + precision * (i+ j);
+            s.get_impact(i + j, impact::launchA) =
                 std::fma(precision, (i + j), min);
             double radianLaunch =
-                s.getImpact(i + j, impact::launchA) * M_PI / 180;
+                s.get_impact(i + j, impact::launchA) * M_PI / 180;
             vx[j] = s.get_v0() * cos(radianLaunch);
             vy[j] = s.get_v0() * sin(radianLaunch);
         }
@@ -482,42 +485,28 @@ private:
 
         for (int j = 0; j < vSize; j++) {
             double IA_R = atan(vy[j] / vx[j]);
-            s.getImpact(i + j, impact::impactAHR) = IA_R;
+            s.get_impact(i + j, impact::impactAHR) = IA_R;
             double IAD_R = M_PI / 2 + IA_R;
             double IA_D = IA_R * 180 / M_PI;
-            s.getImpact(i + j, impact::impactAHD) = IA_D;
-            s.getImpact(i + j, impact::impactADD) = 90 + IA_D;
+            s.get_impact(i + j, impact::impactAHD) = IA_D;
+            s.get_impact(i + j, impact::impactADD) = 90 + IA_D;
 
             double IV = sqrt(vx[j] * vx[j] + vy[j] * vy[j]);
-            s.getImpact(i + j, impact::impactV) = IV;
+            s.get_impact(i + j, impact::impactV) = IV;
             double rawPen = pPPC * pow(IV, 1.1);
-            s.getImpact(i + j, impact::rawPen) = rawPen;
+            s.get_impact(i + j, impact::rawPen) = rawPen;
 
-            s.getImpact(i + j, impact::ePenH) = rawPen * cos(IA_R);
-            s.getImpact(i + j, impact::ePenD) = rawPen * cos(IAD_R);
+            s.get_impact(i + j, impact::ePenH) = rawPen * cos(IA_R);
+            s.get_impact(i + j, impact::ePenD) = rawPen * cos(IAD_R);
 
-            s.getImpact(i + j, impact::ePenHN) =
+            s.get_impact(i + j, impact::ePenHN) =
                 rawPen * cos(calcNormalizationR(IA_R, normalizationR));
-            s.getImpact(i + j, impact::ePenDN) =
+            s.get_impact(i + j, impact::ePenDN) =
                 rawPen * cos(calcNormalizationR(IAD_R, normalizationR));
 
-            s.getImpact(i + j, impact::tToTarget) = tVec[j];
-            s.getImpact(i + j, impact::tToTargetA) = tVec[j] / 3.1;
+            s.get_impact(i + j, impact::tToTarget) = tVec[j];
+            s.get_impact(i + j, impact::tToTargetA) = tVec[j] / 3.1;
         }
-    }
-
-    template <bool AddTraj> void impactWorker(int threadId, shell *const s) {
-        // threadID is largely there for debugging
-        while (counter < length) {
-            int index;
-            if (workQueue.try_dequeue(index)) {
-                multiTraj<AddTraj>(index, *s);
-                counter.fetch_add(1, std::memory_order_relaxed);
-            } else {
-                std::this_thread::yield();
-            }
-        }
-        threadCount.fetch_add(1, std::memory_order_relaxed);
     }
 
 public:
@@ -549,12 +538,12 @@ public:
             assigned = length;
         }
         mtFunctionRunner(assigned, s.impactSize, this,
-                         &shellCalc::impactWorker<AddTraj>, &s);
+                         &shellCalc::multiTraj<AddTraj>, &s);
 
         s.completedImpact = true;
     }
 
-    // Angle Data Section
+    // Check Angles Section
 private:
     // template <short fusing> explanation
     // Possible Values:
@@ -562,15 +551,17 @@ private:
     // 1 - Check
     // 2 - Always Fusing
     template <short fusing>
-    void multiCheckAngles(const unsigned int i, const double thickness,
-                          const double inclination_R, const double fusingAngle,
-                          shell &s) {
+    void multiAngles(const unsigned int i, const double thickness,
+                     const double inclination_R, const double fusingAngle,
+                     shell *const shellPointer) {
         static_assert(fusing <= 2 && fusing >= 0, "Invalid fusing parameter");
+        shell &s = *shellPointer;
         for (int j = 0; j < vSize; j++) {
             double fallAngleAdjusted =
-                s.getImpact(i + j, impact::impactDataIndex::impactAHR) -
+                s.get_impact(i + j, impact::impactDataIndex::impactAHR) +
                 inclination_R;
-            double rawPen = s.getImpact(i + j, impact::impactDataIndex::rawPen);
+            double rawPen =
+                s.get_impact(i + j, impact::impactDataIndex::rawPen);
 
             double penetrationCriticalAngle;
 
@@ -602,56 +593,38 @@ private:
             {
                 int k = angle::fuse / 2;
                 if constexpr (fusing == 0) {
-                    std::cout << "0" << fusingAngle << "\n";
+                    // std::cout << "0" << fusingAngle << "\n";
                     out[k] = M_PI / 2;
                 } else if (fusing == 1) {
-                    std::cout << "1 " << fusingAngle << "\n";
+                    // std::cout << "1 " << fusingAngle << "\n";
                     out[k] =
                         acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
                     out[k] = std::isnan(out[k]) ? 0 : out[k];
                 } else if (fusing == 2) {
-                    std::cout << "2 " << fusingAngle << "\n";
+                    // std::cout << "2 " << fusingAngle << "\n";
                     out[k] = 0;
                 }
             }
 
-            s.getAngle(i + j, angle::angleDataIndex::ra0) = out[0];
-            s.getAngle(i + j, angle::angleDataIndex::ra1) = out[1];
-            s.getAngle(i + j, angle::angleDataIndex::armor) = out[2];
-            s.getAngle(i + j, angle::angleDataIndex::fuse) = out[3];
+            s.get_angle(i + j, angle::angleDataIndex::ra0) = out[0];
+            s.get_angle(i + j, angle::angleDataIndex::ra1) = out[1];
+            s.get_angle(i + j, angle::angleDataIndex::armor) = out[2];
+            s.get_angle(i + j, angle::angleDataIndex::fuse) = out[3];
 
             for (int k = 0; k < angle::maxColumns / 2; k++) {
                 out[k] *= 180 / M_PI;
             }
 
-            s.getAngle(i + j, angle::angleDataIndex::ra0D) = out[0];
-            s.getAngle(i + j, angle::angleDataIndex::ra1D) = out[1];
-            s.getAngle(i + j, angle::angleDataIndex::armorD) = out[2];
-            s.getAngle(i + j, angle::angleDataIndex::fuseD) = out[3];
+            s.get_angle(i + j, angle::angleDataIndex::ra0D) = out[0];
+            s.get_angle(i + j, angle::angleDataIndex::ra1D) = out[1];
+            s.get_angle(i + j, angle::angleDataIndex::armorD) = out[2];
+            s.get_angle(i + j, angle::angleDataIndex::fuseD) = out[3];
         }
-    }
-
-    template <short fusing>
-    void checkAngleWorker(int threadID, const double thickness,
-                          const double inclination_R, const double fusingAngle,
-                          shell *s) {
-        // std::cout<<threadID<<" Entered \n";
-        while (counter < length) {
-            int index;
-            if (workQueue.try_dequeue(index)) {
-                multiCheckAngles<fusing>(index, thickness, inclination_R,
-                                         fusingAngle, *s);
-                counter.fetch_add(1, std::memory_order_relaxed);
-            } else {
-                std::this_thread::yield();
-            }
-        }
-        threadCount.fetch_add(1, std::memory_order_relaxed);
     }
 
 public:
     void calculateAngles(
-        const double thickness, const double inclination_R, shell &s,
+        const double thickness, const double inclination, shell &s,
         const unsigned int nThreads = std::thread::hardware_concurrency()) {
         if (!s.completedImpact) {
             std::cout << "Standard Not Calculated - Running automatically\n";
@@ -659,38 +632,44 @@ public:
         }
 
         s.angleData.resize(angle::maxColumns * s.impactSizeAligned);
+        std::copy_n(s.get_impactPtr(0, impact::distance), s.impactSize,
+                    s.get_anglePtr(0, angle::distance));
 
-        length = ceil((double)s.postPenSize / vSize);
+        length = ceil((double)s.impactSize / vSize);
         if (length < nThreads) {
             assigned = length;
         } else {
             assigned = nThreads;
         }
 
+        double inclination_R = inclination / 180 * M_PI;
         double fusingAngle;
         fusingAngle =
             acos(thickness / s.get_threshold()) + s.get_normalizationR();
-
         if (std::isnan(fusingAngle)) {
             mtFunctionRunner(assigned, s.impactSize, this,
-                             &shellCalc::checkAngleWorker<2>, thickness,
+                             &shellCalc::multiAngles<2>, thickness,
                              inclination_R, fusingAngle, &s);
         } else {
             if (fusingAngle > M_PI / 2) {
                 mtFunctionRunner(assigned, s.impactSize, this,
-                                 &shellCalc::checkAngleWorker<0>, thickness,
+                                 &shellCalc::multiAngles<0>, thickness,
                                  inclination_R, fusingAngle, &s);
             } else {
                 mtFunctionRunner(assigned, s.impactSize, this,
-                                 &shellCalc::checkAngleWorker<1>, thickness,
+                                 &shellCalc::multiAngles<1>, thickness,
                                  inclination_R, fusingAngle, &s);
             }
         }
+        s.completedAngles = true;
     }
 
     // Post-Penetration Section
 
 private:
+    // delta t (dtf) for fusing needs to be smaller than the delta t (dt) used
+    // for trajectories due to the shorter distances. Otherwise results become
+    // jagged - precision suffers.
     double dtf = 0.0001;
     double xf0 = 0, yf0 = 0;
 
@@ -699,10 +678,10 @@ private:
                      double v_z, double thickness) {
         if constexpr (fast) {
             double x = v_x * s.get_fuseTime();
-            s.getPostPen(i, post::x, 0) = x;
-            s.getPostPen(i, post::y, 0) = v_y * s.get_fuseTime();
-            s.getPostPen(i, post::z, 0) = v_z * s.get_fuseTime();
-            s.getPostPen(i, post::xwf, 0) =
+            s.get_postPen(i, post::x, 0) = x;
+            s.get_postPen(i, post::y, 0) = v_y * s.get_fuseTime();
+            s.get_postPen(i, post::z, 0) = v_z * s.get_fuseTime();
+            s.get_postPen(i, post::xwf, 0) =
                 (thickness >= s.get_threshold()) * x +
                 !(thickness >= s.get_threshold()) * -1;
         } else {
@@ -728,7 +707,6 @@ private:
                     for (int l = 0; l < 3; l++) {
                         pos[l] += velocities[l] * dtf;
                     }
-
                     // Calculate air density - likely unnecessary for this
                     // section as distances are so short
                     T = t0 - L * pos[1];
@@ -740,10 +718,7 @@ private:
                     for (int l = 0; l < 3; l++) {
                         velocitiesSquared[l] = velocities[l] * velocities[l];
                     }
-                    // velocitiesSquared = _mm256_mul_pd(velocities,
-                    // velocities);
-                    // //velocitiesSquared = velocities * velocities
-
+                    // velocitiesSquared = velocities * velocities
                     xz_dragIntermediary[0] =
                         (k * rho) *
                         (cw_1 * velocitiesSquared[0] + cw_2 * velocities[0]);
@@ -752,7 +727,6 @@ private:
                         (cw_1 * velocitiesSquared[2] + cw_2 * velocities[2]);
                     // xz_dragIntermediary = (k * rho) * (cw_1 *
                     // velocitiesSquared[2, 0] + cw_2 * velocities[2, 0])
-
                     dragIntermediary[0] = xz_dragIntermediary[0]; // x
                     dragIntermediary[1] =
                         (g - k * rho *
@@ -760,31 +734,31 @@ private:
                                   cw_2 * fabs(velocities[1])) *
                                  signum(velocities[1]));
                     dragIntermediary[2] = xz_dragIntermediary[1]; // z
-
-                    // velocities -= dtf * dragIntermediary
                     for (int l = 0; l < 3; l++) {
                         velocities[l] -= dtf * dragIntermediary[l];
                     }
+                    // velocities -= dtf * dragIntermediary
                     t += dtf;
                 }
-                s.getPostPen(i, post::x, 0) = pos[0];
-                s.getPostPen(i, post::y, 0) = pos[1];
-                s.getPostPen(i, post::z, 0) = pos[2];
-                s.getPostPen(i, post::xwf, 0) =
+                s.get_postPen(i, post::x, 0) = pos[0];
+                s.get_postPen(i, post::y, 0) = pos[1];
+                s.get_postPen(i, post::z, 0) = pos[2];
+                s.get_postPen(i, post::xwf, 0) =
                     (thickness >= s.get_threshold()) * pos[0] +
                     !(thickness >= s.get_threshold()) * -1;
             } else {
-                s.getPostPen(i, post::x, 0) = 0;
-                s.getPostPen(i, post::y, 0) = 0;
-                s.getPostPen(i, post::z, 0) = 0;
-                s.getPostPen(i, post::xwf, 0) = 0;
+                s.get_postPen(i, post::x, 0) = 0;
+                s.get_postPen(i, post::y, 0) = 0;
+                s.get_postPen(i, post::z, 0) = 0;
+                s.get_postPen(i, post::xwf, 0) = 0;
             }
         }
     }
 
     template <bool changeDirection, bool fast>
     void multiPostPen(int i, const double thickness, const double inclination_R,
-                      shell &s) {
+                      shell *const shellPointer) {
+        shell &s = *shellPointer;
         // std::cout<<index<<"\n";
         // unsigned int i = index * vSize;
         double hAngleV[vSize], vAngleV[vSize];
@@ -796,7 +770,7 @@ private:
         unsigned int j, k = 0;
 
         if (i + vSize <= s.postPenSize) {
-            std::copy_n(s.getPostPenPtr(i, post::angle, 0), vSize, hAngleV);
+            std::copy_n(s.get_postPenPtr(i, post::angle, 0), vSize, hAngleV);
         } else {
             for (j = 0; (i + j) < s.postPenSize; j++) {
                 hAngleV[j] = s.postPenData[i + j];
@@ -804,22 +778,23 @@ private:
         }
 
         if (distIndex < s.impactSize - vSize + 1) {
-            std::copy_n(s.getImpactPtr(distIndex, impact::impactAHR), vSize,
+            std::copy_n(s.get_impactPtr(distIndex, impact::impactAHR), vSize,
                         vAngleV);
-            std::copy_n(s.getImpactPtr(distIndex, impact::rawPen), vSize,
+            std::copy_n(s.get_impactPtr(distIndex, impact::rawPen), vSize,
                         penetrationV);
-            std::copy_n(s.getImpactPtr(distIndex, impact::impactV), vSize, v0V);
+            std::copy_n(s.get_impactPtr(distIndex, impact::impactV), vSize,
+                        v0V);
         } else {
             for (j = 0; (j + distIndex < s.impactSize) && (j < vSize); j++) {
-                vAngleV[j] = s.getImpact(distIndex + j, impact::impactAHR);
-                penetrationV[j] = s.getImpact(distIndex + j, impact::rawPen);
-                v0V[j] = s.getImpact(distIndex + j, impact::impactV);
+                vAngleV[j] = s.get_impact(distIndex + j, impact::impactAHR);
+                penetrationV[j] = s.get_impact(distIndex + j, impact::rawPen);
+                v0V[j] = s.get_impact(distIndex + j, impact::impactV);
             }
             if (anglesIndex < s.postPenSize / s.impactSize) {
                 for (; (j < vSize); j++) {
-                    vAngleV[j] = s.getImpact(k, impact::impactAHR);
-                    penetrationV[j] = s.getImpact(k, impact::rawPen);
-                    v0V[j] = s.getImpact(k, impact::impactV);
+                    vAngleV[j] = s.get_impact(k, impact::impactAHR);
+                    penetrationV[j] = s.get_impact(k, impact::rawPen);
+                    v0V[j] = s.get_impact(k, impact::impactV);
                     k++;
                 }
             }
@@ -830,7 +805,6 @@ private:
             double VA_R = vAngleV[l] + inclination_R; // vertical angle radians
             double cAngle = acos(cos(HA_R) * cos(VA_R));
             double nCAngle = calcNormalizationR(cAngle, s.get_normalizationR());
-
             double eThickness = thickness / cos(nCAngle);
             double pPV = v0V[l] * (1 - exp(1 - penetrationV[l] / eThickness));
 
@@ -864,11 +838,9 @@ private:
         // std::cout<<id<<"\n";
         for (int i = angles->size() * id / assigned;
              i < angles->size() * (id + 1) / assigned; i++) {
-            // std::fill_n(s->postPenData.begin() + i * s->impactSize,
-            // s->impactSize, (double) (*angles)[i]);
-            std::fill_n(s->getPostPenPtr(0, post::angle, i), s->impactSize,
+            std::fill_n(s->get_postPenPtr(0, post::angle, i), s->impactSize,
                         (double)(*angles)[i]);
-            std::copy_n(s->getImpactPtr(0, impact::distance), s->impactSize,
+            std::copy_n(s->get_impactPtr(0, impact::distance), s->impactSize,
                         s->postPenData.begin() + s->postPenSize +
                             i * s->impactSize);
         }
@@ -898,9 +870,6 @@ private:
     }
 
 public:
-    bool includeNormalization = true;
-    bool nChangeTrajectory = true;
-
     void calculatePostPen(
         const double thickness, const double inclination, shell &s,
         std::vector<double> &angles, const bool changeDirection = true,
@@ -956,28 +925,10 @@ public:
             assigned = nThreads;
         }
         mtFunctionRunner(assigned, s.postPenSize, this,
-                         &shellCalc::postPenWorker<changeDirection, fast>,
+                         &shellCalc::multiPostPen<changeDirection, fast>,
                          thickness, inclination_R, &s);
 
         s.completedPostPen = true;
-    }
-
-private:
-    template <bool changeDirection, bool fast>
-    void postPenWorker(int threadID, const double thickness,
-                       const double inclination, shell *s) {
-        // std::cout<<threadID<<" Entered \n";
-        while (counter < length) {
-            int index;
-            if (workQueue.try_dequeue(index)) {
-                multiPostPen<changeDirection, fast>(index, thickness,
-                                                    inclination, *s);
-                counter.fetch_add(1, std::memory_order_relaxed);
-            } else {
-                std::this_thread::yield();
-            }
-        }
-        threadCount.fetch_add(1, std::memory_order_relaxed);
     }
 };
 
