@@ -11,8 +11,8 @@ int main() {
     shell::shellCalc sc;
     unsigned int runs = 10;
     for (int i = 0; i < runs; i++) {
-        test = new shell::shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76,
-                                .033);
+        test = new shell::shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45,
+                                60, "Yamato");
         auto t1 = std::chrono::high_resolution_clock::now();
         sc.calculateImpact(*test, true);
         auto t2 = std::chrono::high_resolution_clock::now();

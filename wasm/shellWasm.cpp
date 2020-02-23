@@ -10,13 +10,13 @@ private:
     shell::shell s;
 
 public:
-    shellCombined(const double v0, const double caliber, const double krupp,
-                  const double mass, const double normalization,
-                  const double cD,
-                  /*const std::string name,*/ const double threshold,
-                  const double fuseTime) {
-        s.setValues(v0, caliber, krupp, mass, normalization, cD, "ship",
-                    threshold, fuseTime);
+    shellCombined(const double caliber, const double v0, const double cD,
+                  const double mass, const double krupp,
+                  const double normalization, const double fuseTime,
+                  const double threshold, const double ricochet0,
+                  const double ricochet1) {
+        s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
+                    threshold, ricochet0, ricochet1, "ship");
     }
 
     void calcImpact() {

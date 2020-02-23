@@ -56,21 +56,6 @@ enum postPenDataIndex { angle, distance, x, y, z, xwf };
 static_assert(xwf == (maxColumns - 1), "Invaild postpen columns");
 } // namespace post
 
-/* Base shell characteristics
- * May be used to implement a hash table in the future
- */
-typedef struct {
-    double v0;
-    double caliber;
-    double krupp;
-    double mass;
-    double cD;
-    double normalization;
-    double threshold;
-    double fuseTime;
-    // std::string name;
-} shellParams;
-
 class shell {
 private:                  // Description         units
     double v0;            // muzzle velocity     m/s
@@ -139,20 +124,19 @@ public:
 
     shell() = default;
 
-    shell(const double v0, const double caliber, const double krupp,
-          const double mass, const double normalization, const double cD,
-          const std::string &name, const double threshold,
-          const double fuseTime = .033, const double ricochet0 = 45,
-          const double ricochet1 = 60) {
-        setValues(v0, caliber, krupp, mass, normalization, cD, name, threshold,
-                  fuseTime, ricochet0, ricochet1);
+    shell(const double caliber, const double v0, const double cD,
+          const double mass, const double krupp, const double normalization,
+          const double fuseTime, const double threshold, const double ricochet0,
+          const double ricochet1, const std::string &name) {
+        setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
+                  threshold, ricochet0, ricochet1, name);
     }
 
-    void setValues(const double v0, const double caliber, const double krupp,
-                   const double mass, const double normalization,
-                   const double cD, const std::string &name,
-                   const double threshold, const double fuseTime = .033,
-                   const double ricochet0 = 45, const double ricochet1 = 60) {
+    void setValues(const double caliber, const double v0, const double cD,
+                   const double mass, const double krupp,
+                   const double normalization, const double fuseTime,
+                   const double threshold, const double ricochet0,
+                   const double ricochet1, const std::string &name) {
         //                                                    Impact   PostPen
         this->fuseTime = fuseTime; // Shell fusetime        | No     | Yes
         this->v0 = v0;             // Shell muzzle velocity | Yes    | No
@@ -165,11 +149,9 @@ public:
         this->name = name; // Shell name  | No     | No
         this->ricochet0 = ricochet0; // Ricochet Angle 0 | No     | Yes
         this->ricochet1 = ricochet1; // Ricochet Angle 1 | No     | Yes
-        if (threshold) {             // Shell fusing threshold | No     | Yes
-            this->threshold = threshold;
-        } else {
-            this->threshold = ceil(caliber / 6);
-        }
+                                     // Shell fusing threshold | No     | Yes
+        this->threshold = threshold;
+
         preProcess();
     }
     // Setter Functions
@@ -231,21 +213,6 @@ public:
     double &get_ricochet1() { return ricochet1; }
     double &get_ricochet0R() { return ricochet0R; }
     double &get_ricochet1R() { return ricochet1R; }
-
-    // Could be split up into two classes
-    shellParams returnShipParams() {
-        shellParams ret;
-        ret.caliber = caliber;
-        ret.cD = cD;
-        ret.fuseTime = fuseTime;
-        ret.krupp = krupp;
-        ret.mass = mass;
-        // ret.name = name;
-        ret.normalization = normalization;
-        ret.threshold = threshold;
-        ret.v0 = v0;
-        return ret;
-    }
 
     void printAngleData() {
         for (unsigned int i = 0; i < impactSize; i++) {
@@ -317,8 +284,9 @@ private:
     double x0 = 0, y0 = 0; // Starting x0, y0              | m
     double dt = .01;       // Time step                    | s
 
-    // For vectorization - though not 100% necessary anymore since intrinsics
-    // were removed [no significant improvements in runtime]
+    // For vectorization - though probably not 100% necessary anymore since
+    // intrinsics were removed [intrinsics had no significant improvements in
+    // runtime]
     static_assert(
         sizeof(double) == 8,
         "Size of double is not 8 - required for AVX2"); // Use float64
