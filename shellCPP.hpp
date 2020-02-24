@@ -265,7 +265,6 @@ class shellCalc {
 private:
     // Threading
     std::atomic<int> counter, threadCount;
-    int assigned, length;
     moodycamel::ConcurrentQueue<int> workQueue;
     static constexpr int workQueueBufferSize = 16;
 
@@ -330,13 +329,13 @@ public:
 private:
     // mini 'threadpool' used to kick off multithreaded functions
     template <typename O, typename F, typename... Args>
-    void mtFunctionRunner(int assigned, int size, O object, F function,
-                          Args... args) {
+    void mtFunctionRunner(int assigned, int length, int size, O object,
+                          F function, Args... args) {
         counter = 0, threadCount = 0;
         std::vector<std::thread> threads(assigned - 1);
         for (int i = 0; i < assigned - 1; i++) {
-            threads[i] =
-                std::thread([=] { mtWorker(i, object, function, args...); });
+            threads[i] = std::thread(
+                [=] { mtWorker(length, i, object, function, args...); });
         }
 
         int buffer[workQueueBufferSize];
@@ -351,7 +350,7 @@ private:
         }
         workQueue.enqueue_bulk(buffer, bCounter);
 
-        mtWorker(assigned - 1, object, function, args...);
+        mtWorker(length, assigned - 1, object, function, args...);
         while (threadCount < assigned) {
             std::this_thread::yield();
         }
@@ -362,7 +361,8 @@ private:
     }
 
     template <typename O, typename F, typename... Args>
-    void mtWorker(const int threadID, O object, F function, Args... args) {
+    void mtWorker(const int length, const int threadID, O object, F function,
+                  Args... args) {
         // threadID is largely there for debugging
         while (counter < length) {
             int index;
@@ -531,13 +531,14 @@ public:
         if (nThreads > std::thread::hardware_concurrency()) {
             nThreads = std::thread::hardware_concurrency();
         }
-        length = ceil((double)s.impactSize / vSize);
+        int length = ceil((double)s.impactSize / vSize);
+        int assigned;
         if (length > nThreads) {
             assigned = nThreads;
         } else {
             assigned = length;
         }
-        mtFunctionRunner(assigned, s.impactSize, this,
+        mtFunctionRunner(assigned, length, s.impactSize, this,
                          &shellCalc::multiTraj<AddTraj>, &s);
 
         s.completedImpact = true;
@@ -635,7 +636,8 @@ public:
         std::copy_n(s.get_impactPtr(0, impact::distance), s.impactSize,
                     s.get_anglePtr(0, angle::distance));
 
-        length = ceil((double)s.impactSize / vSize);
+        int assigned;
+        int length = ceil((double)s.impactSize / vSize);
         if (length < nThreads) {
             assigned = length;
         } else {
@@ -647,16 +649,16 @@ public:
         fusingAngle =
             acos(thickness / s.get_threshold()) + s.get_normalizationR();
         if (std::isnan(fusingAngle)) {
-            mtFunctionRunner(assigned, s.impactSize, this,
+            mtFunctionRunner(assigned, length, s.impactSize, this,
                              &shellCalc::multiAngles<2>, thickness,
                              inclination_R, fusingAngle, &s);
         } else {
             if (fusingAngle > M_PI / 2) {
-                mtFunctionRunner(assigned, s.impactSize, this,
+                mtFunctionRunner(assigned, length, s.impactSize, this,
                                  &shellCalc::multiAngles<0>, thickness,
                                  inclination_R, fusingAngle, &s);
             } else {
-                mtFunctionRunner(assigned, s.impactSize, this,
+                mtFunctionRunner(assigned, length, s.impactSize, this,
                                  &shellCalc::multiAngles<1>, thickness,
                                  inclination_R, fusingAngle, &s);
             }
@@ -834,7 +836,8 @@ private:
     }
 
     // Probably unnecessary...
-    void fillCopy(int id, shell *const s, std::vector<double> *angles) {
+    void fillCopy(int assigned, int id, shell *const s,
+                  std::vector<double> *angles) {
         // std::cout<<id<<"\n";
         for (int i = angles->size() * id / assigned;
              i < angles->size() * (id + 1) / assigned; i++) {
@@ -851,16 +854,18 @@ private:
                           unsigned int nThreads) {
         std::vector<std::thread> threads;
         counter = 0;
-        length = angles->size();
+        int assigned;
+        int length = angles->size();
         if (length < nThreads) {
             assigned = length;
         } else {
             assigned = nThreads;
         }
         for (int i = 0; i < assigned - 1; i++) {
-            threads.push_back(std::thread([=] { fillCopy(i, s, angles); }));
+            threads.push_back(
+                std::thread([=] { fillCopy(assigned, i, s, angles); }));
         }
-        fillCopy(assigned - 1, s, angles);
+        fillCopy(assigned, assigned - 1, s, angles);
         while (counter < assigned) {
             std::this_thread::yield();
         }
@@ -917,14 +922,14 @@ public:
 
         parallelFillCopy(&s, &angles, nThreads);
         double inclination_R = M_PI / 180 * inclination;
-        length = ceil((double)s.postPenSize / vSize);
-
+        int length = ceil((double)s.postPenSize / vSize);
+        int assigned;
         if (length < nThreads) {
             assigned = length;
         } else {
             assigned = nThreads;
         }
-        mtFunctionRunner(assigned, s.postPenSize, this,
+        mtFunctionRunner(assigned, length, s.postPenSize, this,
                          &shellCalc::multiPostPen<changeDirection, fast>,
                          thickness, inclination_R, &s);
 
