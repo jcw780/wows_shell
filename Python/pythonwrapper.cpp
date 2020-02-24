@@ -1,5 +1,11 @@
-// pybind11
-#define strdup _strdup // if windows.
+/*
+strdup not defined in windows
+https://github.com/pybind/pybind11/issues/1212
+*/
+#ifdef _WIN32
+#define strdup _strdup
+#endif
+
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
