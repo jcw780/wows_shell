@@ -331,32 +331,50 @@ private:
     template <typename O, typename F, typename... Args>
     void mtFunctionRunner(int assigned, int length, int size, O object,
                           F function, Args... args) {
-        counter = 0, threadCount = 0;
-        std::vector<std::thread> threads(assigned - 1);
-        for (int i = 0; i < assigned - 1; i++) {
-            threads[i] = std::thread(
-                [=] { mtWorker(length, i, object, function, args...); });
+        if (assigned > 1) {
+            mtFunctionRunnerSelected<true>(assigned, length, size, object,
+                                           function, args...);
+        } else {
+            mtFunctionRunnerSelected<false>(assigned, length, size, object,
+                                            function, args...);
         }
+    }
 
-        int buffer[workQueueBufferSize];
-        int bCounter = 0;
-        for (int i = 0; i < size; i += vSize) {
-            buffer[bCounter] = i;
-            bCounter++;
-            if (bCounter == workQueueBufferSize) {
-                workQueue.enqueue_bulk(buffer, bCounter);
-                bCounter = 0;
+    template <bool multiThreaded, typename O, typename F, typename... Args>
+    void mtFunctionRunnerSelected(int assigned, int length, int size, O object,
+                                  F function, Args... args) {
+        if constexpr (multiThreaded) {
+            counter = 0, threadCount = 0;
+            std::vector<std::thread> threads(assigned - 1);
+            for (int i = 0; i < assigned - 1; i++) {
+                threads[i] = std::thread(
+                    [=] { mtWorker(length, i, object, function, args...); });
             }
-        }
-        workQueue.enqueue_bulk(buffer, bCounter);
 
-        mtWorker(length, assigned - 1, object, function, args...);
-        while (threadCount < assigned) {
-            std::this_thread::yield();
-        }
+            int buffer[workQueueBufferSize];
+            int bCounter = 0;
+            for (int i = 0; i < size; i += vSize) {
+                buffer[bCounter] = i;
+                bCounter++;
+                if (bCounter == workQueueBufferSize) {
+                    workQueue.enqueue_bulk(buffer, bCounter);
+                    bCounter = 0;
+                }
+            }
+            workQueue.enqueue_bulk(buffer, bCounter);
 
-        for (int i = 0; i < assigned - 1; i++) {
-            threads[i].join();
+            mtWorker(length, assigned - 1, object, function, args...);
+            while (threadCount < assigned) {
+                std::this_thread::yield();
+            }
+
+            for (int i = 0; i < assigned - 1; i++) {
+                threads[i].join();
+            }
+        } else {
+            for (int i = 0; i < size; i += vSize) {
+                (object->*function)(i, args...);
+            }
         }
     }
 

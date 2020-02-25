@@ -181,7 +181,8 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .value("armor", shell::angle::angleDataIndex::armor)
         .value("armorD", shell::angle::angleDataIndex::armorD)
         .value("fuse", shell::angle::angleDataIndex::fuse)
-        .value("fuseD", shell::angle::angleDataIndex::fuseD);
+        .value("fuseD", shell::angle::angleDataIndex::fuseD)
+        .export_values();
 
     pybind11::enum_<shell::post::postPenDataIndex>(m, "postPenDataIndex",
                                                    pybind11::arithmetic())
