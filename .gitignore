@@ -35,10 +35,12 @@
 *.out
 *.app
 
+# WASM outputs
+*.js
+*.wasm
+
 # Assembler View
 *.s
 
-#Included Library
-vecmathlib/
 
 .vscode/
