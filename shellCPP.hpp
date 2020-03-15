@@ -264,7 +264,7 @@ public:
 class shellCalc {
 private:
     // Threading
-    std::atomic<int> counter, threadCount;
+    std::atomic<int> counter;
     moodycamel::ConcurrentQueue<int> workQueue;
     static constexpr int workQueueBufferSize = 16;
 
@@ -344,7 +344,7 @@ private:
     void mtFunctionRunnerSelected(int assigned, int length, int size, O object,
                                   F function, Args... args) {
         if constexpr (multiThreaded) {
-            counter = 0, threadCount = 0;
+            counter = 0;
             std::vector<std::thread> threads(assigned - 1);
             for (int i = 0; i < assigned - 1; i++) {
                 threads[i] = std::thread(
@@ -364,9 +364,6 @@ private:
             workQueue.enqueue_bulk(buffer, bCounter);
 
             mtWorker(length, assigned - 1, object, function, args...);
-            while (threadCount < assigned) {
-                std::this_thread::yield();
-            }
 
             for (int i = 0; i < assigned - 1; i++) {
                 threads[i].join();
@@ -391,7 +388,6 @@ private:
                 std::this_thread::yield();
             }
         }
-        threadCount.fetch_add(1, std::memory_order_relaxed);
     }
 
     // Impact Calculations Region
