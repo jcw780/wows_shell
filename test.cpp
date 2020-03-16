@@ -27,7 +27,7 @@ int main() {
     // std::cout << "completed" << std::endl;
     // test.calculateStd();
 
-    std::vector<double> angle = {10};
+    std::vector<double> angle = {0, 10};
     // std::cout<<"Started\n";
     auto t1 = std::chrono::high_resolution_clock::now();
     sc.calculatePostPen(10, -20, *test, angle, true, true);

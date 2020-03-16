@@ -263,11 +263,6 @@ public:
 
 class shellCalc {
 private:
-    // Threading
-    std::atomic<int> counter;
-    moodycamel::ConcurrentQueue<int> workQueue;
-    static constexpr int workQueueBufferSize = 16;
-
     // Physical Constants       Description                  | Units
     double g = 9.81;      // Gravitational Constant       | m/(s^2)
     double t0 = 288;      // Temperature at Sea Level     | K
@@ -282,6 +277,12 @@ private:
     double precision = .1; // Angle Step                   | degrees
     double x0 = 0, y0 = 0; // Starting x0, y0              | m
     double dt = .01;       // Time step                    | s
+
+    // delta t (dtf) for fusing needs to be smaller than the delta t (dt) used
+    // for trajectories due to the shorter distances. Otherwise results become
+    // jagged - precision suffers.
+    double dtf = 0.0001;
+    double xf0 = 0, yf0 = 0;
 
     // For vectorization - though probably not 100% necessary anymore since
     // intrinsics were removed [intrinsics had no significant improvements in
@@ -304,27 +305,30 @@ public:
 
     shellCalc() = default;
     // Replace with setter in the future
-    void editTestParameters(double max, double min, double precision, double x0,
-                            double y0, double dt) {
-        if (!max) {
-            this->max = max;
-        }
-        if (!min) {
-            this->min = min;
-        }
-        if (!precision) {
-            this->precision = precision;
-        }
-        if (!x0) {
-            this->x0 = x0;
-        }
-        if (!y0) {
-            this->y0 = y0;
-        }
-        if (!dt) {
-            this->dt = dt;
-        }
+    void editTestParameters(const double max, const double min,
+                            const double precision, const double x0,
+                            const double y0, const double dt, const double xf0,
+                            const double yf0, const double dtf) {
+        this->max = max;
+        this->min = min;
+        this->precision = precision;
+        this->x0 = x0;
+        this->y0 = y0;
+        this->dt = dt;
+        this->xf0 = xf0;
+        this->yf0 = yf0;
+        this->dtf = dtf;
     }
+
+    void set_max(const double max) { this->max = max; }
+    void set_min(const double min) { this->min = min; }
+    void set_precision(const double precision) { this->precision = precision; }
+    void set_x0(const double x0) { this->x0 = x0; }
+    void set_y0(const double y0) { this->y0 = y0; }
+    void set_dt(const double dt) { this->dt = dt; }
+    void set_xf0(const double xf0) { this->xf0 = xf0; }
+    void set_yf0(const double yf0) { this->yf0 = yf0; }
+    void set_dtf(const double dtf) { this->dtf = dtf; }
 
 private:
     // mini 'threadpool' used to kick off multithreaded functions
@@ -340,15 +344,19 @@ private:
         }
     }
 
+    static constexpr int workQueueBufferSize = 16;
     template <bool multiThreaded, typename O, typename F, typename... Args>
     void mtFunctionRunnerSelected(int assigned, int length, int size, O object,
                                   F function, Args... args) {
         if constexpr (multiThreaded) {
-            counter = 0;
+            std::atomic<int> counter{0};
+            moodycamel::ConcurrentQueue<int> workQueue;
             std::vector<std::thread> threads(assigned - 1);
             for (int i = 0; i < assigned - 1; i++) {
-                threads[i] = std::thread(
-                    [=] { mtWorker(length, i, object, function, args...); });
+                threads[i] = std::thread([&] {
+                    mtWorker(counter, workQueue, length, i, object, function,
+                             args...);
+                });
             }
 
             int buffer[workQueueBufferSize];
@@ -363,7 +371,8 @@ private:
             }
             workQueue.enqueue_bulk(buffer, bCounter);
 
-            mtWorker(length, assigned - 1, object, function, args...);
+            mtWorker(counter, workQueue, length, assigned - 1, object, function,
+                     args...);
 
             for (int i = 0; i < assigned - 1; i++) {
                 threads[i].join();
@@ -376,8 +385,9 @@ private:
     }
 
     template <typename O, typename F, typename... Args>
-    void mtWorker(const int length, const int threadID, O object, F function,
-                  Args... args) {
+    void mtWorker(std::atomic<int> &counter,
+                  moodycamel::ConcurrentQueue<int> &workQueue, const int length,
+                  const int threadID, O object, F function, Args... args) {
         // threadID is largely there for debugging
         while (counter < length) {
             int index;
@@ -401,7 +411,6 @@ private:
         const double cw_2 = s.get_cw_2();
 
         double T, p, rho, t; // x, y, v_x, v_y;
-        //__m128d pos, velocity, velocitySquared, dragIntermediary;
         double pos[2], velocity[2];
         int counter;
         if constexpr (AddTraj) {
@@ -484,7 +493,6 @@ private:
 
         double vx[vSize], vy[vSize], tVec[vSize];
         for (int j = 0; j < vSize; j++) {
-            // s.get_impact(i + j, impact::launchA) = min + precision * (i+ j);
             s.get_impact(i + j, impact::launchA) =
                 std::fma(precision, (i + j), min);
             double radianLaunch =
@@ -579,7 +587,6 @@ private:
                 s.get_impact(i + j, impact::impactDataIndex::rawPen);
 
             double penetrationCriticalAngle;
-
             penetrationCriticalAngle =
                 (acos(thickness / rawPen) + s.get_normalizationR());
             penetrationCriticalAngle = std::isnan(penetrationCriticalAngle)
@@ -683,12 +690,6 @@ public:
     // Post-Penetration Section
 
 private:
-    // delta t (dtf) for fusing needs to be smaller than the delta t (dt) used
-    // for trajectories due to the shorter distances. Otherwise results become
-    // jagged - precision suffers.
-    double dtf = 0.0001;
-    double xf0 = 0, yf0 = 0;
-
     template <bool fast>
     void postPenTraj(const unsigned int i, shell &s, double v_x, double v_y,
                      double v_z, double thickness) {
@@ -775,8 +776,6 @@ private:
     void multiPostPen(int i, const double thickness, const double inclination_R,
                       shell *const shellPointer) {
         shell &s = *shellPointer;
-        // std::cout<<index<<"\n";
-        // unsigned int i = index * vSize;
         double hAngleV[vSize], vAngleV[vSize];
         double v0V[vSize], penetrationV[vSize], eThicknessV[vSize];
         double v_x[vSize], v_y[vSize], v_z[vSize];
@@ -850,9 +849,8 @@ private:
     }
 
     // Probably unnecessary...
-    void fillCopy(int assigned, int id, shell *const s,
-                  std::vector<double> *angles) {
-        // std::cout<<id<<"\n";
+    void fillCopy(std::atomic<int> &counter, int assigned, int id,
+                  shell *const s, std::vector<double> *angles) {
         for (int i = angles->size() * id / assigned;
              i < angles->size() * (id + 1) / assigned; i++) {
             std::fill_n(s->get_postPenPtr(0, post::angle, i), s->impactSize,
@@ -867,7 +865,7 @@ private:
     void parallelFillCopy(shell *const s, std::vector<double> *angles,
                           unsigned int nThreads) {
         std::vector<std::thread> threads;
-        counter = 0;
+        std::atomic<int> counter{0};
         int assigned;
         int length = angles->size();
         if (length < nThreads) {
@@ -876,13 +874,10 @@ private:
             assigned = nThreads;
         }
         for (int i = 0; i < assigned - 1; i++) {
-            threads.push_back(
-                std::thread([=] { fillCopy(assigned, i, s, angles); }));
+            threads.push_back(std::thread(
+                [=, &counter] { fillCopy(counter, assigned, i, s, angles); }));
         }
-        fillCopy(assigned, assigned - 1, s, angles);
-        while (counter < assigned) {
-            std::this_thread::yield();
-        }
+        fillCopy(counter, assigned, assigned - 1, s, angles);
         for (int i = 0; i < assigned - 1; i++) {
             threads[i].join();
         }
