@@ -264,9 +264,9 @@ public:
 class shellCalc {
 private:
     // Threading
-    std::atomic<int> counter;
-    moodycamel::ConcurrentQueue<int> workQueue;
-    static constexpr int workQueueBufferSize = 16;
+    //std::atomic<int> counter;
+    //moodycamel::ConcurrentQueue<int> workQueue;
+    //static constexpr int workQueueBufferSize = 16;
 
     // Physical Constants       Description                  | Units
     double g = 9.81;      // Gravitational Constant       | m/(s^2)
@@ -340,17 +340,19 @@ private:
         }
     }
 
+    static constexpr int workQueueBufferSize = 16;
     template <bool multiThreaded, typename O, typename F, typename... Args>
     void mtFunctionRunnerSelected(int assigned, int length, int size, O object,
                                   F function, Args... args) {
         if constexpr (multiThreaded) {
-            counter = 0;
+            std::atomic<int> counter{0};
+            moodycamel::ConcurrentQueue<int> workQueue;
             std::vector<std::thread> threads(assigned - 1);
             for (int i = 0; i < assigned - 1; i++) {
                 threads[i] = std::thread(
-                    [=] { mtWorker(length, i, object, function, args...); });
+                    [&] { mtWorker(counter, workQueue, length, i, object, function, args...); });
             }
-
+    
             int buffer[workQueueBufferSize];
             int bCounter = 0;
             for (int i = 0; i < size; i += vSize) {
@@ -363,7 +365,7 @@ private:
             }
             workQueue.enqueue_bulk(buffer, bCounter);
 
-            mtWorker(length, assigned - 1, object, function, args...);
+            mtWorker(counter, workQueue, length, assigned - 1, object, function, args...);
 
             for (int i = 0; i < assigned - 1; i++) {
                 threads[i].join();
@@ -376,7 +378,7 @@ private:
     }
 
     template <typename O, typename F, typename... Args>
-    void mtWorker(const int length, const int threadID, O object, F function,
+    void mtWorker(std::atomic<int>& counter, moodycamel::ConcurrentQueue<int>& workQueue, const int length, const int threadID, O object, F function,
                   Args... args) {
         // threadID is largely there for debugging
         while (counter < length) {
@@ -850,7 +852,7 @@ private:
     }
 
     // Probably unnecessary...
-    void fillCopy(int assigned, int id, shell *const s,
+    void fillCopy(std::atomic<int>& counter, int assigned, int id, shell *const s,
                   std::vector<double> *angles) {
         // std::cout<<id<<"\n";
         for (int i = angles->size() * id / assigned;
@@ -867,7 +869,7 @@ private:
     void parallelFillCopy(shell *const s, std::vector<double> *angles,
                           unsigned int nThreads) {
         std::vector<std::thread> threads;
-        counter = 0;
+        std::atomic<int> counter{0};
         int assigned;
         int length = angles->size();
         if (length < nThreads) {
@@ -877,12 +879,12 @@ private:
         }
         for (int i = 0; i < assigned - 1; i++) {
             threads.push_back(
-                std::thread([=] { fillCopy(assigned, i, s, angles); }));
+                std::thread([=, &counter] { fillCopy(counter, assigned, i, s, angles); }));
         }
-        fillCopy(assigned, assigned - 1, s, angles);
-        while (counter < assigned) {
+        fillCopy(counter, assigned, assigned - 1, s, angles);
+        /*while (counter < assigned) {
             std::this_thread::yield();
-        }
+        }*/
         for (int i = 0; i < assigned - 1; i++) {
             threads[i].join();
         }
