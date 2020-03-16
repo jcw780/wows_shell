@@ -278,6 +278,12 @@ private:
     double x0 = 0, y0 = 0; // Starting x0, y0              | m
     double dt = .01;       // Time step                    | s
 
+    // delta t (dtf) for fusing needs to be smaller than the delta t (dt) used
+    // for trajectories due to the shorter distances. Otherwise results become
+    // jagged - precision suffers.
+    double dtf = 0.0001;
+    double xf0 = 0, yf0 = 0;
+
     // For vectorization - though probably not 100% necessary anymore since
     // intrinsics were removed [intrinsics had no significant improvements in
     // runtime]
@@ -299,27 +305,30 @@ public:
 
     shellCalc() = default;
     // Replace with setter in the future
-    void editTestParameters(double max, double min, double precision, double x0,
-                            double y0, double dt) {
-        if (!max) {
-            this->max = max;
-        }
-        if (!min) {
-            this->min = min;
-        }
-        if (!precision) {
-            this->precision = precision;
-        }
-        if (!x0) {
-            this->x0 = x0;
-        }
-        if (!y0) {
-            this->y0 = y0;
-        }
-        if (!dt) {
-            this->dt = dt;
-        }
+    void editTestParameters(const double max, const double min,
+                            const double precision, const double x0,
+                            const double y0, const double dt, const double xf0,
+                            const double yf0, const double dtf) {
+        this->max = max;
+        this->min = min;
+        this->precision = precision;
+        this->x0 = x0;
+        this->y0 = y0;
+        this->dt = dt;
+        this->xf0 = xf0;
+        this->yf0 = yf0;
+        this->dtf = dtf;
     }
+
+    void set_max(const double max) { this->max = max; }
+    void set_min(const double min) { this->min = min; }
+    void set_precision(const double precision) { this->precision = precision; }
+    void set_x0(const double x0) { this->x0 = x0; }
+    void set_y0(const double y0) { this->y0 = y0; }
+    void set_dt(const double dt) { this->dt = dt; }
+    void set_xf0(const double xf0) { this->xf0 = xf0; }
+    void set_yf0(const double yf0) { this->yf0 = yf0; }
+    void set_dtf(const double dtf) { this->dtf = dtf; }
 
 private:
     // mini 'threadpool' used to kick off multithreaded functions
@@ -681,12 +690,6 @@ public:
     // Post-Penetration Section
 
 private:
-    // delta t (dtf) for fusing needs to be smaller than the delta t (dt) used
-    // for trajectories due to the shorter distances. Otherwise results become
-    // jagged - precision suffers.
-    double dtf = 0.0001;
-    double xf0 = 0, yf0 = 0;
-
     template <bool fast>
     void postPenTraj(const unsigned int i, shell &s, double v_x, double v_y,
                      double v_z, double thickness) {
