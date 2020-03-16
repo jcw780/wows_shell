@@ -22,7 +22,7 @@ Shell detonation distance after penetration at various ranges, ship angling, and
 - Written with Pybind11 - tested with Python 3.7.4 (Anaconda)
 ### WebAssembly 
 - Written with Embind - threading does not working since atomics do not work yet
-- Used in https://jcw780.github.io/overpen_calculator/ 
+- Used in https://github.com/jcw780/wows_ballistics
 ## Future Goals:
 - Makefiles
 - Examples / Test Code Reorganization
