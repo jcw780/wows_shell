@@ -263,11 +263,6 @@ public:
 
 class shellCalc {
 private:
-    // Threading
-    //std::atomic<int> counter;
-    //moodycamel::ConcurrentQueue<int> workQueue;
-    //static constexpr int workQueueBufferSize = 16;
-
     // Physical Constants       Description                  | Units
     double g = 9.81;      // Gravitational Constant       | m/(s^2)
     double t0 = 288;      // Temperature at Sea Level     | K
@@ -349,10 +344,12 @@ private:
             moodycamel::ConcurrentQueue<int> workQueue;
             std::vector<std::thread> threads(assigned - 1);
             for (int i = 0; i < assigned - 1; i++) {
-                threads[i] = std::thread(
-                    [&] { mtWorker(counter, workQueue, length, i, object, function, args...); });
+                threads[i] = std::thread([&] {
+                    mtWorker(counter, workQueue, length, i, object, function,
+                             args...);
+                });
             }
-    
+
             int buffer[workQueueBufferSize];
             int bCounter = 0;
             for (int i = 0; i < size; i += vSize) {
@@ -365,7 +362,8 @@ private:
             }
             workQueue.enqueue_bulk(buffer, bCounter);
 
-            mtWorker(counter, workQueue, length, assigned - 1, object, function, args...);
+            mtWorker(counter, workQueue, length, assigned - 1, object, function,
+                     args...);
 
             for (int i = 0; i < assigned - 1; i++) {
                 threads[i].join();
@@ -378,8 +376,9 @@ private:
     }
 
     template <typename O, typename F, typename... Args>
-    void mtWorker(std::atomic<int>& counter, moodycamel::ConcurrentQueue<int>& workQueue, const int length, const int threadID, O object, F function,
-                  Args... args) {
+    void mtWorker(std::atomic<int> &counter,
+                  moodycamel::ConcurrentQueue<int> &workQueue, const int length,
+                  const int threadID, O object, F function, Args... args) {
         // threadID is largely there for debugging
         while (counter < length) {
             int index;
@@ -403,7 +402,6 @@ private:
         const double cw_2 = s.get_cw_2();
 
         double T, p, rho, t; // x, y, v_x, v_y;
-        //__m128d pos, velocity, velocitySquared, dragIntermediary;
         double pos[2], velocity[2];
         int counter;
         if constexpr (AddTraj) {
@@ -486,7 +484,6 @@ private:
 
         double vx[vSize], vy[vSize], tVec[vSize];
         for (int j = 0; j < vSize; j++) {
-            // s.get_impact(i + j, impact::launchA) = min + precision * (i+ j);
             s.get_impact(i + j, impact::launchA) =
                 std::fma(precision, (i + j), min);
             double radianLaunch =
@@ -581,7 +578,6 @@ private:
                 s.get_impact(i + j, impact::impactDataIndex::rawPen);
 
             double penetrationCriticalAngle;
-
             penetrationCriticalAngle =
                 (acos(thickness / rawPen) + s.get_normalizationR());
             penetrationCriticalAngle = std::isnan(penetrationCriticalAngle)
@@ -777,8 +773,6 @@ private:
     void multiPostPen(int i, const double thickness, const double inclination_R,
                       shell *const shellPointer) {
         shell &s = *shellPointer;
-        // std::cout<<index<<"\n";
-        // unsigned int i = index * vSize;
         double hAngleV[vSize], vAngleV[vSize];
         double v0V[vSize], penetrationV[vSize], eThicknessV[vSize];
         double v_x[vSize], v_y[vSize], v_z[vSize];
@@ -852,9 +846,8 @@ private:
     }
 
     // Probably unnecessary...
-    void fillCopy(std::atomic<int>& counter, int assigned, int id, shell *const s,
-                  std::vector<double> *angles) {
-        // std::cout<<id<<"\n";
+    void fillCopy(std::atomic<int> &counter, int assigned, int id,
+                  shell *const s, std::vector<double> *angles) {
         for (int i = angles->size() * id / assigned;
              i < angles->size() * (id + 1) / assigned; i++) {
             std::fill_n(s->get_postPenPtr(0, post::angle, i), s->impactSize,
@@ -878,13 +871,10 @@ private:
             assigned = nThreads;
         }
         for (int i = 0; i < assigned - 1; i++) {
-            threads.push_back(
-                std::thread([=, &counter] { fillCopy(counter, assigned, i, s, angles); }));
+            threads.push_back(std::thread(
+                [=, &counter] { fillCopy(counter, assigned, i, s, angles); }));
         }
         fillCopy(counter, assigned, assigned - 1, s, angles);
-        /*while (counter < assigned) {
-            std::this_thread::yield();
-        }*/
         for (int i = 0; i < assigned - 1; i++) {
             threads[i].join();
         }
