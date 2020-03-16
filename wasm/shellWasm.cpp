@@ -7,57 +7,75 @@
 class shellCombined {
 private:
     shell::shellCalc calc;
-    shell::shell s;
+    // shell::shell s;
+    std::vector<shell::shell> ships;
 
 public:
-    shellCombined(const double caliber, const double v0, const double cD,
+    /*shellCombined(const double caliber, const double v0, const double cD,
                   const double mass, const double krupp,
                   const double normalization, const double fuseTime,
                   const double threshold, const double ricochet0,
                   const double ricochet1) {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, "ship");
+    }*/
+    shellCombined(const int numShips) { ships.resize(numShips); }
+
+    void setValues(const double caliber, const double v0, const double cD,
+                   const double mass, const double krupp,
+                   const double normalization, const double fuseTime,
+                   const double threshold, const double ricochet0,
+                   const double ricochet1, const int shipIndex) {
+        ships[shipIndex].setValues(caliber, v0, cD, mass, krupp, normalization,
+                                   fuseTime, threshold, ricochet0, ricochet1,
+                                   "");
     }
 
     // Impact Wrappers
 
     void calcImpact() {
-        calc.calculateImpact(s, false, 1); // atomics don't work yet
+        for (auto &s : ships) {
+            calc.calculateImpact(s, false, 1); // atomics don't work yet
+        }
     }
 
-    int impactSize() { return s.impactSize; }
-    int impactSizeAligned() { return s.impactSizeAligned; }
+    // Sizes are the same for both ships
+    int impactSize() { return ships[0].impactSize; }
+    int impactSizeAligned() { return ships[0].impactSizeAligned; }
 
-    std::vector<double> impactData() {
-        if (s.completedImpact) {
-            return s.impactData;
+    std::vector<double> impactData(const int shipIndex) {
+        if (ships[shipIndex].completedImpact) {
+            return ships[shipIndex].impactData;
         } else {
             throw std::runtime_error("Impact data not generated");
         }
     }
 
-    double getImpactPoint(const int i, const int j) {
+    double getImpactPoint(const int i, const int j, const int shipIndex) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
-        return s.get_impact(i, j);
+        return ships[shipIndex].get_impact(i, j);
     }
 
     // Angle Data Wrappers
 
     void calcAngles(const double thickness, const double inclination) {
-        calc.calculateAngles(thickness, inclination, s, 1);
+        for (auto &s : ships) {
+            calc.calculateAngles(thickness, inclination, s, 1);
+        }
     }
 
-    std::vector<double> angleData() {
-        if (s.completedAngles) {
-            return s.angleData;
+    std::vector<double> angleData(const int shipIndex) {
+        if (ships[shipIndex].completedAngles) {
+            return ships[shipIndex].angleData;
         } else {
             throw std::runtime_error("Angle data not generated");
         }
     }
 
-    double getAnglePoint(const int row, const int impact) {
+    double getAnglePoint(const int row, const int impact,
+                         const int shipIndex) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
-        return s.get_angle(row, impact);
+        return ships[shipIndex].get_angle(row, impact);
     }
 
     // Post Penetration Wrappers
@@ -67,46 +85,51 @@ public:
                      const bool fast) {
         std::vector<double> input =
             std::move(emscripten::vecFromJSArray<double>(v));
-        calc.calculatePostPen(thickness, inclination, s, input, changeDirection,
-                              fast, 1); // atomics don't work yet
+        for (auto &s : ships) {
+            calc.calculatePostPen(thickness, inclination, s, input,
+                                  changeDirection, fast,
+                                  1); // atomics don't work yet
+        }
     }
 
-    int postPenSize() { return s.postPenSize; }
+    // Sizes are the same for both ships
+    int postPenSize() { return ships[0].postPenSize; }
 
-    std::vector<double> postPenData() {
-        if (s.completedPostPen) {
-            return s.postPenData;
+    std::vector<double> postPenData(const int shipIndex) {
+        if (ships[shipIndex].completedPostPen) {
+            return ships[shipIndex].postPenData;
         } else {
             throw std::runtime_error("Impact data not generated");
         }
     }
 
-    double getPostPenPoint(const int i, const int j, const int k) {
+    double getPostPenPoint(const int i, const int j, const int k,
+                           const int shipIndex) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
-        return s.get_postPen(i, j, k);
+        return ships[shipIndex].get_postPen(i, j, k);
     }
 
     // Print Functions
 
-    void printImpact() {
-        if (s.completedImpact) {
-            s.printImpactData();
+    void printImpact(const int shipIndex) {
+        if (ships[shipIndex].completedImpact) {
+            ships[shipIndex].printImpactData();
         } else {
             throw std::runtime_error("Impact data not generated");
         }
     }
 
-    void printAngles() {
-        if (s.completedAngles) {
-            s.printAngleData();
+    void printAngles(const int shipIndex) {
+        if (ships[shipIndex].completedAngles) {
+            ships[shipIndex].printAngleData();
         } else {
             throw std::runtime_error("Angle data not generated");
         }
     }
 
-    void printPostPen() {
-        if (s.completedPostPen) {
-            s.printPostPenData();
+    void printPostPen(const int shipIndex) {
+        if (ships[shipIndex].completedPostPen) {
+            ships[shipIndex].printPostPenData();
         } else {
             throw std::runtime_error("PostPen data not generated");
         }
@@ -122,8 +145,8 @@ public:
 // Testline: s = shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76.0, .033 )
 EMSCRIPTEN_BINDINGS(shellWasm) {
     emscripten::class_<shellCombined>("shell")
-        .constructor<double, double, double, double, double, double, double,
-                     double, double, double>()
+        .constructor<int>()
+        .function("setValues", &shellCombined::setValues)
         .function("calcImpact", &shellCombined::calcImpact)
         .function("getImpactPoint", &shellCombined::getImpactPoint)
         .function("impactData", &shellCombined::impactData)

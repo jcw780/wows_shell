@@ -414,8 +414,16 @@ private:
         double pos[2], velocity[2];
         int counter;
         if constexpr (AddTraj) {
-            s.trajectories[2 * (i + j)].reserve(__TrajBuffer__);
-            s.trajectories[2 * (i + j) + 1].reserve(__TrajBuffer__);
+            s.trajectories[2 * (i + j)].clear();
+            s.trajectories[2 * (i + j) + 1].clear();
+
+            if(s.trajectories[2 * (i + j)].capacity() < __TrajBuffer__){
+                s.trajectories[2 * (i + j)].reserve(__TrajBuffer__);
+            }
+
+            if(s.trajectories[2 * (i + j) + 1].capacity() < __TrajBuffer__){
+                s.trajectories[2 * (i + j) + 1].reserve(__TrajBuffer__);
+            }
         }
         double xT[__TrajBuffer__], yT[__TrajBuffer__];
 
