@@ -14,8 +14,10 @@
     //console.log(safe);
     var instance;
     function runFunc() {
-        instance = new Module.shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60);
-        console.log(instance);
+        instance = new Module.shell(2);
+        instance.setValues(.460, 780, .292 , 1460, 2574, 6, .033, 76, 45, 60, 0);
+        instance.setValues(.220, 995, .2549,  207, 2574, 7, .022, 37, 55, 65, 1);
+        //console.log(instance);
         instance.calcImpact();
         //instance.printImpact();
         console.log("ran");
@@ -26,19 +28,48 @@
         console.log("ran");
         //instance.printPostPen();
         //instance.delete();
-        for (var i = 0; i < instance.getImpactSize(); i++) {
-            console.log(i, instance.getAnglePoint(i, Module.angleDataIndex.distance.value),
-                instance.getAnglePoint(i, Module.angleDataIndex.ra0.value)
-            );
+        for(var num = 0; num < 2; num++){
+            for (var i = 0; i < instance.getImpactSize(); i++) {
+                console.log(i, instance.getAnglePoint(i, Module.angleDataIndex.distance.value, num),
+                    instance.getAnglePoint(i, Module.angleDataIndex.ra0.value, num)
+                );
+            }
+
+
+            for (var i = 0; i < instance.getImpactSize(); i++) {
+                //console.log(i);
+                console.log(i, instance.getPostPenPoint(i, Module.postPenDataIndex.distance.value, 0, num),
+                    instance.getPostPenPoint(i, Module.postPenDataIndex.x.value, 0, num),
+                    instance.getPostPenPoint(i, Module.postPenDataIndex.xwf.value, 0, num)
+                );
+            }
         }
 
+        instance.setValues(.460, 780, .292 , 1460, 2574, 6, .033, 76, 45, 60, 0);
+        instance.setValues(.220, 995, .2549,  207, 2574, 7, .022, 37, 55, 65, 1);
+        instance.calcImpact();
+        console.log("ran");
+        instance.calcAngles(70, -20);
+        instance.calcPostPen(70, -20, angles, true, false);
 
-        for (var i = 0; i < instance.getImpactSize(); i++) {
-            //console.log(i);
-            console.log(i, instance.getPostPenPoint(i, Module.postPenDataIndex.distance.value, 0),
-                instance.getPostPenPoint(i, Module.postPenDataIndex.x.value, 0),
-                instance.getPostPenPoint(i, Module.postPenDataIndex.xwf.value, 0)
-            );
+        console.log("ran");
+        //instance.printPostPen();
+        //instance.delete();
+        for(var num = 0; num < 2; num++){
+            for (var i = 0; i < instance.getImpactSize(); i++) {
+                console.log(i, instance.getAnglePoint(i, Module.angleDataIndex.distance.value, num),
+                    instance.getAnglePoint(i, Module.angleDataIndex.ra0.value, num)
+                );
+            }
+
+
+            for (var i = 0; i < instance.getImpactSize(); i++) {
+                //console.log(i);
+                console.log(i, instance.getPostPenPoint(i, Module.postPenDataIndex.distance.value, 0, num),
+                    instance.getPostPenPoint(i, Module.postPenDataIndex.x.value, 0, num),
+                    instance.getPostPenPoint(i, Module.postPenDataIndex.xwf.value, 0, num)
+                );
+            }
         }
     }
     if (safe) {
