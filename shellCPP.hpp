@@ -406,47 +406,83 @@ private:
     // 0: x 1: y 2: v_x 3: v_y
     void singleTimeStep(std::array<double, 4> &input, const double dt,
                         const double k, const double cw_2) {
+        std::array<double, 4> delta = calcDeltas(input, dt, k, cw_2);
+        for (int i = 0; i < singleTrajDims * 2; i++) {
+            input[i] += delta[i];
+        }
+    }
+
+    std::array<double, 4> calcDeltas(std::array<double, 4> current,
+                                     const double dt, const double k,
+                                     const double cw_2) {
+        std::array<double, 4> deltas;
         for (int i = 0; i < 2; i++) {
-            input[i] += input[i + singleTraj::v_x] * dt;
+            deltas[i] = current[i + singleTraj::v_x] * dt;
+            current[i] += deltas[i];
         }
 
         double T, p, rho, t;
         // Calculating air density
-        T = t0 - L * input[singleTraj::y];
+        T = t0 - L * current[singleTraj::y];
         // Calculating air temperature at altitude
-        p = p0 * pow((1 - L * input[singleTraj::y] / t0), (g * M / (R * L)));
+        p = p0 * pow((1 - L * current[singleTraj::y] / t0), (g * M / (R * L)));
         // Calculating air pressure at altitude
         rho = p * M / (R * T);
         // Use ideal gas law to calculate air density
 
         // Calculate drag deceleration
-        std::array<double, 2> dragIntermediary, velocitySquared;
+        std::array<double, 2> velocitySquared;
         for (int l = 0; l < singleTrajDims; l++) {
             velocitySquared[l] =
-                input[singleTraj::v_x + l] * input[singleTraj::v_x + l];
+                current[singleTraj::v_x + l] * current[singleTraj::v_x + l];
         } // v^2 = v * v
 
-        for (int i = 0; i < 2; i++) {
-            dragIntermediary[i] = cw_1 * velocitySquared[i];
+        for (int i = 0; i < singleTrajDims; i++) {
+            deltas[singleTraj::v_x + i] = cw_1 * velocitySquared[i];
         }
 
-        dragIntermediary[0] += cw_2 * input[singleTraj::v_x];
+        deltas[singleTraj::v_x] += cw_2 * current[singleTraj::v_x];
 
-        dragIntermediary[1] += cw_2 * fabs(input[singleTraj::v_y]);
-        dragIntermediary[1] *= signum(input[singleTraj::v_y]);
+        deltas[singleTraj::v_y] += cw_2 * fabs(current[singleTraj::v_y]);
+        deltas[singleTraj::v_y] *= signum(current[singleTraj::v_y]);
 
         for (int i = 0; i < singleTrajDims; i++) {
-            dragIntermediary[i] *= (k * rho);
+            deltas[singleTraj::v_x + i] *= (k * rho);
         }
 
-        dragIntermediary[1] = g - dragIntermediary[1];
-        // Adjust for next cycle
+        deltas[singleTraj::v_y] = g - deltas[singleTraj::v_y];
         for (int l = 0; l < 2; l++) { // v -= drag * dt
-            input[singleTraj::v_x + l] -= dragIntermediary[l] * dt;
+            deltas[singleTraj::v_x + l] *= (-1 * dt);
+        }
+        return deltas;
+    }
+    template <std::size_t N>
+    void fmaArr(double x, std::array<double, N> y, std::array<double, N> &z) {
+        std::array<double, N> output;
+        for (int i = 0; i < N; i++) {
+            z[i] = std::fma(x, y[i], z[i]);
         }
     }
 
-    // std::array<double, 4> rungeKutta4(std::array<double, 4> input) {}
+    void rungeKutta4(std::array<double, 4> &input, const double dt,
+                     const double k, const double cw_2) {
+        std::array<double, 4> k1, k2, k3, k4;
+        std::array<double, 4> intermediate = input;
+        k1 = calcDeltas(input, dt, k, cw_2);
+        fmaArr<4>(.5, k1, intermediate);
+        k2 = calcDeltas(intermediate, dt, k, cw_2);
+        intermediate = input;
+        fmaArr<4>(.5, k2, intermediate);
+        k3 = calcDeltas(intermediate, dt, k, cw_2);
+        intermediate = input;
+        fmaArr<4>(1, k2, intermediate);
+        k4 = calcDeltas(intermediate, dt, k, cw_2);
+
+        fmaArr<4>(2, k2, k1);
+        fmaArr<4>(2, k3, k1);
+        fmaArr<4>(1, k4, k1);
+        fmaArr<4>(1 / 6, k1, input);
+    }
 
     // Impact Calculations Region
     template <bool AddTraj>
@@ -492,6 +528,7 @@ private:
                  (counter < __TrajBuffer__) & (variables[singleTraj::y] >= 0);
                  counter++) {
 
+                // variables = singleTimeStep(variables, dt, k, cw_2);
                 singleTimeStep(variables, dt, k, cw_2);
                 t += dt; // adjust time
                 if constexpr (AddTraj) {
