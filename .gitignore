@@ -39,6 +39,10 @@
 *.js
 *.wasm
 
+_site/
+.jekyll-cache/
+.jekyll-metadata
+
 # Assembler View
 *.s
 
