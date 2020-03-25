@@ -3,6 +3,7 @@
 
 #include "concurrentqueue/concurrentqueue.h"
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstring>
 #include <functional>
@@ -400,6 +401,52 @@ private:
         }
     }
 
+    enum singleTraj { x, y, v_x, v_y };
+    // 0: x 1: y 2: v_x 3: v_y
+    void singleTimeStep(std::array<double, 4> &input, const double dt,
+                        const double k, const double cw_2) {
+        for (int i = 0; i < 2; i++) {
+            input[i] += input[i + singleTraj::v_x] * dt;
+        }
+
+        double T, p, rho, t;
+        // Calculating air density
+        T = t0 - L * input[singleTraj::y];
+        // Calculating air temperature at altitude
+        p = p0 * pow((1 - L * input[singleTraj::y] / t0), (g * M / (R * L)));
+        // Calculating air pressure at altitude
+        rho = p * M / (R * T);
+        // Use ideal gas law to calculate air density
+
+        // Calculate drag deceleration
+        std::array<double, 2> dragIntermediary, velocitySquared;
+        for (int l = 0; l < 2; l++) {
+            velocitySquared[l] =
+                input[singleTraj::v_x + l] * input[singleTraj::v_x + l];
+        } // v^2 = v * v
+
+        dragIntermediary[0] =
+            k * rho *
+            (cw_1 * velocitySquared[0] + cw_2 * input[singleTraj::v_x]);
+        // for horizontal (x) component
+        dragIntermediary[1] = g - k * rho *
+                                      (cw_1 * velocitySquared[1] +
+                                       cw_2 * fabs(input[singleTraj::v_y])) *
+                                      signum(input[singleTraj::v_y]);
+        // for vertical   (y) component
+
+        // Adjust for next cycle
+        for (int l = 0; l < 2; l++) { // v -= drag * dt
+            input[singleTraj::v_x + l] -= dragIntermediary[l] * dt;
+        }
+        /*for (int i = 0; i < 4; i++) {
+            std::cout << input[i] << " ";
+        }
+        std::cout << "\n";*/
+    }
+
+    // std::array<double, 4> rungeKutta4(std::array<double, 4> input) {}
+
     // Impact Calculations Region
     template <bool AddTraj>
     void singleTraj(const unsigned int i, const unsigned int j, shell &s,
@@ -411,36 +458,43 @@ private:
         const double cw_2 = s.get_cw_2();
 
         double T, p, rho, t; // x, y, v_x, v_y;
-        double pos[2], velocity[2];
+        // double pos[2], velocity[2];
         int counter;
         if constexpr (AddTraj) {
             s.trajectories[2 * (i + j)].clear();
             s.trajectories[2 * (i + j) + 1].clear();
 
-            if(s.trajectories[2 * (i + j)].capacity() < __TrajBuffer__){
+            if (s.trajectories[2 * (i + j)].capacity() < __TrajBuffer__) {
                 s.trajectories[2 * (i + j)].reserve(__TrajBuffer__);
             }
 
-            if(s.trajectories[2 * (i + j) + 1].capacity() < __TrajBuffer__){
+            if (s.trajectories[2 * (i + j) + 1].capacity() < __TrajBuffer__) {
                 s.trajectories[2 * (i + j) + 1].reserve(__TrajBuffer__);
             }
         }
-        double xT[__TrajBuffer__], yT[__TrajBuffer__];
-
+        // double xT[__TrajBuffer__], yT[__TrajBuffer__];
+        std::array<double, __TrajBuffer__> xT, yT;
         // setting initial values
-        velocity[0] = vx[j]; // x component of velocity v_x
-        velocity[1] = vy[j]; // y component of velocity v_y
-        pos[0] = x0;         // x start x0
-        pos[1] = y0;         // y start y0
+        // velocity[0] = vx[j]; // x component of velocity v_x
+        // velocity[1] = vy[j]; // y component of velocity v_y
+        // pos[0] = x0;         // x start x0
+        // pos[1] = y0;         // y start y0
+        std::array<double, 4> variables{x0, y0, vx[j], vy[j]};
+        for (int i = 0; i < 4; i++) {
+            std::cout << variables[i] << " ";
+        }
+        std::cout << "\n";
         s.trajectories[2 * (i + j)].push_back(x0);
         // add x start (x0) to trajectories
         s.trajectories[2 * (i + j) + 1].push_back(y0);
         // add y start (y0) to trajectories
         t = 0; // t start
 
-        while (pos[1] >= 0) {
-            for (counter = 0; (counter < __TrajBuffer__) & (pos[1] >= 0);
+        while (variables[singleTraj::y] >= 0) {
+            for (counter = 0;
+                 (counter < __TrajBuffer__) & (variables[singleTraj::y] >= 0);
                  counter++) {
+                /*
                 for (int l = 0; l < 2; l++) {
                     pos[l] += velocity[l] * dt;
                 }
@@ -472,23 +526,29 @@ private:
                 // Adjust for next cycle
                 for (int l = 0; l < 2; l++) { // v -= drag * dt
                     velocity[l] -= dragIntermediary[l] * dt;
+                }*/
+                singleTimeStep(variables, dt, k, cw_2);
+                for (int i = 0; i < 4; i++) {
+                    // std::cout << variables[i] << " ";
                 }
+                // std::cout << "\n";
                 t += dt; // adjust time
                 if constexpr (AddTraj) {
-                    xT[counter] = pos[0];
-                    yT[counter] = pos[1];
+                    xT[counter] = variables[singleTraj::x];
+                    yT[counter] = variables[singleTraj::y];
                 }
             }
             if constexpr (AddTraj) {
                 s.trajectories[2 * (i + j)].insert(
-                    s.trajectories[2 * (i + j)].end(), xT, &xT[counter]);
+                    s.trajectories[2 * (i + j)].end(), xT.data(), &xT[counter]);
                 s.trajectories[2 * (i + j) + 1].insert(
-                    s.trajectories[2 * (i + j) + 1].end(), yT, &yT[counter]);
+                    s.trajectories[2 * (i + j) + 1].end(), yT.data(),
+                    &yT[counter]);
             }
         }
-        s.get_impact(i + j, impact::distance) = pos[0];
-        vx[j] = velocity[0];
-        vy[j] = velocity[1];
+        s.get_impact(i + j, impact::distance) = variables[singleTraj::x];
+        vx[j] = variables[singleTraj::v_x];
+        vy[j] = variables[singleTraj::v_y];
         tVec[j] = t;
     }
 
