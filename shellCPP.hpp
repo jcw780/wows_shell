@@ -402,6 +402,7 @@ private:
     }
 
     enum singleTraj { x, y, v_x, v_y };
+    static constexpr unsigned int singleTrajDims = 2;
     // 0: x 1: y 2: v_x 3: v_y
     void singleTimeStep(std::array<double, 4> &input, const double dt,
                         const double k, const double cw_2) {
@@ -420,29 +421,29 @@ private:
 
         // Calculate drag deceleration
         std::array<double, 2> dragIntermediary, velocitySquared;
-        for (int l = 0; l < 2; l++) {
+        for (int l = 0; l < singleTrajDims; l++) {
             velocitySquared[l] =
                 input[singleTraj::v_x + l] * input[singleTraj::v_x + l];
         } // v^2 = v * v
 
-        dragIntermediary[0] =
-            k * rho *
-            (cw_1 * velocitySquared[0] + cw_2 * input[singleTraj::v_x]);
-        // for horizontal (x) component
-        dragIntermediary[1] = g - k * rho *
-                                      (cw_1 * velocitySquared[1] +
-                                       cw_2 * fabs(input[singleTraj::v_y])) *
-                                      signum(input[singleTraj::v_y]);
-        // for vertical   (y) component
+        for (int i = 0; i < 2; i++) {
+            dragIntermediary[i] = cw_1 * velocitySquared[i];
+        }
 
+        dragIntermediary[0] += cw_2 * input[singleTraj::v_x];
+
+        dragIntermediary[1] += cw_2 * fabs(input[singleTraj::v_y]);
+        dragIntermediary[1] *= signum(input[singleTraj::v_y]);
+
+        for (int i = 0; i < singleTrajDims; i++) {
+            dragIntermediary[i] *= (k * rho);
+        }
+
+        dragIntermediary[1] = g - dragIntermediary[1];
         // Adjust for next cycle
         for (int l = 0; l < 2; l++) { // v -= drag * dt
             input[singleTraj::v_x + l] -= dragIntermediary[l] * dt;
         }
-        /*for (int i = 0; i < 4; i++) {
-            std::cout << input[i] << " ";
-        }
-        std::cout << "\n";*/
     }
 
     // std::array<double, 4> rungeKutta4(std::array<double, 4> input) {}
@@ -480,10 +481,6 @@ private:
         // pos[0] = x0;         // x start x0
         // pos[1] = y0;         // y start y0
         std::array<double, 4> variables{x0, y0, vx[j], vy[j]};
-        for (int i = 0; i < 4; i++) {
-            std::cout << variables[i] << " ";
-        }
-        std::cout << "\n";
         s.trajectories[2 * (i + j)].push_back(x0);
         // add x start (x0) to trajectories
         s.trajectories[2 * (i + j) + 1].push_back(y0);
@@ -494,44 +491,8 @@ private:
             for (counter = 0;
                  (counter < __TrajBuffer__) & (variables[singleTraj::y] >= 0);
                  counter++) {
-                /*
-                for (int l = 0; l < 2; l++) {
-                    pos[l] += velocity[l] * dt;
-                }
 
-                // Calculating air density
-                T = t0 - L * pos[1];
-                // Calculating air temperature at altitude
-                p = p0 * pow((1 - L * pos[1] / t0), (g * M / (R * L)));
-                // Calculating air pressure at altitude
-                rho = p * M / (R * T);
-                // Use ideal gas law to calculate air density
-
-                // Calculate drag deceleration
-                double dragIntermediary[2], velocitySquared[2];
-                for (int l = 0; l < 2; l++) {
-                    velocitySquared[l] =
-                        velocity[l] * velocity[l]; // v^2 = v * v
-                }
-
-                dragIntermediary[0] =
-                    k * rho * (cw_1 * velocitySquared[0] + cw_2 * velocity[0]);
-                // for horizontal (x) component
-                dragIntermediary[1] = g - k * rho *
-                                              (cw_1 * velocitySquared[1] +
-                                               cw_2 * fabs(velocity[1])) *
-                                              signum(velocity[1]);
-                // for vertical   (y) component
-
-                // Adjust for next cycle
-                for (int l = 0; l < 2; l++) { // v -= drag * dt
-                    velocity[l] -= dragIntermediary[l] * dt;
-                }*/
                 singleTimeStep(variables, dt, k, cw_2);
-                for (int i = 0; i < 4; i++) {
-                    // std::cout << variables[i] << " ";
-                }
-                // std::cout << "\n";
                 t += dt; // adjust time
                 if constexpr (AddTraj) {
                     xT[counter] = variables[singleTraj::x];
