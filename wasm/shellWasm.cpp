@@ -138,7 +138,8 @@ public:
 
 // Compile option
 // emcc --bind -o shellWasm.js shellWasm.cpp --std=c++17 -O3 -s ASSERTIONS=1 -s
-// ALLOW_MEMORY_GROWTH=1 emcc --bind -o shellWasm.js shellWasm.cpp --std=c++17
+// ALLOW_MEMORY_GROWTH=1 
+// emcc --bind -o shellWasm.js shellWasm.cpp --std=c++17
 // -O3 -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1 -s USE_PTHREADS=1 -s
 // WASM_MEM_MAX=100Mb
 
@@ -160,6 +161,7 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("postPenData", &shellCombined::postPenData)
         .function("getPostPenSize", &shellCombined::postPenSize)
         .function("printImpact", &shellCombined::printImpact)
+        .function("printAngles", &shellCombined::printAngles)
         .function("printPostPen", &shellCombined::printPostPen);
 
     emscripten::register_vector<double>("vector<double>");

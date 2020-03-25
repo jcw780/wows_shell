@@ -3,6 +3,7 @@
 
 <meta charset="UTF-8">
 <script>
+    console.log('Started');
     var safe = false;
     var Module = {
         onRuntimeInitialized: function () {
@@ -14,6 +15,7 @@
     //console.log(safe);
     var instance;
     function runFunc() {
+        console.log('Entered');
         instance = new Module.shell(2);
         instance.setValues(.460, 780, .292 , 1460, 2574, 6, .033, 76, 45, 60, 0);
         instance.setValues(.220, 995, .2549,  207, 2574, 7, .022, 37, 55, 65, 1);

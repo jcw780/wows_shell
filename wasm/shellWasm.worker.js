@@ -26,6 +26,9 @@ var Module = {};
 
 // These modes need to assign to these variables because of how scoping works in them.
 
+function assert(condition, text) {
+  if (!condition) abort('Assertion failed: ' + text);
+}
 
 function threadPrintErr() {
   var text = Array.prototype.slice.call(arguments).join(' ');
@@ -100,6 +103,12 @@ this.onmessage = function(e) {
       // The stack grows downwards
       var max = e.data.stackBase;
       var top = e.data.stackBase + e.data.stackSize;
+      assert(threadInfoStruct);
+      assert(selfThreadId);
+      assert(parentThreadId);
+      assert(top != 0);
+      assert(e.data.stackSize > 0);
+      assert(top > max);
       // Also call inside JS module to set up the stack frame for this pthread in JS module scope
       Module['establishStackSpaceInJsModule'](top, max);
       Module['_emscripten_tls_init']();
@@ -116,6 +125,7 @@ this.onmessage = function(e) {
         // flag -s EMULATE_FUNCTION_POINTER_CASTS=1 to add in emulation for this x86 ABI extension.
         var result = Module['dynCall_ii'](e.data.start_routine, e.data.arg);
 
+        Module['checkStackCookie']();
 
       } catch(e) {
         if (e === 'Canceled!') {
@@ -126,6 +136,10 @@ this.onmessage = function(e) {
         } else {
           Atomics.store(HEAPU32, (threadInfoStruct + 4 /*C_STRUCTS.pthread.threadExitCode*/ ) >> 2, (e instanceof Module['ExitStatus']) ? e.status : -2 /*A custom entry specific to Emscripten denoting that the thread crashed.*/);
           Atomics.store(HEAPU32, (threadInfoStruct + 0 /*C_STRUCTS.pthread.threadStatus*/ ) >> 2, 1); // Mark the thread as no longer running.
+          if (typeof(Module['_emscripten_futex_wake']) !== "function") {
+            err("Thread Initialisation failed.");
+            throw e;
+          }
           Module['_emscripten_futex_wake'](threadInfoStruct + 0 /*C_STRUCTS.pthread.threadStatus*/, 0x7FFFFFFF/*INT_MAX*/); // Wake all threads waiting on this thread to finish.
           if (!(e instanceof Module['ExitStatus'])) throw e;
         }
