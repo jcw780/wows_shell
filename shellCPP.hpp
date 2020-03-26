@@ -57,6 +57,8 @@ enum postPenDataIndex { angle, distance, x, y, z, xwf };
 static_assert(xwf == (maxColumns - 1), "Invaild postpen columns");
 } // namespace post
 
+enum numerical { forwardEuler, rungeKutta4 };
+
 class shell {
 private:                  // Description         units
     double v0;            // muzzle velocity     m/s
@@ -404,24 +406,17 @@ private:
     enum singleTraj { x, y, v_x, v_y };
     static constexpr unsigned int singleTrajDims = 2;
     // 0: x 1: y 2: v_x 3: v_y
-    void singleTimeStep(std::array<double, 4> &input, const double dt,
-                        const double k, const double cw_2) {
-        std::array<double, 4> delta = calcDeltas(input, dt, k, cw_2);
-        for (int i = 0; i < singleTrajDims * 2; i++) {
-            input[i] += delta[i];
-        }
-    }
-
-    std::array<double, 4> calcDeltas(std::array<double, 4> current,
-                                     const double dt, const double k,
-                                     const double cw_2) {
-        std::array<double, 4> deltas;
-        for (int i = 0; i < 2; i++) {
-            deltas[i] = current[i + singleTraj::v_x] * dt;
+    template <unsigned int dims>
+    std::array<double, dims * 2>
+    calcDeltas(std::array<double, dims * 2> current, const double dt,
+               const double k, const double cw_2) {
+        std::array<double, dims * 2> deltas;
+        for (int i = 0; i < dims; i++) {
+            deltas[i] = current[i + dims] * dt;
             current[i] += deltas[i];
         }
 
-        double T, p, rho, t;
+        double T, p, rho;
         // Calculating air density
         T = t0 - L * current[singleTraj::y];
         // Calculating air temperature at altitude
@@ -431,28 +426,26 @@ private:
         // Use ideal gas law to calculate air density
 
         // Calculate drag deceleration
-        std::array<double, 2> velocitySquared;
-        for (int l = 0; l < singleTrajDims; l++) {
-            velocitySquared[l] =
-                current[singleTraj::v_x + l] * current[singleTraj::v_x + l];
+        std::array<double, dims> velocitySquared;
+        for (int l = 0; l < dims; l++) {
+            velocitySquared[l] = current[dims + l] * current[dims + l];
         } // v^2 = v * v
 
-        for (int i = 0; i < singleTrajDims; i++) {
-            deltas[singleTraj::v_x + i] = cw_1 * velocitySquared[i];
+        for (int i = 0; i < dims; i++) {
+            deltas[dims + i] = cw_1 * velocitySquared[i];
         }
 
         deltas[singleTraj::v_x] += cw_2 * current[singleTraj::v_x];
-
         deltas[singleTraj::v_y] += cw_2 * fabs(current[singleTraj::v_y]);
         deltas[singleTraj::v_y] *= signum(current[singleTraj::v_y]);
 
-        for (int i = 0; i < singleTrajDims; i++) {
-            deltas[singleTraj::v_x + i] *= (k * rho);
+        for (int i = 0; i < dims; i++) {
+            deltas[dims + i] *= (k * rho);
         }
 
         deltas[singleTraj::v_y] = g - deltas[singleTraj::v_y];
-        for (int l = 0; l < 2; l++) { // v -= drag * dt
-            deltas[singleTraj::v_x + l] *= (-1 * dt);
+        for (int i = 0; i < dims; i++) { // v -= drag * dt
+            deltas[dims + i] *= (-1 * dt);
         }
         return deltas;
     }
@@ -464,28 +457,47 @@ private:
         }
     }
 
+    // Numerical Methods
+    void forwardEuler(std::array<double, 4> &input, const double dt,
+                      const double k, const double cw_2) {
+        std::array<double, 4> delta =
+            calcDeltas<singleTrajDims>(input, dt, k, cw_2);
+        for (int i = 0; i < singleTrajDims * 2; i++) {
+            input[i] += delta[i];
+        }
+    }
+
     void rungeKutta4(std::array<double, 4> &input, const double dt,
                      const double k, const double cw_2) {
         std::array<double, 4> k1, k2, k3, k4;
         std::array<double, 4> intermediate = input;
-        k1 = calcDeltas(input, dt, k, cw_2);
+        k1 = calcDeltas<singleTrajDims>(input, dt, k, cw_2);
         fmaArr<4>(.5, k1, intermediate);
-        k2 = calcDeltas(intermediate, dt, k, cw_2);
+        k2 = calcDeltas<singleTrajDims>(intermediate, dt, k, cw_2);
         intermediate = input;
         fmaArr<4>(.5, k2, intermediate);
-        k3 = calcDeltas(intermediate, dt, k, cw_2);
+        k3 = calcDeltas<singleTrajDims>(intermediate, dt, k, cw_2);
         intermediate = input;
-        fmaArr<4>(1, k2, intermediate);
-        k4 = calcDeltas(intermediate, dt, k, cw_2);
+        fmaArr<4>(1, k3, intermediate);
+        k4 = calcDeltas<singleTrajDims>(intermediate, dt, k, cw_2);
 
         fmaArr<4>(2, k2, k1);
         fmaArr<4>(2, k3, k1);
         fmaArr<4>(1, k4, k1);
-        fmaArr<4>(1 / 6, k1, input);
+        fmaArr<4>((1.0 / 6.0), k1, input);
     }
 
+    template <unsigned int Numerical>
+    void numericalMethod(std::array<double, 4> &input, const double dt,
+                         const double k, const double cw_2) {
+        if constexpr (Numerical == numerical::forwardEuler) {
+            forwardEuler(input, dt, k, cw_2);
+        } else if (Numerical == numerical::rungeKutta4) {
+            rungeKutta4(input, dt, k, cw_2);
+        }
+    }
     // Impact Calculations Region
-    template <bool AddTraj>
+    template <bool AddTraj, unsigned int Numerical>
     void singleTraj(const unsigned int i, const unsigned int j, shell &s,
                     double *vx, double *vy, double *tVec) {
         static constexpr unsigned int __TrajBuffer__ = 128;
@@ -494,8 +506,6 @@ private:
         const double k = s.get_k();
         const double cw_2 = s.get_cw_2();
 
-        double T, p, rho, t; // x, y, v_x, v_y;
-        // double pos[2], velocity[2];
         int counter;
         if constexpr (AddTraj) {
             s.trajectories[2 * (i + j)].clear();
@@ -509,28 +519,23 @@ private:
                 s.trajectories[2 * (i + j) + 1].reserve(__TrajBuffer__);
             }
         }
-        // double xT[__TrajBuffer__], yT[__TrajBuffer__];
         std::array<double, __TrajBuffer__> xT, yT;
         // setting initial values
-        // velocity[0] = vx[j]; // x component of velocity v_x
-        // velocity[1] = vy[j]; // y component of velocity v_y
-        // pos[0] = x0;         // x start x0
-        // pos[1] = y0;         // y start y0
         std::array<double, 4> variables{x0, y0, vx[j], vy[j]};
         s.trajectories[2 * (i + j)].push_back(x0);
         // add x start (x0) to trajectories
         s.trajectories[2 * (i + j) + 1].push_back(y0);
         // add y start (y0) to trajectories
-        t = 0; // t start
+        double t = 0; // t start
 
         while (variables[singleTraj::y] >= 0) {
             for (counter = 0;
                  (counter < __TrajBuffer__) & (variables[singleTraj::y] >= 0);
                  counter++) {
 
-                // variables = singleTimeStep(variables, dt, k, cw_2);
-                singleTimeStep(variables, dt, k, cw_2);
+                numericalMethod<Numerical>(variables, dt, k, cw_2);
                 t += dt; // adjust time
+
                 if constexpr (AddTraj) {
                     xT[counter] = variables[singleTraj::x];
                     yT[counter] = variables[singleTraj::y];
@@ -551,7 +556,7 @@ private:
     }
 
     // Several trajectories done in one chunk to allow for vectorization
-    template <bool AddTraj>
+    template <bool AddTraj, unsigned int Numerical>
     void multiTraj(const unsigned int i, shell *const shellPointer) {
         shell &s = *shellPointer;
         const double pPPC = s.get_pPPC();
@@ -568,7 +573,7 @@ private:
         }
 
         for (int j = 0; (j + i < s.impactSize) & (j < vSize); j++) {
-            singleTraj<AddTraj>(i, j, s, vx, vy, tVec);
+            singleTraj<AddTraj, Numerical>(i, j, s, vx, vy, tVec);
         }
 
         for (int j = 0; j < vSize; j++) {
@@ -598,17 +603,18 @@ private:
     }
 
 public:
+    template <unsigned int Numerical>
     void calculateImpact(
         shell &s, bool addTraj,
         unsigned int nThreads = std::thread::hardware_concurrency()) {
         if (addTraj) {
-            calculateImpact<true>(s, nThreads);
+            calculateImpact<true, Numerical>(s, nThreads);
         } else {
-            calculateImpact<false>(s, nThreads);
+            calculateImpact<false, Numerical>(s, nThreads);
         }
     }
 
-    template <bool AddTraj>
+    template <bool AddTraj, unsigned int Numerical>
     void calculateImpact(
         shell &s, unsigned int nThreads = std::thread::hardware_concurrency()) {
         s.impactSize = (unsigned int)(max - min) / precision;
@@ -627,13 +633,20 @@ public:
             assigned = length;
         }
         mtFunctionRunner(assigned, length, s.impactSize, this,
-                         &shellCalc::multiTraj<AddTraj>, &s);
+                         &shellCalc::multiTraj<AddTraj, Numerical>, &s);
 
         s.completedImpact = true;
     }
 
-    // Check Angles Section
 private:
+    void checkRunImpact(shell &s) {
+        if (!s.completedImpact) {
+            std::cout << "Standard Not Calculated - Running automatically\n";
+            calculateImpact<false, numerical::forwardEuler>(s);
+        }
+    }
+
+    // Check Angles Section
     // template <short fusing> explanation
     // Possible Values:
     // 0 - Never Fusing
@@ -714,10 +727,8 @@ public:
     void calculateAngles(
         const double thickness, const double inclination, shell &s,
         const unsigned int nThreads = std::thread::hardware_concurrency()) {
-        if (!s.completedImpact) {
-            std::cout << "Standard Not Calculated - Running automatically\n";
-            calculateImpact<false>(s);
-        }
+
+        checkRunImpact(s);
 
         s.angleData.resize(angle::maxColumns * s.impactSizeAligned);
         std::copy_n(s.get_impactPtr(0, impact::distance), s.impactSize,
@@ -987,10 +998,7 @@ public:
     void calculatePostPen(const double thickness, const double inclination,
                           shell &s, std::vector<double> &angles,
                           const unsigned int nThreads) {
-        if (!s.completedImpact) {
-            std::cout << "Standard Not Calculated - Running automatically\n";
-            calculateImpact<false>(s);
-        }
+        checkRunImpact(s);
 
         s.postPenSize = s.impactSize * angles.size();
         s.postPenData.resize(6 * s.postPenSize);

@@ -4,7 +4,7 @@
 #include <utility>
 
 // Sample Test / Benchmark Function
-int main() {
+void runtime() {
     double total = 0.0;
 
     shell::shell *test;
@@ -14,7 +14,7 @@ int main() {
         test = new shell::shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45,
                                 60, "Yamato");
         auto t1 = std::chrono::high_resolution_clock::now();
-        sc.calculateImpact(*test, true);
+        sc.calculateImpact<shell::numerical::rungeKutta4>(*test, true);
         auto t2 = std::chrono::high_resolution_clock::now();
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>(
                      t2 - t1)
@@ -36,8 +36,8 @@ int main() {
     sc.calculateAngles(410, -20, *test);
 
     test->printImpactData();
-    test->printPostPenData();
-    test->printAngleData();
+    // test->printPostPenData();
+    // test->printAngleData();
 
     std::cout << std::fixed << std::setprecision(10)
               << total / runs / 1000000000 << std::endl;
@@ -48,6 +48,9 @@ int main() {
                      1000000000
               << "\n";
     // std::cout<<"Ended\n";
+}
 
+int main() {
+    runtime();
     return 0;
 }
