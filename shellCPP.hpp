@@ -289,7 +289,7 @@ private:
 
     // For vectorization - though probably not 100% necessary anymore since
     // intrinsics were removed [intrinsics had no significant improvements in
-    // runtime]
+    // runtime] - but might still make it easier to vectorize
     static_assert(
         sizeof(double) == 8,
         "Size of double is not 8 - required for AVX2"); // Use float64
@@ -410,6 +410,9 @@ private:
     std::array<double, dims * 2>
     calcDeltas(std::array<double, dims * 2> current, const double dt,
                const double k, const double cw_2) {
+        enum position { x, y, z };
+        enum velocity { v_x, v_y, v_z };
+
         std::array<double, dims * 2> deltas;
         for (int i = 0; i < dims; i++) {
             deltas[i] = current[i + dims] * dt;
@@ -418,9 +421,9 @@ private:
 
         double T, p, rho;
         // Calculating air density
-        T = t0 - L * current[singleTraj::y];
+        T = t0 - L * current[position::y];
         // Calculating air temperature at altitude
-        p = p0 * pow((1 - L * current[singleTraj::y] / t0), (g * M / (R * L)));
+        p = p0 * pow((1 - L * current[position::y] / t0), (g * M / (R * L)));
         // Calculating air pressure at altitude
         rho = p * M / (R * T);
         // Use ideal gas law to calculate air density
@@ -435,15 +438,21 @@ private:
             deltas[dims + i] = cw_1 * velocitySquared[i];
         }
 
-        deltas[singleTraj::v_x] += cw_2 * current[singleTraj::v_x];
-        deltas[singleTraj::v_y] += cw_2 * fabs(current[singleTraj::v_y]);
-        deltas[singleTraj::v_y] *= signum(current[singleTraj::v_y]);
+        deltas[dims + velocity::v_x] += cw_2 * current[dims + velocity::v_x];
+        deltas[dims + velocity::v_y] +=
+            cw_2 * fabs(current[dims + velocity::v_y]);
+        deltas[dims + velocity::v_y] *= signum(current[dims + velocity::v_y]);
+
+        if constexpr (dims >= 3) {
+            deltas[dims + velocity::v_z] +=
+                cw_2 * current[dims + velocity::v_z];
+        }
 
         for (int i = 0; i < dims; i++) {
             deltas[dims + i] *= (k * rho);
         }
 
-        deltas[singleTraj::v_y] = g - deltas[singleTraj::v_y];
+        deltas[dims + velocity::v_y] = g - deltas[dims + velocity::v_y];
         for (int i = 0; i < dims; i++) { // v -= drag * dt
             deltas[dims + i] *= (-1 * dt);
         }
@@ -451,49 +460,51 @@ private:
     }
     template <std::size_t N>
     void fmaArr(double x, std::array<double, N> y, std::array<double, N> &z) {
-        std::array<double, N> output;
         for (int i = 0; i < N; i++) {
             z[i] = std::fma(x, y[i], z[i]);
         }
     }
 
     // Numerical Methods
-    void forwardEuler(std::array<double, 4> &input, const double dt,
+    template <unsigned int dims>
+    void forwardEuler(std::array<double, 2 * dims> &input, const double dt,
                       const double k, const double cw_2) {
-        std::array<double, 4> delta =
+        std::array<double, 2 *dims> delta =
             calcDeltas<singleTrajDims>(input, dt, k, cw_2);
-        for (int i = 0; i < singleTrajDims * 2; i++) {
+        for (int i = 0; i < 2 * dims; i++) {
             input[i] += delta[i];
         }
     }
 
-    void rungeKutta4(std::array<double, 4> &input, const double dt,
+    template <unsigned int dims>
+    void rungeKutta4(std::array<double, 2 * dims> &input, const double dt,
                      const double k, const double cw_2) {
-        std::array<double, 4> k1, k2, k3, k4;
-        std::array<double, 4> intermediate = input;
-        k1 = calcDeltas<singleTrajDims>(input, dt, k, cw_2);
-        fmaArr<4>(.5, k1, intermediate);
-        k2 = calcDeltas<singleTrajDims>(intermediate, dt, k, cw_2);
+        std::array<double, 2 * dims> k1, k2, k3, k4;
+        std::array<double, 2 *dims> intermediate = input;
+        k1 = calcDeltas<dims>(input, dt, k, cw_2);
+        fmaArr<2 * dims>(.5, k1, intermediate);
+        k2 = calcDeltas<dims>(intermediate, dt, k, cw_2);
         intermediate = input;
-        fmaArr<4>(.5, k2, intermediate);
-        k3 = calcDeltas<singleTrajDims>(intermediate, dt, k, cw_2);
+        fmaArr<2 * dims>(.5, k2, intermediate);
+        k3 = calcDeltas<dims>(intermediate, dt, k, cw_2);
         intermediate = input;
-        fmaArr<4>(1, k3, intermediate);
-        k4 = calcDeltas<singleTrajDims>(intermediate, dt, k, cw_2);
+        fmaArr<2 * dims>(1, k3, intermediate);
+        k4 = calcDeltas<dims>(intermediate, dt, k, cw_2);
 
-        fmaArr<4>(2, k2, k1);
-        fmaArr<4>(2, k3, k1);
-        fmaArr<4>(1, k4, k1);
-        fmaArr<4>((1.0 / 6.0), k1, input);
+        fmaArr<2 * dims>(2, k2, k1);
+        fmaArr<2 * dims>(2, k3, k1);
+        fmaArr<2 * dims>(1, k4, k1);
+        fmaArr<2 * dims>((1.0 / 6.0), k1, input);
     }
 
-    template <unsigned int Numerical>
+    // Please edit numerical enum before changing this
+    template <unsigned int Numerical, unsigned int Dims>
     void numericalMethod(std::array<double, 4> &input, const double dt,
                          const double k, const double cw_2) {
         if constexpr (Numerical == numerical::forwardEuler) {
-            forwardEuler(input, dt, k, cw_2);
+            forwardEuler<Dims>(input, dt, k, cw_2);
         } else if (Numerical == numerical::rungeKutta4) {
-            rungeKutta4(input, dt, k, cw_2);
+            rungeKutta4<Dims>(input, dt, k, cw_2);
         }
     }
     // Impact Calculations Region
@@ -533,7 +544,8 @@ private:
                  (counter < __TrajBuffer__) & (variables[singleTraj::y] >= 0);
                  counter++) {
 
-                numericalMethod<Numerical>(variables, dt, k, cw_2);
+                numericalMethod<Numerical, singleTrajDims>(variables, dt, k,
+                                                           cw_2);
                 t += dt; // adjust time
 
                 if constexpr (AddTraj) {
