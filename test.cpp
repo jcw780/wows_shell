@@ -14,7 +14,7 @@ void runtime() {
         test = new shell::shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45,
                                 60, "Yamato");
         auto t1 = std::chrono::high_resolution_clock::now();
-        sc.calculateImpact<shell::numerical::rungeKutta4>(*test, true);
+        sc.calculateImpact<shell::numerical::rungeKutta4, true>(*test, true);
         auto t2 = std::chrono::high_resolution_clock::now();
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>(
                      t2 - t1)

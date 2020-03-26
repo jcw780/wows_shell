@@ -1,3 +1,10 @@
+/*cppimport
+<%
+cfg['compiler_args'] = ['-std=c++17', '/std:c++17', '-O3', '/Ot']
+setup_pybind11(cfg)
+%>
+*/
+
 /*
 strdup not defined in windows
 https://github.com/pybind/pybind11/issues/1212
@@ -39,7 +46,29 @@ public:
                     threshold, ricochet0, ricochet1, name);
     }
 
-    void calcImpact() { calc.calculateImpact(s, false); }
+    void set_max(const double max) { calc.set_max(max); }
+    void set_min(const double min) { calc.set_min(min); }
+    void set_precision(const double precision) {
+        calc.set_precision(precision);
+    }
+    void set_x0(const double x0) { calc.set_x0(x0); }
+    void set_y0(const double y0) { calc.set_y0(y0); }
+    void set_dt_min(const double dt) { calc.set_dt_min(dt); }
+    void set_xf0(const double xf0) { calc.set_xf0(xf0); }
+    void set_yf0(const double yf0) { calc.set_yf0(yf0); }
+    void set_dtf(const double dtf) { calc.set_dtf(dtf); }
+
+    void calcImpactForwardEuler() {
+        calc.calculateImpact<shell::numerical::forwardEuler, false>(s, false);
+    }
+
+    void calcImpactRungeKutta() {
+        calc.calculateImpact<shell::numerical::rungeKutta4, false>(s, false);
+    }
+
+    void calcImpactRungeKuttaHybrid() {
+        calc.calculateImpact<shell::numerical::rungeKutta4, true>(s, true);
+    }
 
     void calcAngles(const double thickness, const double inclination) {
         calc.calculateAngles(thickness, inclination, s);
@@ -141,7 +170,11 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double, std::string &>())
         .def("setValues", &shellCombined::setValues)
-        .def("calcImpact", &shellCombined::calcImpact)
+        .def("calcImpactForwardEuler", &shellCombined::calcImpactForwardEuler)
+        .def("calcImpactcalcImpactRungeKutta",
+             &shellCombined::calcImpactRungeKutta)
+        .def("calcImpactRungeKuttaHybrid",
+             &shellCombined::calcImpactRungeKuttaHybrid)
         .def("calcAngles", &shellCombined::calcAngles)
         .def("calcPostPen", &shellCombined::calcPostPen)
         .def("getImpact", &shellCombined::getImpact)

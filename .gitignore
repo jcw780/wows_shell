@@ -20,6 +20,9 @@
 *.pyd
 *.exp
 
+# Cppimport Files
+*.cppimporthash
+
 # Fortran module files
 *.mod
 *.smod
