@@ -9,59 +9,102 @@ import matplotlib.pyplot as plt
 
 
 s = shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, "Yamato")
+impacts = {}
 
+s.setDtMin(.1)
 s.calcImpactForwardEuler()
-fE = s.getImpact()
+impacts['Forward Euler .01'] = s.getImpact()
 
-s.calcImpactRungeKutta()
-rk = s.getImpact()
+s.calcImpactRungeKutta2()
+#impacts['RungeKutta2 .01'] = s.getImpact()
 
-s.calcImpactRungeKuttaHybrid()
-rkH = s.getImpact()
+s.calcImpactRungeKutta4()
+#impacts['RungeKutta4 .01'] = s.getImpact()
+
 
 s.setDtMin(.04)
-s.calcImpactRungeKutta()
-rkF = s.getImpact()
+s.calcImpactForwardEuler()
+#impacts['Forward Euler .04'] = s.getImpact()
+
+s.calcImpactRungeKutta2()
+#impacts['RungeKutta2 .04'] = s.getImpact()
+
+s.calcImpactRungeKutta4()
+#impacts['RungeKutta4 .04'] = s.getImpact()
+
+s.setDtMin(.02)
+s.calcImpactForwardEuler()
+#impacts['Forward Euler .02'] = s.getImpact()
+
+s.calcImpactRungeKutta2()
+#impacts['RungeKutta2 .02'] = s.getImpact()
+
+s.calcImpactRungeKutta4()
+#impacts['RungeKutta4 .02'] = s.getImpact()
+
+s.setDtMin(.01)
+s.calcImpactForwardEuler()
+#impacts['Forward Euler .01'] = s.getImpact()
+
+s.calcImpactRungeKutta4()
+#impacts['RungeKutta .01'] = s.getImpact()
+
+s.calcImpactRungeKutta4Hybrid()
+#impacts['RungeKuttaHybrid .1/.01'] = s.getImpact()
+
+s.setDtMin(.001)
+s.calcImpactRungeKutta4()
+impacts['RungeKutta4 .001'] = s.getImpact()
+
+s.calcImpactForwardEuler()
+impacts['Forward Euler .001'] = s.getImpact()
+
+s.calcImpactRungeKutta2()
+impacts['RungeKutta2 .001'] = s.getImpact()
 
 s.setDtMin(.0001)
-s.calcImpactRungeKutta()
-rkF2 = s.getImpact()
+s.calcImpactRungeKutta4()
+reference = s.getImpact()
 
+s.calcImpactForwardEuler()
+impacts['Forward Euler .0001'] = s.getImpact()
 
-plt.subplot(211)
-d1, = plt.plot(
-    rkF2[int(impactDataIndex.launchA), :], 
-    rkH[int(impactDataIndex.distance), :] - rkF2[int(impactDataIndex.distance), :], 
-    label="rkH")
-d2, = plt.plot(
-    rk[int(impactDataIndex.launchA), :], 
-    rkF[int(impactDataIndex.distance), :] - rkF2[int(impactDataIndex.distance), :], 
-    label="rkF")
-d3, = plt.plot(
-    rk[int(impactDataIndex.launchA), :], 
-    fE[int(impactDataIndex.distance), :] - rkF2[int(impactDataIndex.distance), :], 
-    label="FE")
-d4, = plt.plot(
-    rk[int(impactDataIndex.launchA), :], 
-    rk[int(impactDataIndex.distance), :] - rkF2[int(impactDataIndex.distance), :], 
-    label="rk")
-plt.legend(handles=[d1, d2, d3, d4])
-plt.subplot(212)
-t1, = plt.plot(
-    rk[int(impactDataIndex.launchA), :], 
-    rkH[int(impactDataIndex.tToTarget), :] - rkF2[int(impactDataIndex.tToTarget), :], 
-    label="rkH")
-t2, = plt.plot(
-    rk[int(impactDataIndex.launchA), :], 
-    rkF[int(impactDataIndex.tToTarget), :] - rkF2[int(impactDataIndex.tToTarget), :], 
-    label="rkF")
-t3, = plt.plot(
-    rk[int(impactDataIndex.launchA), :], 
-    fE[int(impactDataIndex.tToTarget), :] - rkF2[int(impactDataIndex.tToTarget), :], 
-    label="FE")
-t4, = plt.plot(
-    rk[int(impactDataIndex.launchA), :], 
-    rk[int(impactDataIndex.tToTarget), :] - rkF2[int(impactDataIndex.tToTarget), :], 
-    label="rk")
-plt.legend(handles=[t1, t2, t3, t4])
+s.calcImpactRungeKutta2()
+impacts['RungeKutta2 .0001'] = s.getImpact()
+
+ax1 = plt.subplot(311)
+ax2 = plt.subplot(312)
+ax3 = plt.subplot(313)
+
+ax1L = []
+ax2L = []
+ax3L = []
+
+for key, value in impacts.items():
+    ax1V, = ax1.plot(
+        value[impactDataIndex.launchA,:], 
+        value[impactDataIndex.distance,:] - reference[impactDataIndex.distance,:],
+        label=key)
+    ax1L.append(ax1V)
+    ax2V, = ax2.plot(
+        value[impactDataIndex.launchA,:], 
+        value[impactDataIndex.tToTarget,:] - reference[impactDataIndex.tToTarget,:],
+        label=key)
+    ax2L.append(ax2V)
+    ax3V, = ax3.plot(
+        value[impactDataIndex.launchA,:], 
+        value[impactDataIndex.ePenHN,:] - reference[impactDataIndex.ePenHN,:],
+        label=key)
+    ax3L.append(ax3V)
+
+ax1.title.set_text('Distance error - rk4 .0001 reference')
+ax1.set_xlabel('Launch Angle')
+ax1.set_ylabel('Distance error (m)')
+ax1.legend(handles=ax1L)
+ax2.title.set_text('Flight time error - rk4 .0001 reference')
+ax2.set_xlabel('Launch Angle')
+ax2.set_ylabel('Time error (s)')
+ax2.legend(handles=ax2L)
+
 plt.show()
+
