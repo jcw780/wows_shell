@@ -57,7 +57,7 @@ enum postPenDataIndex { angle, distance, x, y, z, xwf };
 static_assert(xwf == (maxColumns - 1), "Invaild postpen columns");
 } // namespace post
 
-enum numerical { forwardEuler, rungeKutta4 };
+enum numerical { forwardEuler, rungeKutta2, rungeKutta4 };
 
 class shell {
 private:                  // Description         units
@@ -477,6 +477,17 @@ private:
     }
 
     template <unsigned int dims>
+    void rungeKutta2(std::array<double, 2 * dims> &input, const double dt,
+                     const double k, const double cw_2) {
+        std::array<double, 2 *dims> intermediate = input;
+        std::array<double, 2 * dims> k1, k2;
+        k1 = calcDeltas<dims>(input, dt, k, cw_2);
+        fmaArr<2 * dims>(.5, k1, intermediate);
+        k2 = calcDeltas<dims>(intermediate, dt, k, cw_2);
+        fmaArr<2 * dims>(1, k2, input);
+    }
+
+    template <unsigned int dims>
     void rungeKutta4(std::array<double, 2 * dims> &input, const double dt,
                      const double k, const double cw_2) {
         std::array<double, 2 * dims> k1, k2, k3, k4;
@@ -503,6 +514,8 @@ private:
                          const double k, const double cw_2) {
         if constexpr (Numerical == numerical::forwardEuler) {
             forwardEuler<Dims>(input, dt, k, cw_2);
+        } else if (Numerical == numerical::rungeKutta2) {
+            rungeKutta2<Dims>(input, dt, k, cw_2);
         } else if (Numerical == numerical::rungeKutta4) {
             rungeKutta4<Dims>(input, dt, k, cw_2);
         }
@@ -544,7 +557,7 @@ private:
         if constexpr (Hybrid) {
             // This feature should only really be used with more accurate
             // numerical methods like rungekutta4
-            double dtFast = 8 * dt_min;
+            double dtFast = 10 * dt_min;
             // Use larger time step
             while (variables[singleTrajVars::y] +
                        variables[singleTrajVars::v_y] * dtFast -

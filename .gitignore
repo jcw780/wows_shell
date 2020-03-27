@@ -22,6 +22,7 @@
 
 # Cppimport Files
 *.cppimporthash
+Python/.rendered.pythonwrapper.cpp
 
 # Fortran module files
 *.mod

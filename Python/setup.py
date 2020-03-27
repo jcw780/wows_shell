@@ -1,2 +1,3 @@
-import cppimport
-cppimport.imp('pythonwrapper')
+import cppimport, os
+target = 'pythonwrapper'
+cppimport.imp(target)
