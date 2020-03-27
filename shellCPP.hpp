@@ -458,11 +458,42 @@ private:
         }
         return deltas;
     }
+
     template <std::size_t N>
-    void fmaArr(double x, std::array<double, N> y, std::array<double, N> &z) {
+    void fmaArrInplace(double x, std::array<double, N> y, std::array<double, N> &z) {
         for (unsigned int i = 0; i < N; i++) {
             z[i] = std::fma(x, y[i], z[i]);
         }
+    }
+
+    template <std::size_t N>
+    void multiplyArrInplace(double x, std::array<double, N> &z) {
+        for (unsigned int i = 0; i < N; i++) {
+            z[i] *= x;
+        }
+    }
+
+    template <std::size_t N>
+    std::array<double, N> multiplyArr(double x, std::array<double, N> z) {
+        for (unsigned int i = 0; i < N; i++) {
+            z[i] *= x;
+        }
+        return z;
+    }
+
+    template <std::size_t N>
+    void addArrInplace(std::array<double, N> x, std::array<double, N> &z) {
+        for (unsigned int i = 0; i < N; i++) {
+            z[i] += x[i];
+        }
+    }
+
+    template <std::size_t N>
+    std::array<double, N> addArr(std::array<double, N> x, std::array<double, N> z) {
+        for (unsigned int i = 0; i < N; i++) {
+            z[i] += x;
+        }
+        return z;
     }
 
     // Numerical Methods
@@ -482,9 +513,9 @@ private:
         std::array<double, 2 *dims> intermediate = input;
         std::array<double, 2 * dims> k1, k2;
         k1 = calcDeltas<dims>(input, dt, k, cw_2);
-        fmaArr<2 * dims>(.5, k1, intermediate);
+        fmaArrInplace<2 * dims>(.5, k1, intermediate);
         k2 = calcDeltas<dims>(intermediate, dt, k, cw_2);
-        fmaArr<2 * dims>(1, k2, input);
+        fmaArrInplace<2 * dims>(1, k2, input);
     }
 
     template <unsigned int dims>
@@ -493,20 +524,44 @@ private:
         std::array<double, 2 * dims> k1, k2, k3, k4;
         std::array<double, 2 *dims> intermediate = input;
         k1 = calcDeltas<dims>(input, dt, k, cw_2);
-        fmaArr<2 * dims>(.5, k1, intermediate);
+        fmaArrInplace<2 * dims>(.5, k1, intermediate);
         k2 = calcDeltas<dims>(intermediate, dt, k, cw_2);
         intermediate = input;
-        fmaArr<2 * dims>(.5, k2, intermediate);
+        fmaArrInplace<2 * dims>(.5, k2, intermediate);
         k3 = calcDeltas<dims>(intermediate, dt, k, cw_2);
         intermediate = input;
-        fmaArr<2 * dims>(1, k3, intermediate);
+        fmaArrInplace<2 * dims>(1, k3, intermediate);
         k4 = calcDeltas<dims>(intermediate, dt, k, cw_2);
+
+        fmaArrInplace<2 * dims>(2, k2, k1);
+        fmaArrInplace<2 * dims>(2, k3, k1);
+        fmaArrInplace<2 * dims>(1, k4, k1);
+        fmaArrInplace<2 * dims>((1.0 / 6.0), k1, input);
+    }
+
+    /*template <unsigned int dims>
+    void adamsBashforth5(std::array<double, 2 * dims> &input, const double dt,
+                         const double k, const double cw_2) {
+        std::array<double, 2 * dims> y1, y2, y3, y4, y5;
+        std::array<double, 2 *dims> intermediate = input;
+        k1 = addArr<dims>(input, 
+            calcDeltas<dims>(input, dt, k, cw_2));
+
+        k2 = addArr<dims>(k1, 
+            fmaArr<2 * dims>(3.0/2.0, calcDeltas<dims>(k1, dt, k, cw_2), multiplyArr(1.0/2.0, k1)));
+
+        k3 = addArr<dims>(k2, 
+            calcDeltas<dims>(intermediate, dt, k, cw_2);
+
+        k4 = calcDeltas<dims>(intermediate, dt, k, cw_2);
+
+        k5 = calcDeltas<dims>(intermediate, dt, k, cw_2);
 
         fmaArr<2 * dims>(2, k2, k1);
         fmaArr<2 * dims>(2, k3, k1);
         fmaArr<2 * dims>(1, k4, k1);
         fmaArr<2 * dims>((1.0 / 6.0), k1, input);
-    }
+    }*/
 
     // Please edit numerical enum before changing this
     template <unsigned int Numerical, unsigned int Dims>
