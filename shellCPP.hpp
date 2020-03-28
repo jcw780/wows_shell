@@ -407,23 +407,23 @@ private:
 
     // 0: x 1: y 2: v_x 3: v_y
     template <unsigned int dims>
-    std::array<double, dims * 2>
-    calcDeltas(std::array<double, dims * 2> current, const double dt,
+    void 
+    calcDeltas(const double * const current, double * const deltas, const double dt,
                const double k, const double cw_2) {
         enum position { x, y, z };
         enum velocity { v_x, v_y, v_z };
 
-        std::array<double, dims * 2> deltas;
+        //std::array<double, dims * 2> deltas;
         for (unsigned int i = 0; i < dims; i++) {
             deltas[i] = current[i + dims] * dt;
-            current[i] += deltas[i];
+            //currentL[i] += deltas[i];
         }
 
         double T, p, rho;
         // Calculating air density
-        T = t0 - L * current[position::y];
+        T = t0 - L * (current[position::y] + deltas[position::y]);
         // Calculating air temperature at altitude
-        p = p0 * pow((1 - L * current[position::y] / t0), (g * M / (R * L)));
+        p = p0 * pow((1 - L * (current[position::y] + deltas[position::y]) / t0), (g * M / (R * L)));
         // Calculating air pressure at altitude
         rho = p * M / (R * T);
         // Use ideal gas law to calculate air density
@@ -456,53 +456,59 @@ private:
         for (unsigned int i = 0; i < dims; i++) { // v -= drag * dt
             deltas[dims + i] *= (-1 * dt);
         }
-        return deltas;
+        //return deltas;
     }
 
     template <std::size_t N>
-    void fmaArrInplace(double x, std::array<double, N> y, std::array<double, N> &z) {
+    void fmaArrInplace(double x, double* y, double *z) {
         for (unsigned int i = 0; i < N; i++) {
             z[i] = std::fma(x, y[i], z[i]);
         }
     }
 
     template <std::size_t N>
-    void multiplyArrInplace(double x, std::array<double, N> &z) {
+    void fmaArr(double x, double* y, double *z, double *out) {
+        for (unsigned int i = 0; i < N; i++) {
+            out[i] = std::fma(x, y[i], z[i]);
+        }
+    }
+
+    template <std::size_t N>
+    void multiplyArrInplace(double x, double *z) {
         for (unsigned int i = 0; i < N; i++) {
             z[i] *= x;
         }
     }
 
     template <std::size_t N>
-    std::array<double, N> multiplyArr(double x, std::array<double, N> z) {
+    void multiplyArr(double x, double *z, double *output) {
         for (unsigned int i = 0; i < N; i++) {
-            z[i] *= x;
+            output[i] = x * z[i];
         }
-        return z;
     }
 
     template <std::size_t N>
-    void addArrInplace(std::array<double, N> x, std::array<double, N> &z) {
+    void addArrInplace(double* x, double *z) {
         for (unsigned int i = 0; i < N; i++) {
             z[i] += x[i];
         }
     }
 
     template <std::size_t N>
-    std::array<double, N> addArr(std::array<double, N> x, std::array<double, N> z) {
+    void addArr(double* x, double* z, double *output) {
         for (unsigned int i = 0; i < N; i++) {
-            z[i] += x;
+            output[i] = x[i] + z[i];
         }
-        return z;
     }
 
     // Numerical Methods
     template <unsigned int dims>
     void forwardEuler(std::array<double, 2 * dims> &input, const double dt,
                       const double k, const double cw_2) {
-        std::array<double, 2 *dims> delta =
-            calcDeltas<singleTrajDims>(input, dt, k, cw_2);
-        for (unsigned int i = 0; i < 2 * dims; i++) {
+        constexpr unsigned int arrSize = 2 * dims;
+        std::array<double, arrSize> delta;
+        calcDeltas<dims>(input.data(), delta.data(), dt, k, cw_2);
+        for (unsigned int i = 0; i < arrSize; i++) {
             input[i] += delta[i];
         }
     }
@@ -510,33 +516,47 @@ private:
     template <unsigned int dims>
     void rungeKutta2(std::array<double, 2 * dims> &input, const double dt,
                      const double k, const double cw_2) {
-        std::array<double, 2 *dims> intermediate = input;
-        std::array<double, 2 * dims> k1, k2;
-        k1 = calcDeltas<dims>(input, dt, k, cw_2);
-        fmaArrInplace<2 * dims>(.5, k1, intermediate);
-        k2 = calcDeltas<dims>(intermediate, dt, k, cw_2);
-        fmaArrInplace<2 * dims>(1, k2, input);
+        constexpr unsigned int arrSize = 2 * dims;
+        std::array<double, 3 * arrSize> flatArr; 
+        enum fAI{k1I, k2I, intermediateI};
+        static_assert((fAI::intermediateI + 1) * arrSize == flatArr.size());
+        double* k1 = &flatArr[fAI::k1I * arrSize];
+        double* k2 = &flatArr[fAI::k2I * arrSize];
+        double* intermediate = &flatArr[fAI::intermediateI * arrSize];
+
+        calcDeltas<dims>(input.data(), k1, dt, k, cw_2);
+        fmaArr<arrSize>(.5, k1, input.data(), intermediate);
+        calcDeltas<dims>(intermediate, k2, dt, k, cw_2);
+        addArrInplace<arrSize>(k2, input.data());
     }
 
     template <unsigned int dims>
     void rungeKutta4(std::array<double, 2 * dims> &input, const double dt,
                      const double k, const double cw_2) {
-        std::array<double, 2 * dims> k1, k2, k3, k4;
-        std::array<double, 2 *dims> intermediate = input;
-        k1 = calcDeltas<dims>(input, dt, k, cw_2);
-        fmaArrInplace<2 * dims>(.5, k1, intermediate);
-        k2 = calcDeltas<dims>(intermediate, dt, k, cw_2);
-        intermediate = input;
-        fmaArrInplace<2 * dims>(.5, k2, intermediate);
-        k3 = calcDeltas<dims>(intermediate, dt, k, cw_2);
-        intermediate = input;
-        fmaArrInplace<2 * dims>(1, k3, intermediate);
-        k4 = calcDeltas<dims>(intermediate, dt, k, cw_2);
+        constexpr unsigned int arrSize = 2 * dims;
+        std::array<double, 5 * arrSize> flatArr;
+        enum fAI{k1I, k2I, k3I, k4I, intermediateI};
+        static_assert((intermediateI + 1) * arrSize == flatArr.size());
+        double *k1 = &flatArr[fAI::k1I * arrSize];
+        double *k2 = &flatArr[fAI::k2I * arrSize];
+        double *k3 = &flatArr[fAI::k3I * arrSize];
+        double *k4 = &flatArr[fAI::k4I * arrSize];
+        double *intermediate = &flatArr[fAI::intermediateI * arrSize];
+        
+        calcDeltas<dims>(input.data(), k1, dt, k, cw_2);
+        fmaArr<arrSize>(.5, k1, input.data(), intermediate);
+        calcDeltas<dims>(intermediate, k2, dt, k, cw_2);
+        
+        fmaArr<arrSize>(.5, k2, input.data(), intermediate);
+        calcDeltas<dims>(intermediate, k3, dt, k, cw_2);
+        
+        fmaArr<arrSize>(1, k3, input.data(), intermediate);
+        calcDeltas<dims>(intermediate, k4, dt, k, cw_2);
 
-        fmaArrInplace<2 * dims>(2, k2, k1);
-        fmaArrInplace<2 * dims>(2, k3, k1);
-        fmaArrInplace<2 * dims>(1, k4, k1);
-        fmaArrInplace<2 * dims>((1.0 / 6.0), k1, input);
+        fmaArrInplace<arrSize>(2, k2, k1);
+        fmaArrInplace<arrSize>(2, k3, k1);
+        fmaArrInplace<arrSize>(1, k4, k1);
+        fmaArrInplace<arrSize>((1.0 / 6.0), k1, input.data());
     }
 
     /*template <unsigned int dims>
