@@ -59,7 +59,7 @@ static_assert(xwf == (maxColumns - 1), "Invaild postpen columns");
 
 enum numerical { 
     forwardEuler, rungeKutta2, rungeKutta4,
-    adamsBashforth5,
+    adamsBashforth5
     };
 
 class shell {
@@ -282,7 +282,7 @@ private:
     double min = 0;        // Min Angle                    | degrees
     double precision = .1; // Angle Step                   | degrees
     double x0 = 0, y0 = 0; // Starting x0, y0              | m
-    double dt_min = .01;   // Time step                    | s
+    double dt_min = .02;   // Time step                    | s
 
     // delta t (dtf) for fusing needs to be smaller than the delta t (dt) used
     // for trajectories due to the shorter distances. Otherwise results become
@@ -338,7 +338,11 @@ public:
     void set_dtf(const double dtf) { this->dtf = dtf; }
 
 private:
+    // Utility functions
     // mini 'threadpool' used to kick off multithreaded functions
+    template<typename...>
+    inline static constexpr bool dependent_false = false;
+
     template <typename O, typename F, typename... Args>
     void mtFunctionRunner(int assigned, int length, int size, O object,
                           F function, Args... args) {
@@ -408,7 +412,50 @@ private:
         }
     }
 
-    // 0: x 1: y 2: v_x 3: v_y
+    template <std::size_t N>
+    void fmaArrInplace(double x, double* y, double *z) {
+        for (unsigned int i = 0; i < N; i++) {
+            z[i] = std::fma(x, y[i], z[i]);
+        }
+    }
+
+    template <std::size_t N>
+    void fmaArr(double x, double* y, double *z, double *out) {
+        for (unsigned int i = 0; i < N; i++) {
+            out[i] = std::fma(x, y[i], z[i]);
+        }
+    }
+
+    template <std::size_t N>
+    void multiplyArrInplace(double x, double *z) {
+        for (unsigned int i = 0; i < N; i++) {
+            z[i] *= x;
+        }
+    }
+
+    template <std::size_t N>
+    void multiplyArr(double x, double *z, double *output) {
+        for (unsigned int i = 0; i < N; i++) {
+            output[i] = x * z[i];
+        }
+    }
+
+    template <std::size_t N>
+    void addArrInplace(double* x, double *z) {
+        for (unsigned int i = 0; i < N; i++) {
+            z[i] += x[i];
+        }
+    }
+
+    template <std::size_t N>
+    void addArr(double* x, double* z, double *output) {
+        for (unsigned int i = 0; i < N; i++) {
+            output[i] = x[i] + z[i];
+        }
+    }
+
+    //Numerical Analysis Methods and Dependencies
+    //Calculate changes given conditions
     template <unsigned int dims>
     void 
     calcDeltas(const double * const current, double * const deltas, const double dt,
@@ -460,48 +507,6 @@ private:
             deltas[dims + i] *= (-1 * dt);
         }
         //return deltas;
-    }
-
-    template <std::size_t N>
-    void fmaArrInplace(double x, double* y, double *z) {
-        for (unsigned int i = 0; i < N; i++) {
-            z[i] = std::fma(x, y[i], z[i]);
-        }
-    }
-
-    template <std::size_t N>
-    void fmaArr(double x, double* y, double *z, double *out) {
-        for (unsigned int i = 0; i < N; i++) {
-            out[i] = std::fma(x, y[i], z[i]);
-        }
-    }
-
-    template <std::size_t N>
-    void multiplyArrInplace(double x, double *z) {
-        for (unsigned int i = 0; i < N; i++) {
-            z[i] *= x;
-        }
-    }
-
-    template <std::size_t N>
-    void multiplyArr(double x, double *z, double *output) {
-        for (unsigned int i = 0; i < N; i++) {
-            output[i] = x * z[i];
-        }
-    }
-
-    template <std::size_t N>
-    void addArrInplace(double* x, double *z) {
-        for (unsigned int i = 0; i < N; i++) {
-            z[i] += x[i];
-        }
-    }
-
-    template <std::size_t N>
-    void addArr(double* x, double* z, double *output) {
-        for (unsigned int i = 0; i < N; i++) {
-            output[i] = x[i] + z[i];
-        }
     }
 
     // Numerical Methods
@@ -659,7 +664,7 @@ private:
         } else if (Numerical == numerical::rungeKutta4) {
             rungeKutta4<Dims>(input, dt, k, cw_2);
         } else {
-            //static_assert(false, "Missing Singlestep Function");
+            static_assert(dependent_false<Dims>, "Missing Singlestep Function");
         }
     }
 
@@ -670,7 +675,7 @@ private:
         if constexpr (Numerical == numerical::adamsBashforth5) {
             return adamsBashforth5<addTraj, Dims>(comp, tx, ty, input, dt, k, cw_2);
         } else {
-        
+            static_assert(dependent_false<Comparision>, "Missing Multistep Function");
         }
     }
 
