@@ -61,6 +61,10 @@ public:
         calc.calculateImpact<shell::numerical::forwardEuler, false>(s, false);
     }
 
+    void calcImpactAdamsBashforth5(){
+        calc.calculateImpact<shell::numerical::adamsBashforth5, false>(s, false);
+    }
+
     void calcImpactRungeKutta2() {
         calc.calculateImpact<shell::numerical::rungeKutta2, false>(s, false);
     }
@@ -184,6 +188,7 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("setDtf", &shellCombined::setDtf)
 
         .def("calcImpactForwardEuler", &shellCombined::calcImpactForwardEuler)
+        .def("calcImpactAdamsBashforth5", &shellCombined::calcImpactAdamsBashforth5)
         .def("calcImpactRungeKutta2", &shellCombined::calcImpactRungeKutta2)
         .def("calcImpactRungeKutta4", &shellCombined::calcImpactRungeKutta4)
         .def("calcImpactRungeKutta4Hybrid",

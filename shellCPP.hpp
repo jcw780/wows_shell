@@ -57,7 +57,10 @@ enum postPenDataIndex { angle, distance, x, y, z, xwf };
 static_assert(xwf == (maxColumns - 1), "Invaild postpen columns");
 } // namespace post
 
-enum numerical { forwardEuler, rungeKutta2, rungeKutta4 };
+enum numerical { 
+    forwardEuler, rungeKutta2, rungeKutta4,
+    adamsBashforth5,
+    };
 
 class shell {
 private:                  // Description         units
@@ -559,29 +562,91 @@ private:
         fmaArrInplace<arrSize>((1.0 / 6.0), k1, input.data());
     }
 
-    /*template <unsigned int dims>
-    void adamsBashforth5(std::array<double, 2 * dims> &input, const double dt,
-                         const double k, const double cw_2) {
-        std::array<double, 2 * dims> y1, y2, y3, y4, y5;
-        std::array<double, 2 *dims> intermediate = input;
-        k1 = addArr<dims>(input, 
-            calcDeltas<dims>(input, dt, k, cw_2));
+    template <bool addTraj, unsigned int dims, typename Comparision>
+    unsigned short adamsBashforth5(Comparision comp, std::vector<double>& tx, 
+                                std::vector<double>& ty, 
+                                std::array<double, 2 * dims> &input, 
+                                const double dt, const double k, 
+                                const double cw_2) {
+        constexpr unsigned int arrSize = 2 * dims;
+        std::array<double, arrSize * 5> flatArr;
+        enum fAI{d0I, d1I, d2I, d3I, d4I};
+        static_assert((d4I + 1) * arrSize == flatArr.size());
+        double *d0 = &flatArr[d0I * arrSize];
+        double *d1 = &flatArr[d1I * arrSize];
+        double *d2 = &flatArr[d2I * arrSize];
+        double *d3 = &flatArr[d3I * arrSize];
+        double *d4 = &flatArr[d4I * arrSize];
 
-        k2 = addArr<dims>(k1, 
-            fmaArr<2 * dims>(3.0/2.0, calcDeltas<dims>(k1, dt, k, cw_2), multiplyArr(1.0/2.0, k1)));
+        unsigned short counter = 0;
+        calcDeltas<dims>(input.data(), d0, dt, k, cw_2);
+        addArrInplace<arrSize>(d0, input.data());
+        counter++;
+        if constexpr(addTraj){
+            tx.push_back(input[singleTrajVars::x]);
+            ty.push_back(input[singleTrajVars::y]);
+        }
 
-        k3 = addArr<dims>(k2, 
-            calcDeltas<dims>(intermediate, dt, k, cw_2);
+        if(!(this->*comp)(input, dt)){
+            return counter;
+        }
 
-        k4 = calcDeltas<dims>(intermediate, dt, k, cw_2);
+        calcDeltas<dims>(input.data(), d1, dt, k, cw_2);
+        fmaArrInplace<arrSize>((3.0/2.0), d1, input.data());
+        fmaArrInplace<arrSize>((-1.0/2.0), d0, input.data());
+        counter++;
+        if constexpr(addTraj){
+            tx.push_back(input[singleTrajVars::x]);
+            ty.push_back(input[singleTrajVars::y]);
+        }
 
-        k5 = calcDeltas<dims>(intermediate, dt, k, cw_2);
+        if(!(this->*comp)(input, dt)){
+            return counter;
+        }
+        
+        calcDeltas<dims>(input.data(), d2, dt, k, cw_2);
+        fmaArrInplace<arrSize>((23.0/12.0), d2, input.data());
+        fmaArrInplace<arrSize>((-16.0/12.0), d1, input.data());
+        fmaArrInplace<arrSize>((5.0/12.0), d0, input.data());
+        counter++;
+        if constexpr(addTraj){
+            tx.push_back(input[singleTrajVars::x]);
+            ty.push_back(input[singleTrajVars::y]);
+        }
 
-        fmaArr<2 * dims>(2, k2, k1);
-        fmaArr<2 * dims>(2, k3, k1);
-        fmaArr<2 * dims>(1, k4, k1);
-        fmaArr<2 * dims>((1.0 / 6.0), k1, input);
-    }*/
+        if(!(this->*comp)(input, dt)){
+            return counter;
+        }
+
+        calcDeltas<dims>(input.data(), d3, dt, k, cw_2);
+        fmaArrInplace<arrSize>((55.0/24.0), d3, input.data());
+        fmaArrInplace<arrSize>((-59.0/24.0), d2, input.data());
+        fmaArrInplace<arrSize>((37.0/24.0), d1, input.data());
+        fmaArrInplace<arrSize>((-9.0/24.0), d0, input.data());
+        counter++;
+        if constexpr(addTraj){
+            tx.push_back(input[singleTrajVars::x]);
+            ty.push_back(input[singleTrajVars::y]);
+        }
+
+        if(!(this->*comp)(input, dt)){
+            return counter;
+        }
+
+        calcDeltas<dims>(input.data(), d4, dt, k, cw_2);
+        fmaArrInplace<arrSize>((1901.0/720.0), d4, input.data());
+        fmaArrInplace<arrSize>((-2774.0/720.0), d3, input.data());
+        fmaArrInplace<arrSize>((2616.0/720.0), d2, input.data());
+        fmaArrInplace<arrSize>((-1274.0/720.0), d1, input.data());
+        fmaArrInplace<arrSize>((251.0/720.0), d0, input.data());
+        counter++;
+        if constexpr(addTraj){
+            tx.push_back(input[singleTrajVars::x]);
+            ty.push_back(input[singleTrajVars::y]);
+        }
+        
+        return counter;
+    }
 
     // Please edit numerical enum before changing this
     template <unsigned int Numerical, unsigned int Dims>
@@ -593,22 +658,69 @@ private:
             rungeKutta2<Dims>(input, dt, k, cw_2);
         } else if (Numerical == numerical::rungeKutta4) {
             rungeKutta4<Dims>(input, dt, k, cw_2);
+        } else {
+            //static_assert(false, "Missing Singlestep Function");
         }
     }
+
+
+    template <bool addTraj, unsigned int Numerical, unsigned int Dims, typename Comparision>
+    unsigned int multistepMethod(Comparision comp, std::vector<double>& tx, std::vector<double>& ty, std::array<double, 4> &input, const double dt,
+                         const double k, const double cw_2) {
+        if constexpr (Numerical == numerical::adamsBashforth5) {
+            return adamsBashforth5<addTraj, Dims>(comp, tx, ty, input, dt, k, cw_2);
+        } else {
+        
+        }
+    }
+
+
+    template <unsigned int Numerical>
+    static constexpr bool isMultistep(){
+        if constexpr (Numerical == numerical::adamsBashforth5){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
     // Impact Calculations Region
     enum singleTrajVars { x, y, v_x, v_y };
     static constexpr unsigned int singleTrajDims = 2;
+
+    template <bool addTraj, unsigned int Numerical, unsigned int Dims, typename Comparision>
+    void singleTrajStep(Comparision comp, std::vector<double>& tx, std::vector<double>& ty, 
+                        std::array<double, 4> &input, double& t, const double dt,
+                        const double k, const double cw_2){
+        if constexpr(isMultistep<Numerical>()){
+            t += (dt * multistepMethod<addTraj, Numerical, Dims>(comp, tx, ty, input, dt, k, cw_2));
+        }else{
+            numericalMethod<Numerical, Dims>(input, dt, k, cw_2);
+            t += dt;
+            if constexpr(addTraj){
+                tx.push_back(input[singleTrajVars::x]);
+                ty.push_back(input[singleTrajVars::y]);
+            }
+        }
+    }
+
+    bool stopFunction(std::array<double, singleTrajDims * 2> variables, double dt){
+        return variables[singleTrajVars::y] >= 0;
+    }
+
+    bool stopFunctionHybrid(std::array<double, singleTrajDims * 2> variables, double dt){
+        return variables[singleTrajVars::y] + variables[singleTrajVars::v_y] * dt -
+               g / 2 * dt * dt >= 0;
+    }
 
     template <bool AddTraj, unsigned int Numerical, bool Hybrid>
     void singleTraj(const unsigned int i, const unsigned int j, shell &s,
                     double *vx, double *vy, double *tVec) {
         static constexpr unsigned int __TrajBuffer__ = 128;
-        // likely unnecessary - just part of a feature that was never
-        // implemented
         const double k = s.get_k();
         const double cw_2 = s.get_cw_2();
 
-        unsigned int counter = 0;
+        //unsigned int counter = 0;
         if constexpr (AddTraj) {
             s.trajectories[2 * (i + j)].clear();
             s.trajectories[2 * (i + j) + 1].clear();
@@ -621,7 +733,6 @@ private:
                 s.trajectories[2 * (i + j) + 1].reserve(__TrajBuffer__);
             }
         }
-        std::array<double, __TrajBuffer__> xT, yT;
         // setting initial values
         std::array<double, 4> variables{x0, y0, vx[j], vy[j]};
         s.trajectories[2 * (i + j)].push_back(x0);
@@ -629,61 +740,34 @@ private:
         s.trajectories[2 * (i + j) + 1].push_back(y0);
         // add y start (y0) to trajectories
         double t = 0; // t start
+
         if constexpr (Hybrid) {
             // This feature should only really be used with more accurate
             // numerical methods like rungekutta4
             double dtFast = 10 * dt_min;
             // Use larger time step
-            while (variables[singleTrajVars::y] +
-                       variables[singleTrajVars::v_y] * dtFast -
-                       g / 2 * dtFast * dtFast >=
-                   0) {
-                for (counter = 0; (counter < __TrajBuffer__) &
-                                  (variables[singleTrajVars::y] >= 0);
-                     counter++) {
+            while (stopFunctionHybrid(variables, dtFast)) {
 
-                    numericalMethod<Numerical, singleTrajDims>(variables,
-                                                               dtFast, k, cw_2);
-                    t += dtFast; // adjust time
-
-                    if constexpr (AddTraj) {
-                        xT[counter] = variables[singleTrajVars::x];
-                        yT[counter] = variables[singleTrajVars::y];
-                    }
-                }
+                /*numericalMethod<Numerical, singleTrajDims>(variables,
+                                                            dtFast, k, cw_2);
+                t += dtFast; // adjust time
                 if constexpr (AddTraj) {
-                    s.trajectories[2 * (i + j)].insert(
-                        s.trajectories[2 * (i + j)].end(), xT.data(),
-                        &xT[counter]);
-                    s.trajectories[2 * (i + j) + 1].insert(
-                        s.trajectories[2 * (i + j) + 1].end(), yT.data(),
-                        &yT[counter]);
-                }
+                    s.trajectories[2 * (i + j)].push_back(variables[singleTrajVars::x]);
+                    s.trajectories[2 * (i + j) + 1].push_back(variables[singleTrajVars::y]);
+                }*/
+                singleTrajStep<AddTraj, Numerical, singleTrajDims>(&shellCalc::stopFunctionHybrid, 
+                    s.trajectories[2 * (i + j)], s.trajectories[2 * (i + j) + 1], 
+                    variables, t, dt_min, k, cw_2);
+
             }
         }
 
-        while (variables[singleTrajVars::y] >= 0) {
-            for (counter = 0; (counter < __TrajBuffer__) &
-                              (variables[singleTrajVars::y] >= 0);
-                 counter++) {
-
-                numericalMethod<Numerical, singleTrajDims>(variables, dt_min, k,
-                                                           cw_2);
-                t += dt_min; // adjust time
-
-                if constexpr (AddTraj) {
-                    xT[counter] = variables[singleTrajVars::x];
-                    yT[counter] = variables[singleTrajVars::y];
-                }
-            }
-            if constexpr (AddTraj) {
-                s.trajectories[2 * (i + j)].insert(
-                    s.trajectories[2 * (i + j)].end(), xT.data(), &xT[counter]);
-                s.trajectories[2 * (i + j) + 1].insert(
-                    s.trajectories[2 * (i + j) + 1].end(), yT.data(),
-                    &yT[counter]);
-            }
+        while (stopFunction(variables, dt_min)) {
+            singleTrajStep<AddTraj, Numerical, singleTrajDims>(&shellCalc::stopFunction, 
+                s.trajectories[2 * (i + j)], s.trajectories[2 * (i + j) + 1], 
+                variables, t, dt_min, k, cw_2);
         }
+
         s.get_impact(i + j, impact::distance) = variables[singleTrajVars::x];
         vx[j] = variables[singleTrajVars::v_x];
         vy[j] = variables[singleTrajVars::v_y];
