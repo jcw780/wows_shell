@@ -664,7 +664,7 @@ private:
         } else if (Numerical == numerical::rungeKutta4) {
             rungeKutta4<Dims>(input, dt, k, cw_2);
         } else {
-            static_assert(dependent_false<Dims>, "Missing Singlestep Function");
+            //static_assert(dependent_false<Dims>, "Missing Singlestep Function");
         }
     }
 

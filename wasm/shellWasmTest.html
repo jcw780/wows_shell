@@ -2,23 +2,51 @@
 <html>
 
 <meta charset="UTF-8">
+<script src="https://unpkg.com/wasm-feature-detect/dist/umd/index.js"></script>
+<script type="text/javascript" src="shellWasmV.js"></script>
+<script type="text/javascript" src="shellWasm.js"></script>
 <script>
     console.log('Started');
     var safe = false;
-    var Module = {
+    var Module;
+    var instance;
+
+    wasmFeatureDetect.simd().then(simdSupported => {
+        if (simdSupported) {
+            console.log('vectorized');
+            ShellWasmV().then(function (M) {
+                console.log('Ready', M);
+                Module = M;
+                instance = new Module.shell(2);
+                console.log('Instance', instance);
+                runFunc();
+            })
+        } else {
+            console.log('unvectorized');
+            ShellWasm().then(function (M) {
+                console.log('Ready', M);
+                Module = M;
+                instance = new Module.shell(2);
+                console.log('Instance', instance);
+                runFunc();
+            })
+        }
+    });
+
+
+    /*var Module = {
         onRuntimeInitialized: function () {
 
             runFunc();
             safe = true;
         }
-    };
+    };*/
     //console.log(safe);
-    var instance;
     function runFunc() {
         console.log('Entered');
-        instance = new Module.shell(2);
-        instance.setValues(.460, 780, .292 , 1460, 2574, 6, .033, 76, 45, 60, 0);
-        instance.setValues(.220, 995, .2549,  207, 2574, 7, .022, 37, 55, 65, 1);
+        //instance = new M.shell(2);
+        instance.setValues(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0);
+        instance.setValues(.220, 995, .2549, 207, 2574, 7, .022, 37, 55, 65, 1);
         //console.log(instance);
         instance.calcImpact();
         //instance.printImpact();
@@ -30,7 +58,7 @@
         console.log("ran");
         //instance.printPostPen();
         //instance.delete();
-        for(var num = 0; num < 2; num++){
+        for (var num = 0; num < 2; num++) {
             for (var i = 0; i < instance.getImpactSize(); i++) {
                 console.log(i, instance.getAnglePoint(i, Module.angleDataIndex.distance.value, num),
                     instance.getAnglePoint(i, Module.angleDataIndex.ra0.value, num)
@@ -47,8 +75,8 @@
             }
         }
 
-        instance.setValues(.460, 780, .292 , 1460, 2574, 6, .033, 76, 45, 60, 0);
-        instance.setValues(.220, 995, .2549,  207, 2574, 7, .022, 37, 55, 65, 1);
+        instance.setValues(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0);
+        instance.setValues(.220, 995, .2549, 207, 2574, 7, .022, 37, 55, 65, 1);
         instance.calcImpact();
         console.log("ran");
         instance.calcAngles(70, -20);
@@ -57,7 +85,7 @@
         console.log("ran");
         //instance.printPostPen();
         //instance.delete();
-        for(var num = 0; num < 2; num++){
+        for (var num = 0; num < 2; num++) {
             for (var i = 0; i < instance.getImpactSize(); i++) {
                 console.log(i, instance.getAnglePoint(i, Module.angleDataIndex.distance.value, num),
                     instance.getAnglePoint(i, Module.angleDataIndex.ra0.value, num)
@@ -75,14 +103,13 @@
         }
     }
     if (safe) {
-        runFunc();
+        //runFunc();
     }
     //}
 
 
 
 </script>
-<script src="shellWasm.js"></script>
 
 <body>
     <button type="button" onclick="runFunc()">Test</button>

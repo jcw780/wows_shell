@@ -31,11 +31,34 @@ public:
                                    "");
     }
 
-    // Impact Wrappers
+    void setMax(const double max) { calc.set_max(max); }
+    void setMin(const double min) { calc.set_min(min); }
+    void setPrecision(const double precision) { calc.set_precision(precision); }
+    void setX0(const double x0) { calc.set_x0(x0); }
+    void setY0(const double y0) { calc.set_y0(y0); }
+    void setDtMin(const double dt) { calc.set_dt_min(dt); }
+    void setXf0(const double xf0) { calc.set_xf0(xf0); }
+    void setYf0(const double yf0) { calc.set_yf0(yf0); }
+    void setDtf(const double dtf) { calc.set_dtf(dtf); }
 
-    void calcImpact() {
+    // Impact Wrappers
+    // Default: Adams Bashforth 5 
+
+    void calcImpactForwardEuler() {
         for (auto &s : ships) {
-            calc.calculateImpact(s, false, 1); // atomics don't work yet
+            calc.calculateImpact<shell::numerical::forwardEuler, false>(s, false, 1); // atomics don't work yet
+        }
+    }
+
+    void calcImpactAdamsBashforth5() {
+        for (auto &s : ships) {
+            calc.calculateImpact<shell::numerical::adamsBashforth5, false>(s, false, 1); // atomics don't work yet
+        }
+    }
+
+    void calcImpactRungeKutta2() {
+        for (auto &s : ships) {
+            calc.calculateImpact<shell::numerical::rungeKutta2, false>(s, false, 1); // atomics don't work yet
         }
     }
 
@@ -148,7 +171,21 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
     emscripten::class_<shellCombined>("shell")
         .constructor<int>()
         .function("setValues", &shellCombined::setValues)
-        .function("calcImpact", &shellCombined::calcImpact)
+        .function("setMax", &shellCombined::setMax)
+        .function("setMin", &shellCombined::setMin)
+        .function("setPrecision", &shellCombined::setPrecision)
+        .function("setX0", &shellCombined::setX0)
+        .function("setY0", &shellCombined::setY0)
+        .function("setDtMin", &shellCombined::setDtMin)
+        .function("setXf0", &shellCombined::setXf0)
+        .function("setYf0", &shellCombined::setYf0)
+        .function("setDtf", &shellCombined::setDtf)
+
+        .function("calcImpact", &shellCombined::calcImpactAdamsBashforth5)
+        .function("calcImpactAdamsBashforth5", &shellCombined::calcImpactAdamsBashforth5)
+        .function("calcImpactForwardEuler", &shellCombined::calcImpactForwardEuler)
+        .function("calcImpactRungeKutta2", &shellCombined::calcImpactRungeKutta2)
+
         .function("getImpactPoint", &shellCombined::getImpactPoint)
         .function("impactData", &shellCombined::impactData)
         .function("getImpactSize", &shellCombined::impactSize)
