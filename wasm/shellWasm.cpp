@@ -31,11 +31,23 @@ public:
                                    "");
     }
 
-    // Impact Wrappers
+    void setMax(const double max) { calc.set_max(max); }
+    void setMin(const double min) { calc.set_min(min); }
+    void setPrecision(const double precision) { calc.set_precision(precision); }
+    void setX0(const double x0) { calc.set_x0(x0); }
+    void setY0(const double y0) { calc.set_y0(y0); }
+    void setDtMin(const double dt) { calc.set_dt_min(dt); }
+    void setXf0(const double xf0) { calc.set_xf0(xf0); }
+    void setYf0(const double yf0) { calc.set_yf0(yf0); }
+    void setDtf(const double dtf) { calc.set_dtf(dtf); }
 
-    void calcImpact() {
+    // Impact Wrappers
+    // Default: Adams Bashforth 5 
+
+    template<unsigned short Numerical>
+    void calcImpact(){
         for (auto &s : ships) {
-            calc.calculateImpact(s, false, 1); // atomics don't work yet
+            calc.calculateImpact<Numerical, false>(s, false, 1); // atomics don't work yet
         }
     }
 
@@ -143,12 +155,35 @@ public:
 // -O3 -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1 -s USE_PTHREADS=1 -s
 // WASM_MEM_MAX=100Mb
 
+// Vectorized
+// emcc --bind -o shellWasmV.js shellWasm.cpp --std=c++17 -O3 -s ASSERTIONS=1 
+// -s SIMD=1 -msimd128 -s MODULARIZE=1 -s 'EXPORT_NAME="ShellWasmV"'
+
+// Unvectorized
+// emcc --bind -o shellWasm.js shellWasm.cpp --std=c++17 -O3 -s ASSERTIONS=1 
+// -s MODULARIZE=1 -s 'EXPORT_NAME="ShellWasm"'
+
 // Testline: s = shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76.0, .033 )
 EMSCRIPTEN_BINDINGS(shellWasm) {
     emscripten::class_<shellCombined>("shell")
         .constructor<int>()
         .function("setValues", &shellCombined::setValues)
-        .function("calcImpact", &shellCombined::calcImpact)
+        .function("setMax", &shellCombined::setMax)
+        .function("setMin", &shellCombined::setMin)
+        .function("setPrecision", &shellCombined::setPrecision)
+        .function("setX0", &shellCombined::setX0)
+        .function("setY0", &shellCombined::setY0)
+        .function("setDtMin", &shellCombined::setDtMin)
+        .function("setXf0", &shellCombined::setXf0)
+        .function("setYf0", &shellCombined::setYf0)
+        .function("setDtf", &shellCombined::setDtf)
+
+        .function("calcImpact", &shellCombined::calcImpact<shell::numerical::adamsBashforth5>)
+        .function("calcImpactAdamsBashforth5", &shellCombined::calcImpact<shell::numerical::adamsBashforth5>)
+        .function("calcImpactForwardEuler", &shellCombined::calcImpact<shell::numerical::forwardEuler>)
+        .function("calcImpactRungeKutta2", &shellCombined::calcImpact<shell::numerical::rungeKutta2>)
+        .function("calcImpactRungeKutta4", &shellCombined::calcImpact<shell::numerical::rungeKutta4>)
+
         .function("getImpactPoint", &shellCombined::getImpactPoint)
         .function("impactData", &shellCombined::impactData)
         .function("getImpactSize", &shellCombined::impactSize)

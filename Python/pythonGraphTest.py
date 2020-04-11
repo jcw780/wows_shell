@@ -10,7 +10,7 @@ import os
 
 
 s = shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, "Yamato")
-s.calcImpact()
+s.calcImpactRungeKuttaHybrid()
 s.calcAngles(70, 0)
 angles = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60 ]
 s.calcPostPen(70, 0, angles, True, False)

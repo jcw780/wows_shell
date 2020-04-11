@@ -3,6 +3,7 @@
 
 #include "concurrentqueue/concurrentqueue.h"
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstring>
 #include <functional>
@@ -55,6 +56,11 @@ static constexpr unsigned int maxColumns = 6;
 enum postPenDataIndex { angle, distance, x, y, z, xwf };
 static_assert(xwf == (maxColumns - 1), "Invaild postpen columns");
 } // namespace post
+
+enum numerical { 
+    forwardEuler, rungeKutta2, rungeKutta4,
+    adamsBashforth5
+    };
 
 class shell {
 private:                  // Description         units
@@ -276,7 +282,7 @@ private:
     double min = 0;        // Min Angle                    | degrees
     double precision = .1; // Angle Step                   | degrees
     double x0 = 0, y0 = 0; // Starting x0, y0              | m
-    double dt = .01;       // Time step                    | s
+    double dt_min = .02;   // Time step                    | s
 
     // delta t (dtf) for fusing needs to be smaller than the delta t (dt) used
     // for trajectories due to the shorter distances. Otherwise results become
@@ -286,7 +292,7 @@ private:
 
     // For vectorization - though probably not 100% necessary anymore since
     // intrinsics were removed [intrinsics had no significant improvements in
-    // runtime]
+    // runtime] - but might still make it easier to vectorize
     static_assert(
         sizeof(double) == 8,
         "Size of double is not 8 - required for AVX2"); // Use float64
@@ -307,14 +313,15 @@ public:
     // Replace with setter in the future
     void editTestParameters(const double max, const double min,
                             const double precision, const double x0,
-                            const double y0, const double dt, const double xf0,
-                            const double yf0, const double dtf) {
+                            const double y0, const double dt_min,
+                            const double xf0, const double yf0,
+                            const double dtf) {
         this->max = max;
         this->min = min;
         this->precision = precision;
         this->x0 = x0;
         this->y0 = y0;
-        this->dt = dt;
+        this->dt_min = dt_min;
         this->xf0 = xf0;
         this->yf0 = yf0;
         this->dtf = dtf;
@@ -325,13 +332,17 @@ public:
     void set_precision(const double precision) { this->precision = precision; }
     void set_x0(const double x0) { this->x0 = x0; }
     void set_y0(const double y0) { this->y0 = y0; }
-    void set_dt(const double dt) { this->dt = dt; }
+    void set_dt_min(const double dt) { this->dt_min = dt; }
     void set_xf0(const double xf0) { this->xf0 = xf0; }
     void set_yf0(const double yf0) { this->yf0 = yf0; }
     void set_dtf(const double dtf) { this->dtf = dtf; }
 
 private:
+    // Utility functions
     // mini 'threadpool' used to kick off multithreaded functions
+    template<typename...>
+    inline static constexpr bool dependent_false = false;
+
     template <typename O, typename F, typename... Args>
     void mtFunctionRunner(int assigned, int length, int size, O object,
                           F function, Args... args) {
@@ -346,13 +357,14 @@ private:
 
     static constexpr int workQueueBufferSize = 16;
     template <bool multiThreaded, typename O, typename F, typename... Args>
-    void mtFunctionRunnerSelected(int assigned, int length, int size, O object,
-                                  F function, Args... args) {
+    void mtFunctionRunnerSelected(unsigned int assigned, unsigned int length,
+                                  unsigned int size, O object, F function,
+                                  Args... args) {
         if constexpr (multiThreaded) {
             std::atomic<int> counter{0};
             moodycamel::ConcurrentQueue<int> workQueue;
             std::vector<std::thread> threads(assigned - 1);
-            for (int i = 0; i < assigned - 1; i++) {
+            for (unsigned int i = 0; i < assigned - 1; i++) {
                 threads[i] = std::thread([&] {
                     mtWorker(counter, workQueue, length, i, object, function,
                              args...);
@@ -360,8 +372,8 @@ private:
             }
 
             int buffer[workQueueBufferSize];
-            int bCounter = 0;
-            for (int i = 0; i < size; i += vSize) {
+            unsigned int bCounter = 0;
+            for (unsigned int i = 0; i < size; i += vSize) {
                 buffer[bCounter] = i;
                 bCounter++;
                 if (bCounter == workQueueBufferSize) {
@@ -374,11 +386,11 @@ private:
             mtWorker(counter, workQueue, length, assigned - 1, object, function,
                      args...);
 
-            for (int i = 0; i < assigned - 1; i++) {
+            for (unsigned int i = 0; i < assigned - 1; i++) {
                 threads[i].join();
             }
         } else {
-            for (int i = 0; i < size; i += vSize) {
+            for (unsigned int i = 0; i < size; i += vSize) {
                 (object->*function)(i, args...);
             }
         }
@@ -400,107 +412,383 @@ private:
         }
     }
 
+    template <std::size_t N>
+    void fmaArrInplace(double x, double* y, double *z) {
+        for (unsigned int i = 0; i < N; i++) {
+            z[i] = std::fma(x, y[i], z[i]);
+        }
+    }
+
+    template <std::size_t N>
+    void fmaArr(double x, double* y, double *z, double *out) {
+        for (unsigned int i = 0; i < N; i++) {
+            out[i] = std::fma(x, y[i], z[i]);
+        }
+    }
+
+    template <std::size_t N>
+    void multiplyArrInplace(double x, double *z) {
+        for (unsigned int i = 0; i < N; i++) {
+            z[i] *= x;
+        }
+    }
+
+    template <std::size_t N>
+    void multiplyArr(double x, double *z, double *output) {
+        for (unsigned int i = 0; i < N; i++) {
+            output[i] = x * z[i];
+        }
+    }
+
+    template <std::size_t N>
+    void addArrInplace(double* x, double *z) {
+        for (unsigned int i = 0; i < N; i++) {
+            z[i] += x[i];
+        }
+    }
+
+    template <std::size_t N>
+    void addArr(double* x, double* z, double *output) {
+        for (unsigned int i = 0; i < N; i++) {
+            output[i] = x[i] + z[i];
+        }
+    }
+
+    //Numerical Analysis Methods and Dependencies
+    //Calculate changes given conditions
+    template <unsigned int dims>
+    void 
+    calcDeltas(const double * const current, double * const deltas, const double dt,
+               const double k, const double cw_2) {
+        enum position { x, y, z };
+        enum velocity { v_x, v_y, v_z };
+
+        //std::array<double, dims * 2> deltas;
+        for (unsigned int i = 0; i < dims; i++) {
+            deltas[i] = current[i + dims] * dt;
+            //currentL[i] += deltas[i];
+        }
+
+        double T, p, rho;
+        double postChangeY = current[position::y] + deltas[position::y];
+        // Calculating air density
+        T = t0 - L * postChangeY;
+        // Calculating air temperature at altitude
+        p = p0 * pow((1 - L * (postChangeY) / t0), (g * M / (R * L)));
+        // Calculating air pressure at altitude
+        rho = p * M / (R * T);
+        // Use ideal gas law to calculate air density
+
+        // Calculate drag deceleration
+        std::array<double, dims> velocitySquared;
+        for (unsigned int l = 0; l < dims; l++) {
+            velocitySquared[l] = current[dims + l] * current[dims + l];
+        } // v^2 = v * v
+
+        for (unsigned int i = 0; i < dims; i++) {
+            deltas[dims + i] = cw_1 * velocitySquared[i];
+        }
+
+        deltas[dims + velocity::v_x] += cw_2 * current[dims + velocity::v_x];
+        deltas[dims + velocity::v_y] +=
+            cw_2 * fabs(current[dims + velocity::v_y]);
+        deltas[dims + velocity::v_y] *= signum(current[dims + velocity::v_y]);
+
+        if constexpr (dims >= 3) {
+            deltas[dims + velocity::v_z] +=
+                cw_2 * current[dims + velocity::v_z];
+        }
+
+        for (unsigned int i = 0; i < dims; i++) {
+            deltas[dims + i] *= (k * rho);
+        }
+
+        deltas[dims + velocity::v_y] = g - deltas[dims + velocity::v_y];
+        for (unsigned int i = 0; i < dims; i++) { // v -= drag * dt
+            deltas[dims + i] *= (-1 * dt);
+        }
+        //return deltas;
+    }
+
+    // Numerical Methods
+    template <unsigned int dims>
+    void forwardEuler(std::array<double, 2 * dims> &input, const double dt,
+                      const double k, const double cw_2) {
+        constexpr unsigned int arrSize = 2 * dims;
+        std::array<double, arrSize> delta;
+        calcDeltas<dims>(input.data(), delta.data(), dt, k, cw_2);
+        for (unsigned int i = 0; i < arrSize; i++) {
+            input[i] += delta[i];
+        }
+    }
+
+    template <unsigned int dims>
+    void rungeKutta2(std::array<double, 2 * dims> &input, const double dt,
+                     const double k, const double cw_2) {
+        constexpr unsigned int arrSize = 2 * dims;
+        std::array<double, 3 * arrSize> flatArr; 
+        enum fAI{k1I, k2I, intermediateI};
+        static_assert((fAI::intermediateI + 1) * arrSize == flatArr.size());
+        double* k1 = &flatArr[fAI::k1I * arrSize];
+        double* k2 = &flatArr[fAI::k2I * arrSize];
+        double* intermediate = &flatArr[fAI::intermediateI * arrSize];
+
+        calcDeltas<dims>(input.data(), k1, dt, k, cw_2);
+        fmaArr<arrSize>(.5, k1, input.data(), intermediate);
+        calcDeltas<dims>(intermediate, k2, dt, k, cw_2);
+        addArrInplace<arrSize>(k2, input.data());
+    }
+
+    template <unsigned int dims>
+    void rungeKutta4(std::array<double, 2 * dims> &input, const double dt,
+                     const double k, const double cw_2) {
+        constexpr unsigned int arrSize = 2 * dims;
+        std::array<double, 5 * arrSize> flatArr;
+        enum fAI{k1I, k2I, k3I, k4I, intermediateI};
+        static_assert((intermediateI + 1) * arrSize == flatArr.size());
+        double *k1 = &flatArr[fAI::k1I * arrSize];
+        double *k2 = &flatArr[fAI::k2I * arrSize];
+        double *k3 = &flatArr[fAI::k3I * arrSize];
+        double *k4 = &flatArr[fAI::k4I * arrSize];
+        double *intermediate = &flatArr[fAI::intermediateI * arrSize];
+        
+        calcDeltas<dims>(input.data(), k1, dt, k, cw_2);
+        fmaArr<arrSize>(.5, k1, input.data(), intermediate);
+        calcDeltas<dims>(intermediate, k2, dt, k, cw_2);
+        
+        fmaArr<arrSize>(.5, k2, input.data(), intermediate);
+        calcDeltas<dims>(intermediate, k3, dt, k, cw_2);
+        
+        fmaArr<arrSize>(1, k3, input.data(), intermediate);
+        calcDeltas<dims>(intermediate, k4, dt, k, cw_2);
+
+        fmaArrInplace<arrSize>(2, k2, k1);
+        fmaArrInplace<arrSize>(2, k3, k1);
+        fmaArrInplace<arrSize>(1, k4, k1);
+        fmaArrInplace<arrSize>((1.0 / 6.0), k1, input.data());
+    }
+
+    template <bool addTraj, unsigned int dims, typename Comparision>
+    unsigned short adamsBashforth5(Comparision comp, std::vector<double>& tx, 
+                                std::vector<double>& ty, 
+                                std::array<double, 2 * dims> &input, 
+                                const double dt, const double k, 
+                                const double cw_2) {
+        constexpr unsigned int arrSize = 2 * dims;
+        std::array<double, arrSize * 5> flatArr;
+        enum fAI{d0I, d1I, d2I, d3I, d4I};
+        static_assert((d4I + 1) * arrSize == flatArr.size());
+        double *d0 = &flatArr[d0I * arrSize];
+        double *d1 = &flatArr[d1I * arrSize];
+        double *d2 = &flatArr[d2I * arrSize];
+        double *d3 = &flatArr[d3I * arrSize];
+        double *d4 = &flatArr[d4I * arrSize];
+
+        unsigned short counter = 0;
+        calcDeltas<dims>(input.data(), d0, dt, k, cw_2);
+        addArrInplace<arrSize>(d0, input.data());
+        counter++;
+        if constexpr(addTraj){
+            tx.push_back(input[singleTrajVars::x]);
+            ty.push_back(input[singleTrajVars::y]);
+        }
+
+        if(!(this->*comp)(input, dt)){
+            return counter;
+        }
+
+        calcDeltas<dims>(input.data(), d1, dt, k, cw_2);
+        fmaArrInplace<arrSize>((3.0/2.0), d1, input.data());
+        fmaArrInplace<arrSize>((-1.0/2.0), d0, input.data());
+        counter++;
+        if constexpr(addTraj){
+            tx.push_back(input[singleTrajVars::x]);
+            ty.push_back(input[singleTrajVars::y]);
+        }
+
+        if(!(this->*comp)(input, dt)){
+            return counter;
+        }
+        
+        calcDeltas<dims>(input.data(), d2, dt, k, cw_2);
+        fmaArrInplace<arrSize>((23.0/12.0), d2, input.data());
+        fmaArrInplace<arrSize>((-16.0/12.0), d1, input.data());
+        fmaArrInplace<arrSize>((5.0/12.0), d0, input.data());
+        counter++;
+        if constexpr(addTraj){
+            tx.push_back(input[singleTrajVars::x]);
+            ty.push_back(input[singleTrajVars::y]);
+        }
+
+        if(!(this->*comp)(input, dt)){
+            return counter;
+        }
+
+        calcDeltas<dims>(input.data(), d3, dt, k, cw_2);
+        fmaArrInplace<arrSize>((55.0/24.0), d3, input.data());
+        fmaArrInplace<arrSize>((-59.0/24.0), d2, input.data());
+        fmaArrInplace<arrSize>((37.0/24.0), d1, input.data());
+        fmaArrInplace<arrSize>((-9.0/24.0), d0, input.data());
+        counter++;
+        if constexpr(addTraj){
+            tx.push_back(input[singleTrajVars::x]);
+            ty.push_back(input[singleTrajVars::y]);
+        }
+
+        if(!(this->*comp)(input, dt)){
+            return counter;
+        }
+
+        calcDeltas<dims>(input.data(), d4, dt, k, cw_2);
+        fmaArrInplace<arrSize>((1901.0/720.0), d4, input.data());
+        fmaArrInplace<arrSize>((-2774.0/720.0), d3, input.data());
+        fmaArrInplace<arrSize>((2616.0/720.0), d2, input.data());
+        fmaArrInplace<arrSize>((-1274.0/720.0), d1, input.data());
+        fmaArrInplace<arrSize>((251.0/720.0), d0, input.data());
+        counter++;
+        if constexpr(addTraj){
+            tx.push_back(input[singleTrajVars::x]);
+            ty.push_back(input[singleTrajVars::y]);
+        }
+        
+        return counter;
+    }
+
+    // Please edit numerical enum before changing this
+    template <unsigned int Numerical, unsigned int Dims>
+    void numericalMethod(std::array<double, 4> &input, const double dt,
+                         const double k, const double cw_2) {
+        if constexpr (Numerical == numerical::forwardEuler) {
+            forwardEuler<Dims>(input, dt, k, cw_2);
+        } else if (Numerical == numerical::rungeKutta2) {
+            rungeKutta2<Dims>(input, dt, k, cw_2);
+        } else if (Numerical == numerical::rungeKutta4) {
+            rungeKutta4<Dims>(input, dt, k, cw_2);
+        } else {
+            //static_assert(dependent_false<Dims>, "Missing Singlestep Function");
+        }
+    }
+
+
+    template <bool addTraj, unsigned int Numerical, unsigned int Dims, typename Comparision>
+    unsigned int multistepMethod(Comparision comp, std::vector<double>& tx, std::vector<double>& ty, std::array<double, 4> &input, const double dt,
+                         const double k, const double cw_2) {
+        if constexpr (Numerical == numerical::adamsBashforth5) {
+            return adamsBashforth5<addTraj, Dims>(comp, tx, ty, input, dt, k, cw_2);
+        } else {
+            static_assert(dependent_false<Comparision>, "Missing Multistep Function");
+        }
+    }
+
+
+    template <unsigned int Numerical>
+    static constexpr bool isMultistep(){
+        if constexpr (Numerical == numerical::adamsBashforth5){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
     // Impact Calculations Region
-    template <bool AddTraj>
+    enum singleTrajVars { x, y, v_x, v_y };
+    static constexpr unsigned int singleTrajDims = 2;
+
+    template <bool addTraj, unsigned int Numerical, unsigned int Dims, typename Comparision>
+    void singleTrajStep(Comparision comp, std::vector<double>& tx, std::vector<double>& ty, 
+                        std::array<double, 4> &input, double& t, const double dt,
+                        const double k, const double cw_2){
+        if constexpr(isMultistep<Numerical>()){
+            t += (dt * multistepMethod<addTraj, Numerical, Dims>(comp, tx, ty, input, dt, k, cw_2));
+        }else{
+            numericalMethod<Numerical, Dims>(input, dt, k, cw_2);
+            t += dt;
+            if constexpr(addTraj){
+                tx.push_back(input[singleTrajVars::x]);
+                ty.push_back(input[singleTrajVars::y]);
+            }
+        }
+    }
+
+    bool stopFunction(std::array<double, singleTrajDims * 2> variables, double dt){
+        return variables[singleTrajVars::y] >= 0;
+    }
+
+    bool stopFunctionHybrid(std::array<double, singleTrajDims * 2> variables, double dt){
+        return variables[singleTrajVars::y] + variables[singleTrajVars::v_y] * dt -
+               g / 2 * dt * dt >= 0;
+    }
+
+    template <bool AddTraj, unsigned int Numerical, bool Hybrid>
     void singleTraj(const unsigned int i, const unsigned int j, shell &s,
                     double *vx, double *vy, double *tVec) {
         static constexpr unsigned int __TrajBuffer__ = 128;
-        // likely unnecessary - just part of a feature that was never
-        // implemented
         const double k = s.get_k();
         const double cw_2 = s.get_cw_2();
 
-        double T, p, rho, t; // x, y, v_x, v_y;
-        double pos[2], velocity[2];
-        int counter;
+        //unsigned int counter = 0;
         if constexpr (AddTraj) {
             s.trajectories[2 * (i + j)].clear();
             s.trajectories[2 * (i + j) + 1].clear();
 
-            if(s.trajectories[2 * (i + j)].capacity() < __TrajBuffer__){
+            if (s.trajectories[2 * (i + j)].capacity() < __TrajBuffer__) {
                 s.trajectories[2 * (i + j)].reserve(__TrajBuffer__);
             }
 
-            if(s.trajectories[2 * (i + j) + 1].capacity() < __TrajBuffer__){
+            if (s.trajectories[2 * (i + j) + 1].capacity() < __TrajBuffer__) {
                 s.trajectories[2 * (i + j) + 1].reserve(__TrajBuffer__);
             }
         }
-        double xT[__TrajBuffer__], yT[__TrajBuffer__];
-
         // setting initial values
-        velocity[0] = vx[j]; // x component of velocity v_x
-        velocity[1] = vy[j]; // y component of velocity v_y
-        pos[0] = x0;         // x start x0
-        pos[1] = y0;         // y start y0
+        std::array<double, 4> variables{x0, y0, vx[j], vy[j]};
         s.trajectories[2 * (i + j)].push_back(x0);
         // add x start (x0) to trajectories
         s.trajectories[2 * (i + j) + 1].push_back(y0);
         // add y start (y0) to trajectories
-        t = 0; // t start
+        double t = 0; // t start
 
-        while (pos[1] >= 0) {
-            for (counter = 0; (counter < __TrajBuffer__) & (pos[1] >= 0);
-                 counter++) {
-                for (int l = 0; l < 2; l++) {
-                    pos[l] += velocity[l] * dt;
-                }
+        if constexpr (Hybrid) {
+            // This feature should only really be used with more accurate
+            // numerical methods like rungekutta4
+            double dtFast = 10 * dt_min;
+            // Use larger time step
+            while (stopFunctionHybrid(variables, dtFast)) {
 
-                // Calculating air density
-                T = t0 - L * pos[1];
-                // Calculating air temperature at altitude
-                p = p0 * pow((1 - L * pos[1] / t0), (g * M / (R * L)));
-                // Calculating air pressure at altitude
-                rho = p * M / (R * T);
-                // Use ideal gas law to calculate air density
-
-                // Calculate drag deceleration
-                double dragIntermediary[2], velocitySquared[2];
-                for (int l = 0; l < 2; l++) {
-                    velocitySquared[l] =
-                        velocity[l] * velocity[l]; // v^2 = v * v
-                }
-
-                dragIntermediary[0] =
-                    k * rho * (cw_1 * velocitySquared[0] + cw_2 * velocity[0]);
-                // for horizontal (x) component
-                dragIntermediary[1] = g - k * rho *
-                                              (cw_1 * velocitySquared[1] +
-                                               cw_2 * fabs(velocity[1])) *
-                                              signum(velocity[1]);
-                // for vertical   (y) component
-
-                // Adjust for next cycle
-                for (int l = 0; l < 2; l++) { // v -= drag * dt
-                    velocity[l] -= dragIntermediary[l] * dt;
-                }
-                t += dt; // adjust time
+                /*numericalMethod<Numerical, singleTrajDims>(variables,
+                                                            dtFast, k, cw_2);
+                t += dtFast; // adjust time
                 if constexpr (AddTraj) {
-                    xT[counter] = pos[0];
-                    yT[counter] = pos[1];
-                }
-            }
-            if constexpr (AddTraj) {
-                s.trajectories[2 * (i + j)].insert(
-                    s.trajectories[2 * (i + j)].end(), xT, &xT[counter]);
-                s.trajectories[2 * (i + j) + 1].insert(
-                    s.trajectories[2 * (i + j) + 1].end(), yT, &yT[counter]);
+                    s.trajectories[2 * (i + j)].push_back(variables[singleTrajVars::x]);
+                    s.trajectories[2 * (i + j) + 1].push_back(variables[singleTrajVars::y]);
+                }*/
+                singleTrajStep<AddTraj, Numerical, singleTrajDims>(&shellCalc::stopFunctionHybrid, 
+                    s.trajectories[2 * (i + j)], s.trajectories[2 * (i + j) + 1], 
+                    variables, t, dt_min, k, cw_2);
+
             }
         }
-        s.get_impact(i + j, impact::distance) = pos[0];
-        vx[j] = velocity[0];
-        vy[j] = velocity[1];
+
+        while (stopFunction(variables, dt_min)) {
+            singleTrajStep<AddTraj, Numerical, singleTrajDims>(&shellCalc::stopFunction, 
+                s.trajectories[2 * (i + j)], s.trajectories[2 * (i + j) + 1], 
+                variables, t, dt_min, k, cw_2);
+        }
+
+        s.get_impact(i + j, impact::distance) = variables[singleTrajVars::x];
+        vx[j] = variables[singleTrajVars::v_x];
+        vy[j] = variables[singleTrajVars::v_y];
         tVec[j] = t;
     }
 
     // Several trajectories done in one chunk to allow for vectorization
-    template <bool AddTraj>
+    template <bool AddTraj, unsigned int Numerical, bool Hybrid>
     void multiTraj(const unsigned int i, shell *const shellPointer) {
         shell &s = *shellPointer;
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_normalizationR();
 
         double vx[vSize], vy[vSize], tVec[vSize];
-        for (int j = 0; j < vSize; j++) {
+        for (unsigned int j = 0; j < vSize; j++) {
             s.get_impact(i + j, impact::launchA) =
                 std::fma(precision, (i + j), min);
             double radianLaunch =
@@ -509,11 +797,11 @@ private:
             vy[j] = s.get_v0() * sin(radianLaunch);
         }
 
-        for (int j = 0; (j + i < s.impactSize) & (j < vSize); j++) {
-            singleTraj<AddTraj>(i, j, s, vx, vy, tVec);
+        for (unsigned int j = 0; (j + i < s.impactSize) & (j < vSize); j++) {
+            singleTraj<AddTraj, Numerical, Hybrid>(i, j, s, vx, vy, tVec);
         }
 
-        for (int j = 0; j < vSize; j++) {
+        for (unsigned int j = 0; j < vSize; j++) {
             double IA_R = atan(vy[j] / vx[j]);
             s.get_impact(i + j, impact::impactAHR) = IA_R;
             double IAD_R = M_PI / 2 + IA_R;
@@ -540,20 +828,21 @@ private:
     }
 
 public:
+    template <unsigned int Numerical, bool Hybrid>
     void calculateImpact(
         shell &s, bool addTraj,
         unsigned int nThreads = std::thread::hardware_concurrency()) {
         if (addTraj) {
-            calculateImpact<true>(s, nThreads);
+            calculateImpact<true, Numerical, Hybrid>(s, nThreads);
         } else {
-            calculateImpact<false>(s, nThreads);
+            calculateImpact<false, Numerical, Hybrid>(s, nThreads);
         }
     }
 
-    template <bool AddTraj>
+    template <bool AddTraj, unsigned int Numerical, bool Hybrid>
     void calculateImpact(
         shell &s, unsigned int nThreads = std::thread::hardware_concurrency()) {
-        s.impactSize = (unsigned int)(max - min) / precision;
+        s.impactSize = (unsigned int)((max - min) / precision);
         s.impactSizeAligned = vSize - (s.impactSize % vSize) + s.impactSize;
         s.trajectories.resize(2 * s.impactSize);
         s.impactData.resize(impact::maxColumns * s.impactSizeAligned);
@@ -561,33 +850,41 @@ public:
         if (nThreads > std::thread::hardware_concurrency()) {
             nThreads = std::thread::hardware_concurrency();
         }
-        int length = ceil((double)s.impactSize / vSize);
-        int assigned;
+        unsigned int length = ceil((double)s.impactSize / vSize);
+        unsigned int assigned;
         if (length > nThreads) {
             assigned = nThreads;
         } else {
             assigned = length;
         }
         mtFunctionRunner(assigned, length, s.impactSize, this,
-                         &shellCalc::multiTraj<AddTraj>, &s);
+                         &shellCalc::multiTraj<AddTraj, Numerical, Hybrid>, &s);
 
         s.completedImpact = true;
     }
 
-    // Check Angles Section
 private:
+    void checkRunImpact(shell &s) {
+        if (!s.completedImpact) {
+            std::cout << "Standard Not Calculated - Running automatically\n";
+            calculateImpact<false, numerical::forwardEuler, false>(s);
+        }
+    }
+
+    // Check Angles Section
     // template <short fusing> explanation
     // Possible Values:
     // 0 - Never Fusing
     // 1 - Check
     // 2 - Always Fusing
+    enum fuseStatus { never, check, always };
     template <short fusing>
     void multiAngles(const unsigned int i, const double thickness,
                      const double inclination_R, const double fusingAngle,
                      shell *const shellPointer) {
         static_assert(fusing <= 2 && fusing >= 0, "Invalid fusing parameter");
         shell &s = *shellPointer;
-        for (int j = 0; j < vSize; j++) {
+        for (unsigned int j = 0; j < vSize; j++) {
             double fallAngleAdjusted =
                 s.get_impact(i + j, impact::impactDataIndex::impactAHR) +
                 inclination_R;
@@ -601,10 +898,11 @@ private:
                                            ? 0
                                            : penetrationCriticalAngle;
 
-            double criticalAngles[] = {s.get_ricochet0R(), s.get_ricochet1R(),
-                                       penetrationCriticalAngle, fusingAngle};
-            double out[4];
-            for (int k = 0; k < 2; k++) {
+            std::array<double, 4> criticalAngles = {
+                s.get_ricochet0R(), s.get_ricochet1R(),
+                penetrationCriticalAngle, fusingAngle};
+            std::array<double, 4> out;
+            for (unsigned int k = 0; k < 2; k++) {
                 out[k] = acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
                 out[k] = std::isnan(out[k]) ? 0 : out[k];
             }
@@ -622,15 +920,15 @@ private:
             }
             {
                 int k = angle::fuse / 2;
-                if constexpr (fusing == 0) {
+                if constexpr (fusing == fuseStatus::never) {
                     // std::cout << "0" << fusingAngle << "\n";
                     out[k] = M_PI / 2;
-                } else if (fusing == 1) {
+                } else if (fusing == fuseStatus::check) {
                     // std::cout << "1 " << fusingAngle << "\n";
                     out[k] =
                         acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
                     out[k] = std::isnan(out[k]) ? 0 : out[k];
-                } else if (fusing == 2) {
+                } else if (fusing == fuseStatus::always) {
                     // std::cout << "2 " << fusingAngle << "\n";
                     out[k] = 0;
                 }
@@ -641,7 +939,7 @@ private:
             s.get_angle(i + j, angle::angleDataIndex::armor) = out[2];
             s.get_angle(i + j, angle::angleDataIndex::fuse) = out[3];
 
-            for (int k = 0; k < angle::maxColumns / 2; k++) {
+            for (unsigned int k = 0; k < angle::maxColumns / 2; k++) {
                 out[k] *= 180 / M_PI;
             }
 
@@ -656,17 +954,15 @@ public:
     void calculateAngles(
         const double thickness, const double inclination, shell &s,
         const unsigned int nThreads = std::thread::hardware_concurrency()) {
-        if (!s.completedImpact) {
-            std::cout << "Standard Not Calculated - Running automatically\n";
-            calculateImpact<false>(s);
-        }
+
+        checkRunImpact(s);
 
         s.angleData.resize(angle::maxColumns * s.impactSizeAligned);
         std::copy_n(s.get_impactPtr(0, impact::distance), s.impactSize,
                     s.get_anglePtr(0, angle::distance));
 
-        int assigned;
-        int length = ceil((double)s.impactSize / vSize);
+        unsigned int assigned;
+        unsigned int length = (unsigned int)ceil((double)s.impactSize / vSize);
         if (length < nThreads) {
             assigned = length;
         } else {
@@ -679,17 +975,17 @@ public:
             acos(thickness / s.get_threshold()) + s.get_normalizationR();
         if (std::isnan(fusingAngle)) {
             mtFunctionRunner(assigned, length, s.impactSize, this,
-                             &shellCalc::multiAngles<2>, thickness,
-                             inclination_R, fusingAngle, &s);
+                             &shellCalc::multiAngles<fuseStatus::always>,
+                             thickness, inclination_R, fusingAngle, &s);
         } else {
             if (fusingAngle > M_PI / 2) {
                 mtFunctionRunner(assigned, length, s.impactSize, this,
-                                 &shellCalc::multiAngles<0>, thickness,
-                                 inclination_R, fusingAngle, &s);
+                                 &shellCalc::multiAngles<fuseStatus::never>,
+                                 thickness, inclination_R, fusingAngle, &s);
             } else {
                 mtFunctionRunner(assigned, length, s.impactSize, this,
-                                 &shellCalc::multiAngles<1>, thickness,
-                                 inclination_R, fusingAngle, &s);
+                                 &shellCalc::multiAngles<fuseStatus::check>,
+                                 thickness, inclination_R, fusingAngle, &s);
             }
         }
         s.completedAngles = true;
@@ -702,13 +998,16 @@ private:
     void postPenTraj(const unsigned int i, shell &s, double v_x, double v_y,
                      double v_z, double thickness) {
         if constexpr (fast) {
-            double x = v_x * s.get_fuseTime();
+            bool positive = v_x > 0;
+            double x = v_x * s.get_fuseTime() * positive;
             s.get_postPen(i, post::x, 0) = x;
-            s.get_postPen(i, post::y, 0) = v_y * s.get_fuseTime();
-            s.get_postPen(i, post::z, 0) = v_z * s.get_fuseTime();
+            s.get_postPen(i, post::y, 0) = v_y * s.get_fuseTime() * positive;
+            s.get_postPen(i, post::z, 0) = v_z * s.get_fuseTime() * positive;
+
+            bool fuse = thickness >= s.get_threshold();
             s.get_postPen(i, post::xwf, 0) =
-                (thickness >= s.get_threshold()) * x +
-                !(thickness >= s.get_threshold()) * -1;
+                (fuse) * x +
+                !(fuse) * -1;
         } else {
             const double k = s.get_k();
             const double cw_2 = s.get_cw_2();
@@ -781,8 +1080,8 @@ private:
     }
 
     template <bool changeDirection, bool fast>
-    void multiPostPen(int i, const double thickness, const double inclination_R,
-                      shell *const shellPointer) {
+    void multiPostPen(unsigned int i, const double thickness,
+                      const double inclination_R, shell *const shellPointer) {
         shell &s = *shellPointer;
         double hAngleV[vSize], vAngleV[vSize];
         double v0V[vSize], penetrationV[vSize], eThicknessV[vSize];
@@ -823,7 +1122,7 @@ private:
             }
         }
 
-        for (int l = 0; l < vSize; l++) {
+        for (unsigned int l = 0; l < vSize; l++) {
             double HA_R = hAngleV[l] * M_PI / 180;    // lateral  angle radians
             double VA_R = vAngleV[l] + inclination_R; // vertical angle radians
             double cAngle = acos(cos(HA_R) * cos(VA_R));
@@ -857,9 +1156,10 @@ private:
     }
 
     // Probably unnecessary...
-    void fillCopy(std::atomic<int> &counter, int assigned, int id,
-                  shell *const s, std::vector<double> *angles) {
-        for (int i = angles->size() * id / assigned;
+    void fillCopy(std::atomic<int> &counter, unsigned int assigned,
+                  unsigned int id, shell *const s,
+                  std::vector<double> *angles) {
+        for (unsigned int i = angles->size() * id / assigned;
              i < angles->size() * (id + 1) / assigned; i++) {
             std::fill_n(s->get_postPenPtr(0, post::angle, i), s->impactSize,
                         (double)(*angles)[i]);
@@ -874,19 +1174,19 @@ private:
                           unsigned int nThreads) {
         std::vector<std::thread> threads;
         std::atomic<int> counter{0};
-        int assigned;
-        int length = angles->size();
+        unsigned int assigned;
+        unsigned int length = angles->size();
         if (length < nThreads) {
             assigned = length;
         } else {
             assigned = nThreads;
         }
-        for (int i = 0; i < assigned - 1; i++) {
+        for (unsigned int i = 0; i < assigned - 1; i++) {
             threads.push_back(std::thread(
                 [=, &counter] { fillCopy(counter, assigned, i, s, angles); }));
         }
         fillCopy(counter, assigned, assigned - 1, s, angles);
-        for (int i = 0; i < assigned - 1; i++) {
+        for (unsigned int i = 0; i < assigned - 1; i++) {
             threads[i].join();
         }
     }
@@ -929,18 +1229,15 @@ public:
     void calculatePostPen(const double thickness, const double inclination,
                           shell &s, std::vector<double> &angles,
                           const unsigned int nThreads) {
-        if (!s.completedImpact) {
-            std::cout << "Standard Not Calculated - Running automatically\n";
-            calculateImpact<false>(s);
-        }
+        checkRunImpact(s);
 
         s.postPenSize = s.impactSize * angles.size();
         s.postPenData.resize(6 * s.postPenSize);
 
         parallelFillCopy(&s, &angles, nThreads);
         double inclination_R = M_PI / 180 * inclination;
-        int length = ceil((double)s.postPenSize / vSize);
-        int assigned;
+        unsigned int length = ceil((double)s.postPenSize / vSize);
+        unsigned int assigned;
         if (length < nThreads) {
             assigned = length;
         } else {

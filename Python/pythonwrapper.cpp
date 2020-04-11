@@ -1,3 +1,11 @@
+/*cppimport
+<%
+cfg['compiler_args'] = ['-std=c++17', '/std:c++17', '-O3', '/Ot',
+'-march=native','/arch:AVX2']
+setup_pybind11(cfg)
+%>
+*/
+
 /*
 strdup not defined in windows
 https://github.com/pybind/pybind11/issues/1212
@@ -39,7 +47,35 @@ public:
                     threshold, ricochet0, ricochet1, name);
     }
 
-    void calcImpact() { calc.calculateImpact(s, false); }
+    void setMax(const double max) { calc.set_max(max); }
+    void setMin(const double min) { calc.set_min(min); }
+    void setPrecision(const double precision) { calc.set_precision(precision); }
+    void setX0(const double x0) { calc.set_x0(x0); }
+    void setY0(const double y0) { calc.set_y0(y0); }
+    void setDtMin(const double dt) { calc.set_dt_min(dt); }
+    void setXf0(const double xf0) { calc.set_xf0(xf0); }
+    void setYf0(const double yf0) { calc.set_yf0(yf0); }
+    void setDtf(const double dtf) { calc.set_dtf(dtf); }
+
+    void calcImpactForwardEuler() {
+        calc.calculateImpact<shell::numerical::forwardEuler, false>(s, false);
+    }
+
+    void calcImpactAdamsBashforth5(){
+        calc.calculateImpact<shell::numerical::adamsBashforth5, false>(s, false);
+    }
+
+    void calcImpactRungeKutta2() {
+        calc.calculateImpact<shell::numerical::rungeKutta2, false>(s, false);
+    }
+
+    void calcImpactRungeKutta4() {
+        calc.calculateImpact<shell::numerical::rungeKutta4, false>(s, false);
+    }
+
+    void calcImpactRungeKutta4Hybrid() {
+        calc.calculateImpact<shell::numerical::rungeKutta4, true>(s, true);
+    }
 
     void calcAngles(const double thickness, const double inclination) {
         calc.calculateAngles(thickness, inclination, s);
@@ -141,7 +177,22 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double, std::string &>())
         .def("setValues", &shellCombined::setValues)
-        .def("calcImpact", &shellCombined::calcImpact)
+        .def("setMax", &shellCombined::setMax)
+        .def("setMin", &shellCombined::setMin)
+        .def("setPrecision", &shellCombined::setPrecision)
+        .def("setX0", &shellCombined::setX0)
+        .def("setY0", &shellCombined::setY0)
+        .def("setDtMin", &shellCombined::setDtMin)
+        .def("setXf0", &shellCombined::setXf0)
+        .def("setYf0", &shellCombined::setYf0)
+        .def("setDtf", &shellCombined::setDtf)
+
+        .def("calcImpactForwardEuler", &shellCombined::calcImpactForwardEuler)
+        .def("calcImpactAdamsBashforth5", &shellCombined::calcImpactAdamsBashforth5)
+        .def("calcImpactRungeKutta2", &shellCombined::calcImpactRungeKutta2)
+        .def("calcImpactRungeKutta4", &shellCombined::calcImpactRungeKutta4)
+        .def("calcImpactRungeKutta4Hybrid",
+             &shellCombined::calcImpactRungeKutta4Hybrid)
         .def("calcAngles", &shellCombined::calcAngles)
         .def("calcPostPen", &shellCombined::calcPostPen)
         .def("getImpact", &shellCombined::getImpact)
