@@ -9,7 +9,8 @@ Shell flight path
 ### At Impact:
 Angle of Impact, Impact Velocity, Raw Belt/Deck Penetration, Penetration Adjusted for Angle of Impact and Normalization
 Shell flight time (Real / In-game)
-- Added ability to change trajectory computation method - choices: Forward Euler (original), Runge-Kutta 2 and 4, Adams-Bashforth 5
+- Added ability to change trajectory computation method 
+- choices: - Forward Euler (original) - Runge-Kutta 2 and 4 - Adams-Bashforth 5
 ### Post-Penetration:
 Shell detonation distance after penetration at various ranges, ship angling, and armor vertical inclinations
 - Some assumptiongs were made with regards to normalization changing shell direction - testing is needed
