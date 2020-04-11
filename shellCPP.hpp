@@ -857,7 +857,6 @@ public:
     void calculateImpact(
         shell &s, unsigned int nThreads = std::thread::hardware_concurrency()) {
         s.impactSize = ((max / precision - min / precision));
-        std::cout<<s.impactSize<<"\n";
         s.impactSizeAligned = vSize - (s.impactSize % vSize) + s.impactSize;
         s.trajectories.resize(2 * s.impactSize);
         s.impactData.resize(impact::maxColumns * s.impactSizeAligned);
