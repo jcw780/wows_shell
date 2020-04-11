@@ -469,6 +469,10 @@ private:
             //currentL[i] += deltas[i];
         }
 
+        /*for (unsigned int i=0; i<dims * 2; i++){
+            std::cout<<current[i]<<" ";
+        }*/
+
         double T, p, rho;
         double postChangeY = current[position::y] + deltas[position::y];
         // Calculating air density
@@ -478,7 +482,7 @@ private:
         // Calculating air pressure at altitude
         rho = p * M / (R * T);
         // Use ideal gas law to calculate air density
-
+        //std::cout<<" rho "<<rho<<" ";
         // Calculate drag deceleration
         std::array<double, dims> velocitySquared;
         for (unsigned int l = 0; l < dims; l++) {
@@ -494,6 +498,11 @@ private:
             cw_2 * fabs(current[dims + velocity::v_y]);
         deltas[dims + velocity::v_y] *= signum(current[dims + velocity::v_y]);
 
+        /*std::cout<<" DeltasIntermed ";
+        for (unsigned int i=0; i<dims * 2; i++){
+            std::cout<<deltas[i]<<" ";
+        }*/
+
         if constexpr (dims >= 3) {
             deltas[dims + velocity::v_z] +=
                 cw_2 * current[dims + velocity::v_z];
@@ -503,10 +512,15 @@ private:
             deltas[dims + i] *= (k * rho);
         }
 
-        deltas[dims + velocity::v_y] = g - deltas[dims + velocity::v_y];
+        deltas[dims + velocity::v_y] = g + deltas[dims + velocity::v_y];
         for (unsigned int i = 0; i < dims; i++) { // v -= drag * dt
             deltas[dims + i] *= (-1 * dt);
         }
+        /*std::cout<<" Deltas ";
+        for (unsigned int i=0; i<dims * 2; i++){
+            std::cout<<deltas[i]<<" ";
+        }
+        std::cout<<"\n";*/
         //return deltas;
     }
 
@@ -842,7 +856,8 @@ public:
     template <bool AddTraj, unsigned int Numerical, bool Hybrid>
     void calculateImpact(
         shell &s, unsigned int nThreads = std::thread::hardware_concurrency()) {
-        s.impactSize = (unsigned int)((max - min) / precision);
+        s.impactSize = ((max / precision - min / precision));
+        std::cout<<s.impactSize<<"\n";
         s.impactSizeAligned = vSize - (s.impactSize % vSize) + s.impactSize;
         s.trajectories.resize(2 * s.impactSize);
         s.impactData.resize(impact::maxColumns * s.impactSizeAligned);
@@ -1053,7 +1068,7 @@ private:
                     // velocitiesSquared[2, 0] + cw_2 * velocities[2, 0])
                     dragIntermediary[0] = xz_dragIntermediary[0]; // x
                     dragIntermediary[1] =
-                        (g - k * rho *
+                        (g + k * rho *
                                  (cw_1 * velocitiesSquared[1] +
                                   cw_2 * fabs(velocities[1])) *
                                  signum(velocities[1]));
