@@ -44,21 +44,10 @@ public:
     // Impact Wrappers
     // Default: Adams Bashforth 5 
 
-    void calcImpactForwardEuler() {
+    template<unsigned short Numerical>
+    void calcImpact(){
         for (auto &s : ships) {
-            calc.calculateImpact<shell::numerical::forwardEuler, false>(s, false, 1); // atomics don't work yet
-        }
-    }
-
-    void calcImpactAdamsBashforth5() {
-        for (auto &s : ships) {
-            calc.calculateImpact<shell::numerical::adamsBashforth5, false>(s, false, 1); // atomics don't work yet
-        }
-    }
-
-    void calcImpactRungeKutta2() {
-        for (auto &s : ships) {
-            calc.calculateImpact<shell::numerical::rungeKutta2, false>(s, false, 1); // atomics don't work yet
+            calc.calculateImpact<Numerical, false>(s, false, 1); // atomics don't work yet
         }
     }
 
@@ -166,6 +155,14 @@ public:
 // -O3 -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1 -s USE_PTHREADS=1 -s
 // WASM_MEM_MAX=100Mb
 
+// Vectorized
+// emcc --bind -o shellWasmV.js shellWasm.cpp --std=c++17 -O3 -s ASSERTIONS=1 
+// -s SIMD=1 -msimd128 -s MODULARIZE=1 -s 'EXPORT_NAME="ShellWasmV"'
+
+// Unvectorized
+// emcc --bind -o shellWasm.js shellWasm.cpp --std=c++17 -O3 -s ASSERTIONS=1 
+// -s MODULARIZE=1 -s 'EXPORT_NAME="ShellWasm"'
+
 // Testline: s = shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76.0, .033 )
 EMSCRIPTEN_BINDINGS(shellWasm) {
     emscripten::class_<shellCombined>("shell")
@@ -181,10 +178,11 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("setYf0", &shellCombined::setYf0)
         .function("setDtf", &shellCombined::setDtf)
 
-        .function("calcImpact", &shellCombined::calcImpactAdamsBashforth5)
-        .function("calcImpactAdamsBashforth5", &shellCombined::calcImpactAdamsBashforth5)
-        .function("calcImpactForwardEuler", &shellCombined::calcImpactForwardEuler)
-        .function("calcImpactRungeKutta2", &shellCombined::calcImpactRungeKutta2)
+        .function("calcImpact", &shellCombined::calcImpact<shell::numerical::adamsBashforth5>)
+        .function("calcImpactAdamsBashforth5", &shellCombined::calcImpact<shell::numerical::adamsBashforth5>)
+        .function("calcImpactForwardEuler", &shellCombined::calcImpact<shell::numerical::forwardEuler>)
+        .function("calcImpactRungeKutta2", &shellCombined::calcImpact<shell::numerical::rungeKutta2>)
+        .function("calcImpactRungeKutta4", &shellCombined::calcImpact<shell::numerical::rungeKutta4>)
 
         .function("getImpactPoint", &shellCombined::getImpactPoint)
         .function("impactData", &shellCombined::impactData)

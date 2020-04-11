@@ -470,10 +470,11 @@ private:
         }
 
         double T, p, rho;
+        double postChangeY = current[position::y] + deltas[position::y];
         // Calculating air density
-        T = t0 - L * (current[position::y] + deltas[position::y]);
+        T = t0 - L * postChangeY;
         // Calculating air temperature at altitude
-        p = p0 * pow((1 - L * (current[position::y] + deltas[position::y]) / t0), (g * M / (R * L)));
+        p = p0 * pow((1 - L * (postChangeY) / t0), (g * M / (R * L)));
         // Calculating air pressure at altitude
         rho = p * M / (R * T);
         // Use ideal gas law to calculate air density
@@ -997,13 +998,16 @@ private:
     void postPenTraj(const unsigned int i, shell &s, double v_x, double v_y,
                      double v_z, double thickness) {
         if constexpr (fast) {
-            double x = v_x * s.get_fuseTime();
+            bool positive = v_x > 0;
+            double x = v_x * s.get_fuseTime() * positive;
             s.get_postPen(i, post::x, 0) = x;
-            s.get_postPen(i, post::y, 0) = v_y * s.get_fuseTime();
-            s.get_postPen(i, post::z, 0) = v_z * s.get_fuseTime();
+            s.get_postPen(i, post::y, 0) = v_y * s.get_fuseTime() * positive;
+            s.get_postPen(i, post::z, 0) = v_z * s.get_fuseTime() * positive;
+
+            bool fuse = thickness >= s.get_threshold();
             s.get_postPen(i, post::xwf, 0) =
-                (thickness >= s.get_threshold()) * x +
-                !(thickness >= s.get_threshold()) * -1;
+                (fuse) * x +
+                !(fuse) * -1;
         } else {
             const double k = s.get_k();
             const double cw_2 = s.get_cw_2();
