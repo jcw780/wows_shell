@@ -277,6 +277,8 @@ private:
     double R = 8.31447;   // Ideal Gas Constant           | J/(mol K)
     double M = 0.0289644; // Molarity of Air at Sea Level | kg/mol
     double cw_1 = 1;
+    
+    double gMRL = (g * M / (R * L));
     // Calculation Parameters
     double max = 25;       // Max Angle                    | degrees
     double min = 0;        // Min Angle                    | degrees
@@ -478,7 +480,7 @@ private:
         // Calculating air density
         T = t0 - L * postChangeY;
         // Calculating air temperature at altitude
-        p = p0 * pow((1 - L * (postChangeY) / t0), (g * M / (R * L)));
+        p = p0 * pow((1 - L * (postChangeY) / t0), gMRL);
         // Calculating air pressure at altitude
         rho = p * M / (R * T);
         // Use ideal gas law to calculate air density
@@ -1048,7 +1050,7 @@ private:
                     // Calculate air density - likely unnecessary for this
                     // section as distances are so short
                     T = t0 - L * pos[1];
-                    p = p0 * pow((1 - L * pos[1] / t0), (g * M / (R * L)));
+                    p = p0 * pow((1 - L * pos[1] / t0), gMRL);
                     rho = p * M / (R * T);
 
                     // Calculated drag deceleration
