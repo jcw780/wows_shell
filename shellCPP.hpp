@@ -84,8 +84,8 @@ public:
         // condensed drag coefficient
         cw_2 = 100 + 1000 / 3 * caliber;
         // quadratic drag coefficient
-        pPPC = 0.5561613 * krupp / 2400 * pow(mass, 0.55) /
-               pow((caliber * 1000), 0.65);
+        pPPC = 0.5561613 * krupp / 2400 * pow(mass, 0.5506) /
+               pow((caliber * 1000), 0.6521);
         // condensed penetration coefficient
         normalizationR = normalization / 180 * M_PI;
         // normalization (radians)
@@ -201,6 +201,30 @@ public:
                            unsigned int impact) {
         return postPenData.data() + row + angle * postPenSize +
                impact * impactSize;
+    }
+
+    // Linear interpolate by distance
+
+    double interpolateDistanceImpact(double distance, unsigned int impact) {
+        auto iter_max = std::lower_bound(
+            get_impactPtr(0, impact::impactDataIndex::distance),
+            get_impactPtr(0, impact::impactDataIndex::distance + 1), distance);
+        double maxDistance = *iter_max;
+        unsigned int maxIndex =
+            iter_max - get_impactPtr(0, impact::impactDataIndex::distance);
+        double maxTarget = get_impact(maxIndex, impact);
+
+        auto iter_min = iter_max - 1;
+        double minDistance = *iter_min;
+        unsigned int minIndex =
+            iter_min - get_impactPtr(0, impact::impactDataIndex::distance);
+        double minTarget = get_impact(minIndex, impact);
+
+        /*std::cout << minIndex << " " << minDistance << " " << minTarget << " "
+                  << maxIndex << " " << maxDistance << " " << maxTarget << "\n";
+                  */
+        double slope = ((maxTarget - minTarget) / (maxDistance - minDistance));
+        return slope * (distance - minDistance) + minTarget;
     }
 
     // fixed
@@ -843,7 +867,7 @@ private:
             s.get_impact(i + j, impact::tToTargetA) = tVec[j] / 3.1;
 
             if constexpr (!Fit) {
-                double rawPen = pPPC * pow(IV, 1.1);
+                double rawPen = pPPC * pow(IV, 1.1001);
                 s.get_impact(i + j, impact::rawPen) = rawPen;
 
                 s.get_impact(i + j, impact::ePenH) = rawPen * cos(IA_R);
