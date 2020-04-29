@@ -203,18 +203,18 @@ int main() {
     std::vector<double> sample = {10,    15,    20,    25,    30,    35,
                                   40,    45,    16139, 21854, 26518, 30450,
                                   33558, 36119, 37884, 38720};
-    // shell::fitDrag<shell::numerical::rungeKutta2>(test, sample, 8);
+    shell::fitDrag<shell::numerical::adamsBashforth5>(test, sample, 8);
     std::cout << "cD: " << std::setprecision(10) << test.cD << "\n";
 
-    std::vector<double> penetrationData = {
+    /*std::vector<double> penetrationData = {
         4572, 9144, 13716, 18288, 22860, 27432, 32004, 36576, 38720,
         747,  664,  585,   509,   441,   380,   329,   280,   241};
 
-    shell::fitKruppNormal(test, penetrationData, 9, 50);
+    shell::fitKruppNormal(test, penetrationData, 9, 50);*/
 
     shell::shellCalc scV;
     scV.set_precision(5);
-    // scV.set_max(46.0);
+    scV.set_max(45.0);
     scV.calculateImpact<false, shell::numerical::rungeKutta2, false>(test);
     test.printImpactData();
     return 0;
