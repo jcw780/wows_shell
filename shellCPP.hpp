@@ -61,17 +61,19 @@ static_assert(xwf == (maxColumns - 1), "Invaild postpen columns");
 enum numerical { forwardEuler, rungeKutta2, rungeKutta4, adamsBashforth5 };
 
 class shell {
-public:                   // Description         units
-    double v0;            // muzzle velocity     m/s
-    double caliber;       // shell caliber       m
-    double krupp;         // shell krupp         [ndim]
-    double mass;          // shell mass          kg
-    double cD;            // coefficient of drag [ndim]
-    double normalization; // shell normalization degrees
-    double threshold;     // fusing threshold    mm
-    double fuseTime;      // fuse time           s
-    double ricochet0;     // ricochet angle 0    degrees
-    double ricochet1;     // ricochet angle 1    degrees
+public:                   // Description                units
+    double v0;            // muzzle velocity            m/s
+    double caliber;       // shell caliber              m
+    double krupp;         // shell krupp                [ndim]
+    double mass;          // shell mass                 kg
+    double cD;            // coefficient of drag        [ndim]
+    double normalization; // shell normalization        degrees
+    double threshold;     // fusing threshold           mm
+    double fuseTime;      // fuse time                  s
+    double ricochet0;     // ricochet angle 0           degrees
+    double ricochet1;     // ricochet angle 1           degrees
+    double nonAP;         // penetration of non ap ammo mm
+    bool enableNonAP;
     std::string name;
 
     double k, cw_2, pPPC, normalizationR, ricochet0R, ricochet1R;
@@ -131,16 +133,17 @@ public:
     shell(const double caliber, const double v0, const double cD,
           const double mass, const double krupp, const double normalization,
           const double fuseTime, const double threshold, const double ricochet0,
-          const double ricochet1, const std::string &name) {
+          const double ricochet1, const double nonAP, const std::string &name) {
         setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
-                  threshold, ricochet0, ricochet1, name);
+                  threshold, ricochet0, ricochet1, nonAP, name);
     }
 
     void setValues(const double caliber, const double v0, const double cD,
                    const double mass, const double krupp,
                    const double normalization, const double fuseTime,
                    const double threshold, const double ricochet0,
-                   const double ricochet1, const std::string &name) {
+                   const double ricochet1, const double nonAP,
+                   const std::string &name) {
         //                                                    Impact   PostPen
         this->fuseTime = fuseTime; // Shell fusetime        | No     | Yes
         this->v0 = v0;             // Shell muzzle velocity | Yes    | No
@@ -155,6 +158,10 @@ public:
         this->ricochet1 = ricochet1; // Ricochet Angle 1 | No     | Yes
                                      // Shell fusing threshold | No     | Yes
         this->threshold = threshold;
+        this->nonAP = nonAP;
+        if (this->nonAP > 0) {
+            this->enableNonAP = true;
+        }
 
         preProcess();
     }
@@ -833,7 +840,8 @@ private:
     }
 
     // Several trajectories done in one chunk to allow for vectorization
-    template <bool AddTraj, unsigned int Numerical, bool Hybrid, bool Fit>
+    template <bool AddTraj, unsigned int Numerical, bool Hybrid, bool Fit,
+              bool nonAP>
     void multiTraj(const unsigned int i, shell *const shellPointer) {
         shell &s = *shellPointer;
         const double pPPC = s.get_pPPC();
@@ -856,9 +864,9 @@ private:
         for (unsigned int j = 0; j < vSize; j++) {
             double IA_R = atan(vy[j] / vx[j]);
             s.get_impact(i + j, impact::impactAHR) = IA_R;
-            double IAD_R = M_PI / 2 + IA_R;
+            double IAD_R = M_PI_2 + IA_R;
             double IA_D = IA_R * 180 / M_PI;
-            s.get_impact(i + j, impact::impactAHD) = IA_D;
+            s.get_impact(i + j, impact::impactAHD) = IA_D * -1;
             s.get_impact(i + j, impact::impactADD) = 90 + IA_D;
 
             double IV = sqrt(vx[j] * vx[j] + vy[j] * vy[j]);
@@ -867,16 +875,24 @@ private:
             s.get_impact(i + j, impact::tToTargetA) = tVec[j] / 3.1;
 
             if constexpr (!Fit) {
-                double rawPen = pPPC * pow(IV, 1.1001);
-                s.get_impact(i + j, impact::rawPen) = rawPen;
+                if constexpr (nonAP) {
+                    s.get_impact(i + j, impact::rawPen) = s.nonAP;
+                    s.get_impact(i + j, impact::ePenH) = s.nonAP;
+                    s.get_impact(i + j, impact::ePenD) = s.nonAP;
+                    s.get_impact(i + j, impact::ePenHN) = s.nonAP;
+                    s.get_impact(i + j, impact::ePenDN) = s.nonAP;
+                } else {
+                    double rawPen = pPPC * pow(IV, 1.1001);
+                    s.get_impact(i + j, impact::rawPen) = rawPen;
 
-                s.get_impact(i + j, impact::ePenH) = rawPen * cos(IA_R);
-                s.get_impact(i + j, impact::ePenD) = rawPen * cos(IAD_R);
+                    s.get_impact(i + j, impact::ePenH) = rawPen * cos(IA_R);
+                    s.get_impact(i + j, impact::ePenD) = rawPen * cos(IAD_R);
 
-                s.get_impact(i + j, impact::ePenHN) =
-                    rawPen * cos(calcNormalizationR(IA_R, normalizationR));
-                s.get_impact(i + j, impact::ePenDN) =
-                    rawPen * cos(calcNormalizationR(IAD_R, normalizationR));
+                    s.get_impact(i + j, impact::ePenHN) =
+                        rawPen * cos(calcNormalizationR(IA_R, normalizationR));
+                    s.get_impact(i + j, impact::ePenDN) =
+                        rawPen * cos(calcNormalizationR(IAD_R, normalizationR));
+                }
             }
         }
     }
@@ -900,6 +916,16 @@ public:
     template <bool AddTraj, unsigned int Numerical, bool Hybrid>
     void calculateImpact(
         shell &s, unsigned int nThreads = std::thread::hardware_concurrency()) {
+        if (s.enableNonAP) {
+            calculateImpact<true, Numerical, Hybrid, true>(s, nThreads);
+        } else {
+            calculateImpact<true, Numerical, Hybrid, false>(s, nThreads);
+        }
+    }
+
+    template <bool AddTraj, unsigned int Numerical, bool Hybrid, bool nonAP>
+    void calculateImpact(
+        shell &s, unsigned int nThreads = std::thread::hardware_concurrency()) {
         s.impactSize = ((max / precision - min / precision)) + 1;
         s.impactSizeAligned = calculateAlignmentSize(s.impactSize);
         if constexpr (AddTraj) {
@@ -914,7 +940,8 @@ public:
         unsigned int assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(
             assigned, length, s.impactSize, this,
-            &shellCalc::multiTraj<AddTraj, Numerical, Hybrid, false>, &s);
+            &shellCalc::multiTraj<AddTraj, Numerical, Hybrid, false, nonAP>,
+            &s);
 
         s.completedImpact = true;
     }
@@ -948,7 +975,8 @@ private:
     // 1 - Check
     // 2 - Always Fusing
     enum fuseStatus { never, check, always };
-    template <short fusing>
+    template <short fusing, bool nonAP, bool nonAPPerforated,
+              bool disableRicochet>
     void multiAngles(const unsigned int i, const double thickness,
                      const double inclination_R, const double fusingAngle,
                      shell *const shellPointer) {
@@ -962,15 +990,28 @@ private:
                 s.get_impact(i + j, impact::impactDataIndex::rawPen);
 
             double penetrationCriticalAngle;
-            penetrationCriticalAngle =
-                (acos(thickness / rawPen) + s.get_normalizationR());
-            penetrationCriticalAngle = std::isnan(penetrationCriticalAngle)
-                                           ? 0
-                                           : penetrationCriticalAngle;
+            if constexpr (nonAP) {
+                if constexpr (nonAPPerforated) {
+                    penetrationCriticalAngle = M_PI_2;
+                } else {
+                    penetrationCriticalAngle = 0;
+                }
+            } else {
+                penetrationCriticalAngle =
+                    (acos(thickness / rawPen) + s.get_normalizationR());
+                penetrationCriticalAngle = std::isnan(penetrationCriticalAngle)
+                                               ? 0
+                                               : penetrationCriticalAngle;
+            }
 
-            std::array<double, 4> criticalAngles = {
-                s.get_ricochet0R(), s.get_ricochet1R(),
-                penetrationCriticalAngle, fusingAngle};
+            std::array<double, 4> criticalAngles;
+            if constexpr (disableRicochet) {
+                criticalAngles = {M_PI_2, M_PI_2, penetrationCriticalAngle,
+                                  fusingAngle};
+            } else {
+                criticalAngles = {s.get_ricochet0R(), s.get_ricochet1R(),
+                                  penetrationCriticalAngle, fusingAngle};
+            }
             std::array<double, 4> out;
             for (unsigned int k = 0; k < 2; k++) {
                 out[k] = acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
@@ -980,19 +1021,19 @@ private:
             // for (int k = 2; k < angle::maxColumns / 2; k++)
             {
                 int k = angle::armor / 2;
-                if (criticalAngles[k] < M_PI / 2) {
+                if (criticalAngles[k] < M_PI_2) {
                     out[k] =
                         acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
                     out[k] = std::isnan(out[k]) ? 0 : out[k];
                 } else {
-                    out[k] = M_PI / 2;
+                    out[k] = M_PI_2;
                 }
             }
             {
                 int k = angle::fuse / 2;
                 if constexpr (fusing == fuseStatus::never) {
                     // std::cout << "0" << fusingAngle << "\n";
-                    out[k] = M_PI / 2;
+                    out[k] = M_PI_2;
                 } else if (fusing == fuseStatus::check) {
                     // std::cout << "1 " << fusingAngle << "\n";
                     out[k] =
@@ -1024,6 +1065,35 @@ public:
     void calculateAngles(
         const double thickness, const double inclination, shell &s,
         const unsigned int nThreads = std::thread::hardware_concurrency()) {
+        if (s.enableNonAP) {
+            if (s.nonAP >= thickness) {
+                calculateAngles<true, true>(thickness, inclination, s,
+                                            nThreads);
+            } else {
+                calculateAngles<true, false>(thickness, inclination, s,
+                                             nThreads);
+            }
+        } else {
+            calculateAngles<false, false>(thickness, inclination, s, nThreads);
+        }
+    }
+    template <bool nonAP, bool nonAPPerforated>
+    void calculateAngles(
+        const double thickness, const double inclination, shell &s,
+        const unsigned int nThreads = std::thread::hardware_concurrency()) {
+        if (s.ricochet0 >= 90) {
+            calculateAngles<nonAP, nonAPPerforated, true>(
+                thickness, inclination, s, nThreads);
+        } else {
+            calculateAngles<nonAP, nonAPPerforated, false>(
+                thickness, inclination, s, nThreads);
+        }
+    }
+
+    template <bool nonAP, bool nonAPPerforated, bool disableRicochet>
+    void calculateAngles(
+        const double thickness, const double inclination, shell &s,
+        const unsigned int nThreads = std::thread::hardware_concurrency()) {
 
         checkRunImpact(s);
 
@@ -1039,18 +1109,24 @@ public:
         fusingAngle =
             acos(thickness / s.get_threshold()) + s.get_normalizationR();
         if (std::isnan(fusingAngle)) {
-            mtFunctionRunner(assigned, length, s.impactSize, this,
-                             &shellCalc::multiAngles<fuseStatus::always>,
-                             thickness, inclination_R, fusingAngle, &s);
+            mtFunctionRunner(
+                assigned, length, s.impactSize, this,
+                &shellCalc::multiAngles<fuseStatus::always, nonAP,
+                                        nonAPPerforated, disableRicochet>,
+                thickness, inclination_R, fusingAngle, &s);
         } else {
-            if (fusingAngle > M_PI / 2) {
-                mtFunctionRunner(assigned, length, s.impactSize, this,
-                                 &shellCalc::multiAngles<fuseStatus::never>,
-                                 thickness, inclination_R, fusingAngle, &s);
+            if (fusingAngle > M_PI_2) {
+                mtFunctionRunner(
+                    assigned, length, s.impactSize, this,
+                    &shellCalc::multiAngles<fuseStatus::never, nonAP,
+                                            nonAPPerforated, disableRicochet>,
+                    thickness, inclination_R, fusingAngle, &s);
             } else {
-                mtFunctionRunner(assigned, length, s.impactSize, this,
-                                 &shellCalc::multiAngles<fuseStatus::check>,
-                                 thickness, inclination_R, fusingAngle, &s);
+                mtFunctionRunner(
+                    assigned, length, s.impactSize, this,
+                    &shellCalc::multiAngles<fuseStatus::check, nonAP,
+                                            nonAPPerforated, disableRicochet>,
+                    thickness, inclination_R, fusingAngle, &s);
             }
         }
         s.completedAngles = true;

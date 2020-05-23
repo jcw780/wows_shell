@@ -26,10 +26,11 @@ public:
                    const double mass, const double krupp,
                    const double normalization, const double fuseTime,
                    const double threshold, const double ricochet0,
-                   const double ricochet1, const int shipIndex) {
+                   const double ricochet1, const double nonAP,
+                   const int shipIndex) {
         ships[shipIndex].setValues(caliber, v0, cD, mass, krupp, normalization,
                                    fuseTime, threshold, ricochet0, ricochet1,
-                                   "");
+                                   nonAP, "");
     }
 
     void setMax(const double max) { calc.set_max(max); }

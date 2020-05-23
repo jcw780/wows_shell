@@ -199,7 +199,7 @@ void fitKruppNormal(shell &toFit, std::vector<double> &sampleData,
 
 int main() {
     shell::shell test(.406, 762, 0.2988329237, 1225, 2520, 6, .033, 76, 45, 60,
-                      "Montana");
+                      0, "Montana");
     std::vector<double> sample = {10,    15,    20,    25,    30,    35,
                                   40,    45,    16139, 21854, 26518, 30450,
                                   33558, 36119, 37884, 38720};
