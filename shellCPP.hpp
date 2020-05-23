@@ -161,8 +161,9 @@ public:
         this->nonAP = nonAP;
         if (this->nonAP > 0) {
             this->enableNonAP = true;
+        } else {
+            this->enableNonAP = false;
         }
-
         preProcess();
     }
     // Setter Functions
