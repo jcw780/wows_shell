@@ -213,29 +213,38 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
     // Enums
     emscripten::enum_<shell::impact::impactDataIndex>("impactDataIndex")
         .value("distance", shell::impact::impactDataIndex::distance)
-        .value("launchA", shell::impact::impactDataIndex::launchA)
-        .value("impactAHR", shell::impact::impactDataIndex::impactAHR)
-        .value("impactAHD", shell::impact::impactDataIndex::impactAHD)
-        .value("impactV", shell::impact::impactDataIndex::impactV)
-        .value("rawPen", shell::impact::impactDataIndex::rawPen)
-        .value("ePenH", shell::impact::impactDataIndex::ePenH)
-        .value("ePenHN", shell::impact::impactDataIndex::ePenHN)
-        .value("impactADD", shell::impact::impactDataIndex::impactADD)
-        .value("ePenD", shell::impact::impactDataIndex::ePenD)
-        .value("ePenDN", shell::impact::impactDataIndex::ePenDN)
-        .value("tToTarget", shell::impact::impactDataIndex::tToTarget)
-        .value("tToTargetA", shell::impact::impactDataIndex::tToTargetA);
+        .value("launchA", shell::impact::impactDataIndex::launchAngle)
+        .value("impactAHR",
+               shell::impact::impactDataIndex::impactAngleHorizontalRadians)
+        .value("impactAHD",
+               shell::impact::impactDataIndex::impactAngleHorizontalDegrees)
+        .value("impactV", shell::impact::impactDataIndex::impactVelocity)
+        .value("rawPen", shell::impact::impactDataIndex::rawPenetration)
+        .value("ePenH",
+               shell::impact::impactDataIndex::effectivePenetrationHorizontal)
+        .value("ePenHN", shell::impact::impactDataIndex::
+                             effectivePenetrationHorizontalNormalized)
+        .value("impactADD",
+               shell::impact::impactDataIndex::impactAngleDeckDegrees)
+        .value("ePenD",
+               shell::impact::impactDataIndex::effectivePenetrationDeck)
+        .value(
+            "ePenDN",
+            shell::impact::impactDataIndex::effectivePenetrationDeckNormalized)
+        .value("tToTarget", shell::impact::impactDataIndex::timeToTarget)
+        .value("tToTargetA",
+               shell::impact::impactDataIndex::timeToTargetAdjusted);
 
     emscripten::enum_<shell::angle::angleDataIndex>("angleDataIndex")
         .value("distance", shell::angle::angleDataIndex::distance)
-        .value("ra0", shell::angle::angleDataIndex::ra0)
-        .value("ra0D", shell::angle::angleDataIndex::ra0D)
-        .value("ra1", shell::angle::angleDataIndex::ra1)
-        .value("ra1D", shell::angle::angleDataIndex::ra1D)
-        .value("armor", shell::angle::angleDataIndex::armor)
-        .value("armorD", shell::angle::angleDataIndex::armorD)
-        .value("fuse", shell::angle::angleDataIndex::fuse)
-        .value("fuseD", shell::angle::angleDataIndex::fuseD);
+        .value("ra0", shell::angle::angleDataIndex::ricochetAngle0Radians)
+        .value("ra0D", shell::angle::angleDataIndex::ricochetAngle0Degrees)
+        .value("ra1", shell::angle::angleDataIndex::ricochetAngle1Radians)
+        .value("ra1D", shell::angle::angleDataIndex::ricochetAngle1Degrees)
+        .value("armor", shell::angle::angleDataIndex::armorRadians)
+        .value("armorD", shell::angle::angleDataIndex::armorDegrees)
+        .value("fuse", shell::angle::angleDataIndex::fuseRadians)
+        .value("fuseD", shell::angle::angleDataIndex::fuseDegrees);
 
     emscripten::enum_<shell::post::postPenDataIndex>("postPenDataIndex")
         .value("angle", shell::post::postPenDataIndex::angle)

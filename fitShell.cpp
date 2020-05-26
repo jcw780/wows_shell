@@ -16,7 +16,7 @@ void fitDrag(shell &toFit, std::vector<double> &sampleData,
     toFit.impactSizeAligned = calculator.calculateAlignmentSize(length);
     toFit.impactData.resize(toFit.impactSizeAligned * impact::maxColumnsFit);
     std::copy_n(&sampleData[sampleDataIndex::launchA], length,
-                toFit.get_impactPtr(0, impact::impactDataIndex::launchA));
+                toFit.get_impactPtr(0, impact::impactDataIndex::launchAngle));
 
     double currentCD = .35;
     double learningRate = .000004;
@@ -43,7 +43,7 @@ void fitDrag(shell &toFit, std::vector<double> &sampleData,
 
         currentCD -= learningRate * gradient;
     }
-    toFit.set_cD(currentCD);
+    toFit.cD = currentCD;
     toFit.preProcess();
 }
 template <unsigned int Numerical>
@@ -52,11 +52,11 @@ double calculateGradient(shell &toFit, std::vector<double> &sampleData,
                          double currentCD) {
     std::array<double, 2> errors;
     static constexpr double deltaCD = .001;
-    toFit.set_cD(currentCD - deltaCD);
+    toFit.cD = (currentCD - deltaCD);
     toFit.preProcess();
     calculator.calculateFit<Numerical>(toFit);
     errors[0] = calculateErrors(toFit, sampleData, length);
-    toFit.set_cD(currentCD + deltaCD);
+    toFit.cD = (currentCD + deltaCD);
     toFit.preProcess();
     calculator.calculateFit<Numerical>(toFit);
     errors[1] = calculateErrors(toFit, sampleData, length);
@@ -136,10 +136,10 @@ void fitKruppNormal(shell &toFit, std::vector<double> &sampleData,
             sampleData[fitPenetration::index::distance * length + i];
         velocityAngleData[i] =
             pow(toFit.interpolateDistanceImpact(
-                    tgtDist, impact::impactDataIndex::impactV),
+                    tgtDist, impact::impactDataIndex::impactVelocity),
                 1.1);
         velocityAngleData[i + length] = toFit.interpolateDistanceImpact(
-            tgtDist, impact::impactDataIndex::impactAHR);
+            tgtDist, impact::impactDataIndex::impactAngleHorizontalRadians);
         std::cout << tgtDist << " " << velocityAngleData[i] << " "
                   << velocityAngleData[i + length] << "\n";
     }
@@ -199,7 +199,7 @@ void fitKruppNormal(shell &toFit, std::vector<double> &sampleData,
 
 int main() {
     shell::shell test(.406, 762, 0.2988329237, 1225, 2520, 6, .033, 76, 45, 60,
-                      "Montana");
+                      0, "Montana");
     std::vector<double> sample = {10,    15,    20,    25,    30,    35,
                                   40,    45,    16139, 21854, 26518, 30450,
                                   33558, 36119, 37884, 38720};
