@@ -11,24 +11,30 @@ Angle of Impact, Impact Velocity, Raw Belt/Deck Penetration, Penetration Adjuste
 Shell flight time (Real / In-game)
 - Added ability to change trajectory computation method 
 - Choices: - Forward Euler (original) - Runge-Kutta 2 and 4 - Adams-Bashforth 5
+### Lateral Angles: Angles where both rays are parallel to the waterline 
+- Maximum Lateral Angle for Penetration
+- Minimum Lateral Angle for Fusing
+- Ricochet Lateral Angles 
 ### Post-Penetration:
 Shell detonation distance after penetration at various ranges, ship angling, and armor vertical inclinations
 - Some assumptiongs were made with regards to normalization changing shell direction - testing is needed
 - Added ability to modify the way the calculations are done 
+### Fitting:
+- Some limited capability to fit shells to real world data generating air drag and krupp values using gradient descent. 
 ## Compatibility:
 - Requires C++17 supporting compiler
-- Should be compatible with most platforms (not extensively tested)
-- Takes advantage of multithreading and vectorization (platforms supporting these should perform better)
+- Should be compatible with most platforms (though not extensively tested)
+- Takes advantage of multithreading and vectorization (hardware supporting these should perform better if enabled)
 ## Extensions:
 ### Python 
 - Written with Pybind11 - tested with Python 3.7.4 (Anaconda)
 ### WebAssembly 
-- Written with Embind - threading does not working since atomics do not work yet
+- Uses Embind from Emscripten
+- Could use threading - though has not been tested since browsers do not natively support wasm multithreading due to Spectre/Meltdown 
 - Used in https://github.com/jcw780/wows_ballistics
 ## Future Goals:
 - Makefiles
 - Examples / Test Code Reorganization
-- New Features: Maximum lateral angle etc.
 
 
 
