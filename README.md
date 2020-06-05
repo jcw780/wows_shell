@@ -11,10 +11,11 @@ Angle of Impact, Impact Velocity, Raw Belt/Deck Penetration, Penetration Adjuste
 Shell flight time (Real / In-game)
 - Added ability to change trajectory computation method 
 - Choices: - Forward Euler (original) - Runge-Kutta 2 and 4 - Adams-Bashforth 5
-### Lateral Angles: Angles where both rays are parallel to the waterline 
-- Maximum Lateral Angle for Penetration
-- Minimum Lateral Angle for Fusing
-- Ricochet Lateral Angles 
+### Lateral Angles: 
+- Definition: Angles where that represent the horizontal angling of a ship:
+* bow-in: 90 degrees; full-broadside: 0 degrees
+- Maximum Lateral Angle for Penetration - Minimum Lateral Angle for Fusing - Ricochet Lateral Angles
+- Adjusts for angle of fall and vertical armor inclination
 ### Post-Penetration:
 Shell detonation distance after penetration at various ranges, ship angling, and armor vertical inclinations
 - Some assumptiongs were made with regards to normalization changing shell direction - testing is needed
