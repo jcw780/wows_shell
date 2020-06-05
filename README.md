@@ -13,7 +13,7 @@ Shell flight time (Real / In-game)
 - Choices: - Forward Euler (original) - Runge-Kutta 2 and 4 - Adams-Bashforth 5
 ### Lateral Angles: 
 - Definition: Angles where that represent the horizontal angling of a ship:
-  + * bow-in: 90 degrees; full-broadside: 0 degrees
+  + Bow-in: 90 degrees Full-broadside: 0 degrees
 - Maximum Lateral Angle for Penetration - Minimum Lateral Angle for Fusing - Ricochet Lateral Angles
 - Adjusts for angle of fall and vertical armor inclination
 ### Post-Penetration:
