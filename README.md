@@ -1,5 +1,9 @@
 # ShellCPP
+[![License](https://img.shields.io/github/license/jcw780/ShellCPP)](./LICENSE)
 - C++ header only library for calculating shell performance in World of Warships
+## Legal
+- All copyrighted material provided by Wargaming.net are owned by Wargaming.net.
+- All other material is available under the MIT License.
 ## Original Information / Source Code:
 - Code: https://pastebin.com/1NEwkf7R
 - Formulas: https://www.reddit.com/r/WorldOfWarships/comments/560yg2/wows_ballistic_model_penetration/
