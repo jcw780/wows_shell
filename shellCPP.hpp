@@ -19,11 +19,11 @@ static constexpr unsigned int maxColumnsFit = 7;
 enum impactDataIndex {
     distance,
     launchAngle,
-    impactAngleHorizontalRadians,
-    impactAngleHorizontalDegrees,
+    impactAngleHorizontalRadians, // Negative for Falling
+    impactAngleHorizontalDegrees, // Positive for Falling
     impactVelocity,
     timeToTarget,
-    timeToTargetAdjusted,
+    timeToTargetAdjusted, // Adjusted for in game shell time
     rawPenetration,
     effectivePenetrationHorizontal,
     effectivePenetrationHorizontalNormalized,
@@ -1124,6 +1124,7 @@ private:
     template <bool fast>
     void postPenTraj(const unsigned int i, shell &s, double v_x, double v_y,
                      double v_z, double thickness) {
+        const double notFusedCode = -1;
         if constexpr (fast) {
             bool positive = v_x > 0;
             double x = v_x * s.fuseTime * positive;
@@ -1132,7 +1133,7 @@ private:
             s.get_postPen(i, post::z, 0) = v_z * s.fuseTime * positive;
 
             bool fuse = thickness >= s.threshold;
-            s.get_postPen(i, post::xwf, 0) = (fuse)*x + !(fuse) * -1;
+            s.get_postPen(i, post::xwf, 0) = (fuse)*x + !(fuse)*notFusedCode;
         } else {
             const double k = s.get_k();
             const double cw_2 = s.get_cw_2();
@@ -1194,7 +1195,7 @@ private:
                 s.get_postPen(i, post::z, 0) = pos[2];
                 s.get_postPen(i, post::xwf, 0) =
                     (thickness >= s.threshold) * pos[0] +
-                    !(thickness >= s.threshold) * -1;
+                    !(thickness >= s.threshold) * notFusedCode;
             } else {
                 s.get_postPen(i, post::x, 0) = 0;
                 s.get_postPen(i, post::y, 0) = 0;
