@@ -830,12 +830,14 @@ private:
         }
         for (unsigned int j = 0; j < vSize; j++) {
             double IA_R = atan(vy[j] / vx[j]);
+
             s.get_impact(i + j, impact::impactAngleHorizontalRadians) = IA_R;
             double IAD_R = M_PI_2 + IA_R;
             double IA_D = IA_R * 180 / M_PI;
             s.get_impact(i + j, impact::impactAngleHorizontalDegrees) =
                 IA_D * -1;
             s.get_impact(i + j, impact::impactAngleDeckDegrees) = 90 + IA_D;
+
 
             double IV = sqrt(vx[j] * vx[j] + vy[j] * vy[j]);
             s.get_impact(i + j, impact::impactVelocity) = IV;
@@ -844,6 +846,7 @@ private:
 
             if constexpr (!Fit) {
                 if constexpr (nonAP) {
+
                     s.get_impact(i + j, impact::rawPenetration) = s.nonAP;
                     s.get_impact(i + j,
                                  impact::effectivePenetrationHorizontal) =
@@ -877,6 +880,7 @@ private:
                                  impact::effectivePenetrationDeckNormalized) =
                         rawPenetration *
                         cos(calcNormalizationR(IAD_R, normalizationR));
+
                 }
             }
         }
@@ -985,7 +989,9 @@ private:
                 }
             } else {
                 penetrationCriticalAngle =
+
                     (acos(thickness / rawPenetration) + s.get_normalizationR());
+
                 penetrationCriticalAngle = std::isnan(penetrationCriticalAngle)
                                                ? 0
                                                : penetrationCriticalAngle;
@@ -996,7 +1002,9 @@ private:
                 criticalAngles = {M_PI_2, M_PI_2, penetrationCriticalAngle,
                                   fusingAngle};
             } else {
+
                 criticalAngles = {s.ricochet0R, s.ricochet1R,
+
                                   penetrationCriticalAngle, fusingAngle};
             }
             std::array<double, 4> out;
@@ -1006,7 +1014,9 @@ private:
             }
 
             {
+
                 int k = angle::armorRadians / 2;
+
                 if (criticalAngles[k] < M_PI_2) {
                     out[k] =
                         acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
@@ -1018,6 +1028,8 @@ private:
             {
                 int k = angle::fuseRadians / 2;
                 if constexpr (fusing == fuseStatus::never) {
+
+
                     out[k] = M_PI_2;
                 } else if (fusing == fuseStatus::check) {
                     out[k] =
