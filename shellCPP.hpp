@@ -862,7 +862,14 @@ class shellCalc {
 
    public:
     unsigned int calculateAlignmentSize(unsigned int unalignedSize) {
-        return vSize - (unalignedSize % vSize) + unalignedSize;
+        //leave extra space to allow for copies into the region
+        //ex: | 0, 1, 2, 3, 4, 5 | -> | 0, 1, 2, 3, 4, 5 |, 0, 1, 2 + padding
+        //allows for easier vectorization of code that uses this data
+        int processedSize = unalignedSize;
+        if(processedSize % vSize != 0){
+            processedSize += vSize - 1;
+        }
+        return vSize - (processedSize % vSize) + processedSize;
     }
     // Templates to reduce branching
     template <unsigned int Numerical, bool Hybrid>
@@ -1196,41 +1203,15 @@ class shellCalc {
         unsigned int anglesIndex = i / s.impactSize;
 
         unsigned int j, k = 0;
-
-        if (i + vSize <= s.postPenSize) {
-            std::copy_n(s.get_postPenPtr(i, post::angle, 0), vSize, hAngleV);
-        } else {
-            for (j = 0; (i + j) < s.postPenSize; j++) {
-                hAngleV[j] = s.postPenData[i + j];
-            }
-        }
-
-        if (distIndex < s.impactSize - vSize + 1) {
-            std::copy_n(s.get_impactPtr(distIndex,
-                                        impact::impactAngleHorizontalRadians),
-                        vSize, vAngleV);
-            std::copy_n(s.get_impactPtr(distIndex, impact::rawPenetration),
-                        vSize, penetrationV);
-            std::copy_n(s.get_impactPtr(distIndex, impact::impactVelocity),
-                        vSize, v0V);
-        } else {
-            for (j = 0; (j + distIndex < s.impactSize) && (j < vSize); j++) {
-                vAngleV[j] = s.get_impact(distIndex + j,
-                                          impact::impactAngleHorizontalRadians);
-                penetrationV[j] =
-                    s.get_impact(distIndex + j, impact::rawPenetration);
-                v0V[j] = s.get_impact(distIndex + j, impact::impactVelocity);
-            }
-            if (anglesIndex < s.postPenSize / s.impactSize) {
-                for (; (j < vSize); j++) {
-                    vAngleV[j] =
-                        s.get_impact(k, impact::impactAngleHorizontalRadians);
-                    penetrationV[j] = s.get_impact(k, impact::rawPenetration);
-                    v0V[j] = s.get_impact(k, impact::impactVelocity);
-                    k++;
-                }
-            }
-        }
+        std::copy_n(s.get_postPenPtr(i, post::angle, 0), 
+                    std::min(vSize, s.postPenSize - i), hAngleV);
+        std::copy_n(s.get_impactPtr(distIndex,
+                                    impact::impactAngleHorizontalRadians),
+                    vSize, vAngleV);
+        std::copy_n(s.get_impactPtr(distIndex, impact::rawPenetration),
+                    vSize, penetrationV);
+        std::copy_n(s.get_impactPtr(distIndex, impact::impactVelocity),
+                    vSize, v0V);
 
         for (unsigned int l = 0; l < vSize; l++) {
             double HA_R = hAngleV[l] * M_PI / 180;     // lateral  angle radians
@@ -1340,7 +1321,18 @@ class shellCalc {
         s.postPenSize = s.impactSize * angles.size();
         s.postPenData.resize(6 * s.postPenSize);
 
-        parallelFillCopy(&s, &angles, nThreads);
+        parallelFillCopy(&s, &angles, nThreads / 2);
+        //copies vSize - 1 from front - to avoid branching in hot loop
+        std::copy_n(
+            s.get_impactPtr(impact::impactAngleHorizontalRadians, 0), vSize - 1, 
+            s.get_impactPtr(impact::impactAngleHorizontalRadians, s.impactSize));
+        std::copy_n(
+            s.get_impactPtr(impact::impactVelocity, 0), vSize - 1, 
+            s.get_impactPtr(impact::impactVelocity, s.impactSize));
+        std::copy_n(
+            s.get_impactPtr(impact::rawPenetration, 0), vSize - 1, 
+            s.get_impactPtr(impact::rawPenetration, s.impactSize));
+
         double inclination_R = M_PI / 180 * inclination;
         unsigned int length = ceil((double)s.postPenSize / vSize);
         unsigned int assigned = assignThreadNum(length, nThreads);

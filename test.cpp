@@ -43,12 +43,12 @@ void runtime() {
 
     sc.calculateAngles(70, 0, *test);
 
-    test->printImpactData();
+    //test->printImpactData();
     // std::cout << test->interpolateDistanceImpact(
     //                 30000, shell::impact::impactDataIndex::rawPen)
     //          << "\n";
     // test->printTrajectory(0);
-    // test->printPostPenData();
+    test->printPostPenData();
     //test->printAngleData();
 
     std::cout << std::fixed << std::setprecision(10)
