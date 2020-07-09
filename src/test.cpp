@@ -34,7 +34,7 @@ void runtime() {
     // std::cout << "completed" << std::endl;
     // test.calculateStd();
 
-    std::vector<double> angle = {0, 10};
+    std::vector<double> angle = {0, 5, 10};
     // std::cout<<"Started\n";
     auto t1 = std::chrono::high_resolution_clock::now();
     sc.calculatePostPen(70, 0, *test, angle, true, true);
@@ -47,8 +47,8 @@ void runtime() {
     //                 30000, shell::impact::impactDataIndex::rawPen)
     //          << "\n";
     // test->printTrajectory(0);
-    //test->printPostPenData();
-    test->printAngleData();
+    test->printPostPenData();
+    //test->printAngleData();
 
     std::cout << std::fixed << std::setprecision(10)
               << total / runs / 1000000000 << std::endl;

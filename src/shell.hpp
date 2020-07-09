@@ -1,8 +1,7 @@
 #ifndef _SHELL_WOWS_HPP_
 #define _SHELL_WOWS_HPP_
 
-#ifndef _USE_MATH_DEFINES
-#endif
+#define _USE_MATH_DEFINES
 #include <cmath>
 #include <algorithm>
 #include <string>

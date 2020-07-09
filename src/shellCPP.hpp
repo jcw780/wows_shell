@@ -1,8 +1,13 @@
+#ifndef _SHELL_WOWS_CALC_HPP_
+#define _SHELL_WOWS_CALC_HPP_
+
 #define _USE_MATH_DEFINES
+#include <cmath>
+
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <cmath>
+
 #include <iomanip>
 #include <iostream>
 #include <string>
@@ -515,7 +520,7 @@ class shellCalc {
                 }
             }
             return any;
-        }
+        };
 
         while(checkContinue){
             for(unsigned int i=0; i< vSize; i++){
@@ -667,7 +672,7 @@ class shellCalc {
         unsigned int length = ceil((double)s.impactSize / vSize);
         unsigned int assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(assigned, length, s.impactSize, this,
-                         &shellCalc::multiTraj<false, Numerical, false, true>,
+                         &shellCalc::impactGroup<false, Numerical, false, true>,
                          &s);
     }
 
@@ -1065,18 +1070,24 @@ class shellCalc {
         s.postPenSize = s.impactSize * angles.size();
         s.postPenData.resize(6 * s.postPenSize);
 
-        parallelFillCopy(&s, &angles, nThreads / 2);
+        parallelFillCopy(&s, &angles, nThreads);
         //copies vSize - 1 from front - to avoid branching in hot loop
         std::copy_n(
-            s.get_impactPtr(impact::impactAngleHorizontalRadians, 0), vSize - 1, 
-            s.get_impactPtr(impact::impactAngleHorizontalRadians, s.impactSize));
+            s.get_impactPtr(0, impact::impactAngleHorizontalRadians), vSize - 1, 
+            s.get_impactPtr(s.impactSize, impact::impactAngleHorizontalRadians));
         std::copy_n(
-            s.get_impactPtr(impact::impactVelocity, 0), vSize - 1, 
-            s.get_impactPtr(impact::impactVelocity, s.impactSize));
+            s.get_impactPtr(0, impact::impactVelocity), vSize - 1, 
+            s.get_impactPtr(s.impactSize, impact::impactVelocity));
         std::copy_n(
-            s.get_impactPtr(impact::rawPenetration, 0), vSize - 1, 
-            s.get_impactPtr(impact::rawPenetration, s.impactSize));
-
+            s.get_impactPtr(0, impact::rawPenetration), vSize - 1, 
+            s.get_impactPtr(s.impactSize, impact::rawPenetration));
+        /*std::cout<<vSize<<"\n";
+        for(int i=0; i<s.impactSizeAligned; i++){
+            for(int j=0; j<impact::maxColumns; j++){
+                std::cout<<s.get_impact(i, j)<<" ";
+            }
+            std::cout<<"\n";
+        }*/
         double inclination_R = M_PI / 180 * inclination;
         unsigned int length = ceil((double)s.postPenSize / vSize);
         unsigned int assigned = assignThreadNum(length, nThreads);
@@ -1089,3 +1100,4 @@ class shellCalc {
 };
 
 }  // namespace shell
+#endif
