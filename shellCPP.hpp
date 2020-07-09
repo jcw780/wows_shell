@@ -143,6 +143,8 @@ class shellCalc {
             if(index < length){
                 //std::cout<<index<<"\n";
                 (object->*function)(index * vSize, args...);
+            }else{
+                break;
             }
         }
     }
@@ -820,7 +822,11 @@ class shellCalc {
 
         double inclination_R = inclination / 180 * M_PI;
         double fusingAngle;
-        fusingAngle = acos(thickness / s.threshold) + s.get_normalizationR();
+        if(thickness >= s.threshold){
+            fusingAngle = 0;
+        }else{
+            fusingAngle = acos(thickness / s.threshold) + s.get_normalizationR();
+        }
         if (std::isnan(fusingAngle)) {
             mtFunctionRunner(
                 assigned, length, s.impactSize, this,
