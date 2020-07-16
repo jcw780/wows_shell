@@ -1,5 +1,8 @@
-#include <cmath>
+#ifndef _UTILITY_WOWS_HPP_
+#define _UTILITY_WOWS_HPP_
 
+#define _USE_MATH_DEFINES
+#include <cmath>
 namespace shell{
     namespace utility{
         template <std::size_t N>
@@ -45,3 +48,4 @@ namespace shell{
         }
     }
 }
+#endif
