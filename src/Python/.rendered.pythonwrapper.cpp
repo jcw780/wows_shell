@@ -29,18 +29,18 @@ public:
                   const double mass, const double krupp,
                   const double normalization, const double fuseTime,
                   const double threshold, const double ricochet0,
-                  const double ricochet1, const std::string &name) {
+                  const double ricochet1, const double nonAP, const std::string &name) {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
-                    threshold, ricochet0, ricochet1, name);
+                    threshold, ricochet0, ricochet1, nonAP, name);
     }
 
     void setValues(const double caliber, const double v0, const double cD,
                    const double mass, const double krupp,
                    const double normalization, const double fuseTime,
                    const double threshold, const double ricochet0,
-                   const double ricochet1, const std::string &name) {
+                   const double ricochet1, const double nonAP, const std::string &name) {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
-                    threshold, ricochet0, ricochet1, name);
+                    threshold, ricochet0, ricochet1, nonAP, name);
     }
 
     void setMax(const double max) { calc.set_max(max); }
@@ -57,8 +57,9 @@ public:
         calc.calculateImpact<shell::numerical::forwardEuler, false>(s, false);
     }
 
-    void calcImpactAdamsBashforth5(){
-        calc.calculateImpact<shell::numerical::adamsBashforth5, false>(s, false);
+    void calcImpactAdamsBashforth5() {
+        calc.calculateImpact<shell::numerical::adamsBashforth5, false>(s,
+                                                                       false);
     }
 
     void calcImpactRungeKutta2() {
@@ -106,6 +107,10 @@ public:
         } else {
             throw std::runtime_error("PostPen data not generated");
         }
+    }
+
+    double interpolateDistanceImpact(double distance, unsigned int impact){
+        return s.interpolateDistanceImpact(distance, impact);
     }
 
     pybind11::array_t<double> getImpact() {
@@ -171,7 +176,7 @@ public:
 PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::class_<shellCombined>(m, "shell", pybind11::buffer_protocol())
         .def(pybind11::init<double, double, double, double, double, double,
-                            double, double, double, double, std::string &>())
+                            double, double, double, double, double, std::string &>())
         .def("setValues", &shellCombined::setValues)
         .def("setMax", &shellCombined::setMax)
         .def("setMin", &shellCombined::setMin)
@@ -184,13 +189,15 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("setDtf", &shellCombined::setDtf)
 
         .def("calcImpactForwardEuler", &shellCombined::calcImpactForwardEuler)
-        .def("calcImpactAdamsBashforth5", &shellCombined::calcImpactAdamsBashforth5)
+        .def("calcImpactAdamsBashforth5",
+             &shellCombined::calcImpactAdamsBashforth5)
         .def("calcImpactRungeKutta2", &shellCombined::calcImpactRungeKutta2)
         .def("calcImpactRungeKutta4", &shellCombined::calcImpactRungeKutta4)
         .def("calcImpactRungeKutta4Hybrid",
              &shellCombined::calcImpactRungeKutta4Hybrid)
         .def("calcAngles", &shellCombined::calcAngles)
         .def("calcPostPen", &shellCombined::calcPostPen)
+        .def("interpolateDistanceImpact", &shellCombined::interpolateDistanceImpact)
         .def("getImpact", &shellCombined::getImpact)
         // pybind11::return_value_policy::reference)
         .def("getAngles", &shellCombined::getAngles)
@@ -204,31 +211,45 @@ PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::enum_<shell::impact::impactDataIndex>(m, "impactDataIndex",
                                                     pybind11::arithmetic())
         .value("distance", shell::impact::impactDataIndex::distance)
-        .value("launchA", shell::impact::impactDataIndex::launchA)
-        .value("impactAHR", shell::impact::impactDataIndex::impactAHR)
-        .value("impactAHD", shell::impact::impactDataIndex::impactAHD)
-        .value("impactV", shell::impact::impactDataIndex::impactV)
-        .value("rawPen", shell::impact::impactDataIndex::rawPen)
-        .value("ePenH", shell::impact::impactDataIndex::ePenH)
-        .value("ePenHN", shell::impact::impactDataIndex::ePenHN)
-        .value("impactADD", shell::impact::impactDataIndex::impactADD)
-        .value("ePenD", shell::impact::impactDataIndex::ePenD)
-        .value("ePenDN", shell::impact::impactDataIndex::ePenDN)
-        .value("tToTarget", shell::impact::impactDataIndex::tToTarget)
-        .value("tToTargetA", shell::impact::impactDataIndex::tToTargetA)
+        .value("launchAngle", shell::impact::impactDataIndex::launchAngle)
+        .value("impactAngleHorizontalRadians",
+               shell::impact::impactDataIndex::impactAngleHorizontalRadians)
+        .value("impactAngleHorizontalDegrees",
+               shell::impact::impactDataIndex::impactAngleHorizontalDegrees)
+        .value("impactVelocity", shell::impact::impactDataIndex::impactVelocity)
+        .value("rawPenetration", shell::impact::impactDataIndex::rawPenetration)
+        .value("effectivePenetrationHorizontal",
+               shell::impact::impactDataIndex::effectivePenetrationHorizontal)
+        .value("effectivePenetrationHorizontalNormalized",
+               shell::impact::impactDataIndex::
+                   effectivePenetrationHorizontalNormalized)
+        .value("impactAngleDeckDegrees",
+               shell::impact::impactDataIndex::impactAngleDeckDegrees)
+        .value("effectivePenetrationDeck",
+               shell::impact::impactDataIndex::effectivePenetrationDeck)
+        .value(
+            "effectivePenetrationDeckNormalized",
+            shell::impact::impactDataIndex::effectivePenetrationDeckNormalized)
+        .value("timeToTarget", shell::impact::impactDataIndex::timeToTarget)
+        .value("timeToTargetAdjusted",
+               shell::impact::impactDataIndex::timeToTargetAdjusted)
         .export_values();
 
     pybind11::enum_<shell::angle::angleDataIndex>(m, "angleDataIndex",
                                                   pybind11::arithmetic())
         .value("distance", shell::angle::angleDataIndex::distance)
-        .value("ra0", shell::angle::angleDataIndex::ra0)
-        .value("ra0D", shell::angle::angleDataIndex::ra0D)
-        .value("ra1", shell::angle::angleDataIndex::ra1)
-        .value("ra1D", shell::angle::angleDataIndex::ra1D)
-        .value("armor", shell::angle::angleDataIndex::armor)
-        .value("armorD", shell::angle::angleDataIndex::armorD)
-        .value("fuse", shell::angle::angleDataIndex::fuse)
-        .value("fuseD", shell::angle::angleDataIndex::fuseD)
+        .value("ricochetAngle0Radians",
+               shell::angle::angleDataIndex::ricochetAngle0Radians)
+        .value("ricochetAngle0Degrees",
+               shell::angle::angleDataIndex::ricochetAngle0Degrees)
+        .value("ricochetAngle1Radians",
+               shell::angle::angleDataIndex::ricochetAngle1Radians)
+        .value("ricochetAngle1Degrees",
+               shell::angle::angleDataIndex::ricochetAngle1Degrees)
+        .value("armorRadians", shell::angle::angleDataIndex::armorRadians)
+        .value("armorDegrees", shell::angle::angleDataIndex::armorDegrees)
+        .value("fuseRadians", shell::angle::angleDataIndex::fuseRadians)
+        .value("fuseDegrees", shell::angle::angleDataIndex::fuseDegrees)
         .export_values();
 
     pybind11::enum_<shell::post::postPenDataIndex>(m, "postPenDataIndex",

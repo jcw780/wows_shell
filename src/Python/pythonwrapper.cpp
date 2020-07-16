@@ -1,7 +1,7 @@
 /*cppimport
 <%
 cfg['compiler_args'] = ['-std=c++17', '/std:c++17', '-O3', '/Ot',
-'-march=native','/arch:AVX2']
+'-march=native','/arch:AVX2', '/D_USE_MATH_DEFINES']
 setup_pybind11(cfg)
 %>
 */
@@ -33,18 +33,18 @@ public:
                   const double mass, const double krupp,
                   const double normalization, const double fuseTime,
                   const double threshold, const double ricochet0,
-                  const double ricochet1, const std::string &name) {
+                  const double ricochet1, const double nonAP, const std::string &name) {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
-                    threshold, ricochet0, ricochet1, name);
+                    threshold, ricochet0, ricochet1, nonAP, name);
     }
 
     void setValues(const double caliber, const double v0, const double cD,
                    const double mass, const double krupp,
                    const double normalization, const double fuseTime,
                    const double threshold, const double ricochet0,
-                   const double ricochet1, const std::string &name) {
+                   const double ricochet1, const double nonAP, const std::string &name) {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
-                    threshold, ricochet0, ricochet1, name);
+                    threshold, ricochet0, ricochet1, nonAP, name);
     }
 
     void setMax(const double max) { calc.set_max(max); }
@@ -113,6 +113,10 @@ public:
         }
     }
 
+    double interpolateDistanceImpact(double distance, unsigned int impact){
+        return s.interpolateDistanceImpact(distance, impact);
+    }
+
     pybind11::array_t<double> getImpact() {
         if (s.completedImpact) {
             constexpr std::size_t sT = sizeof(double);
@@ -176,7 +180,7 @@ public:
 PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::class_<shellCombined>(m, "shell", pybind11::buffer_protocol())
         .def(pybind11::init<double, double, double, double, double, double,
-                            double, double, double, double, std::string &>())
+                            double, double, double, double, double, std::string &>())
         .def("setValues", &shellCombined::setValues)
         .def("setMax", &shellCombined::setMax)
         .def("setMin", &shellCombined::setMin)
@@ -197,6 +201,7 @@ PYBIND11_MODULE(pythonwrapper, m) {
              &shellCombined::calcImpactRungeKutta4Hybrid)
         .def("calcAngles", &shellCombined::calcAngles)
         .def("calcPostPen", &shellCombined::calcPostPen)
+        .def("interpolateDistanceImpact", &shellCombined::interpolateDistanceImpact)
         .def("getImpact", &shellCombined::getImpact)
         // pybind11::return_value_policy::reference)
         .def("getAngles", &shellCombined::getAngles)
