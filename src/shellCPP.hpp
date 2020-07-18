@@ -502,7 +502,7 @@ class shellCalc {
         tVec[j] = t;
     }
 
-    //template <bool AddTraj, unsigned int Numerical>
+    template <bool AddTraj, unsigned int Numerical>
     void multiTraj(const unsigned int start, shell &s,
                    double *vx, double *vy, double *tVec) {
         const double k = s.get_k();
@@ -597,10 +597,19 @@ class shellCalc {
             }
             return any;
         };
-        while(checkContinue()){
-            for(std::size_t i=0; i< vSize; ++i){
-                //forwardEuler(i);
-                rungeKutta4(i);
+        if constexpr (isMultistep(Numerical)){
+
+        }else{
+            while(checkContinue()){
+                for(std::size_t i=0; i< vSize; ++i){
+                    if constexpr(Numerical == numerical::forwardEuler){
+                        forwardEuler(i);
+                    }else if(Numerical == numerical::rungeKutta2){
+                        rungeKutta2(i);
+                    }else if(Numerical == numerical::rungeKutta4){
+                        rungeKutta4(i);
+                    }
+                }
             }
         }
 
@@ -631,7 +640,7 @@ class shellCalc {
         //for (unsigned int j = 0; (j + i < s.impactSize) & (j < vSize); j++) {
         //    singleTraj<AddTraj, Numerical, Hybrid>(i, j, s, vx, vy, tVec);
         //}
-        multiTraj(i, s, vx, vy, tVec);
+        multiTraj<AddTraj, Numerical>(i, s, vx, vy, tVec);
         for (unsigned int j = 0; j < vSize; j++) {
             double IA_R = atan(vy[j] / vx[j]);
 
