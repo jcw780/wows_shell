@@ -621,8 +621,9 @@ class shellCalc {
                     }else if constexpr(Numerical == numerical::rungeKutta4){
                         rungeKutta4(i);
                     }else{
-                        //dependent false
-                        static_assert(utility::falsy_v<std::integral_constant<unsigned int, Numerical>>);
+                        static_assert(utility::falsy_v<
+                        std::integral_constant<unsigned int, Numerical>>, 
+                        "Invalid numerical algorithm");
                     }
                 }
                 if constexpr (AddTraj) {
