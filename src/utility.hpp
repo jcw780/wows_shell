@@ -5,6 +5,13 @@
 #include <cmath>
 namespace shell{
     namespace utility{
+        template <typename>
+        struct falsy {
+        constexpr static auto value = false;
+        };
+        template <typename T>
+        constexpr inline auto falsy_v = falsy<T>::value;
+
         template <std::size_t N>
         void fmaArrInplace(double x, double *y, double *z) {
             for (unsigned int i = 0; i < N; i++) {

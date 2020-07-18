@@ -15,6 +15,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <type_traits>
 
 #include "controlEnums.hpp"
 #include "shell.hpp"
@@ -615,12 +616,13 @@ class shellCalc {
                 for(unsigned int i=0; i< vSize; ++i){
                     if constexpr(Numerical == numerical::forwardEuler){
                         forwardEuler(i);
-                    }else if(Numerical == numerical::rungeKutta2){
+                    }else if constexpr(Numerical == numerical::rungeKutta2){
                         rungeKutta2(i);
-                    }else if(Numerical == numerical::rungeKutta4){
+                    }else if constexpr(Numerical == numerical::rungeKutta4){
                         rungeKutta4(i);
                     }else{
                         //dependent false
+                        static_assert(utility::falsy_v<std::integral_constant<unsigned int, Numerical>>);
                     }
                 }
                 if constexpr (AddTraj) {
