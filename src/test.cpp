@@ -24,7 +24,7 @@ void runtime() {
         // 45,
         //                        60, "Yamato");
         auto t1 = std::chrono::high_resolution_clock::now();
-        sc.calculateImpact<shell::numerical::forwardEuler, false>(*test, true, 1);
+        sc.calculateImpact<shell::numerical::forwardEuler, false>(*test, false);
         auto t2 = std::chrono::high_resolution_clock::now();
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>(
                      t2 - t1)
@@ -42,12 +42,12 @@ void runtime() {
 
     sc.calculateAngles(76, 0, *test);
 
-    //test->printImpactData();
+    test->printImpactData();
     // std::cout << test->interpolateDistanceImpact(
     //                 30000, shell::impact::impactDataIndex::rawPen)
     //          << "\n";
     // test->printTrajectory(0);
-    test->printPostPenData();
+    //test->printPostPenData();
     //test->printAngleData();
 
     std::cout << std::fixed << std::setprecision(10)

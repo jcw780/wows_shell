@@ -502,33 +502,55 @@ class shellCalc {
         tVec[j] = t;
     }
 
-    template <bool AddTraj, unsigned int Numerical>
-    void multiTraj(const unsigned int i, const unsigned int j, shell &s,
+    //template <bool AddTraj, unsigned int Numerical>
+    void multiTraj(const unsigned int start, shell &s,
                    double *vx, double *vy, double *tVec) {
         const double k = s.get_k();
         const double cw_2 = s.get_cw_2();
-
         std::array<double, vSize> groupX;
+        groupX.fill(0);
         std::array<double, vSize> groupY;
-        std::array<double, vSize> groupVX;
-        std::array<double, vSize> groupVY;
+
+        for(std::size_t i=0, j=start; i<vSize; ++i, ++j){
+            groupY[i] = j < s.impactSize ? 0: -1;
+        }
 
         auto checkContinue = [&]() {
             bool any = false;
+            //std::cout<<start<<" ";
             for (unsigned int i = 0; i < vSize; i++) {
-                bool test = groupY[i] >= 0;
-                if (test) {
-                    any = test;
-                }
+                any |= (groupY[i] >= 0);
+                //std::cout<<groupY[i]<<" ";
             }
+            //std::cout<<any<<"\n";
             return any;
         };
 
-        while(checkContinue){
-            for(unsigned int i=0; i< vSize; i++){
-                numericalMethod<Numerical, 2>({groupX[i], groupY[i], groupVX[i], groupVY[i]}, dt_min, k, cw_2);
+        while(checkContinue()){
+            for(std::size_t i=0; i< vSize; i++){
+                double &x = groupX[i], &y = groupY[i], 
+                    &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+                double T, p, rho, dt_update = (y >= 0) * dt_min;
+                
+                x += dt_update * v_x;
+                y += dt_update * v_y;
+                
+                T = t0 - L * y;
+                p = p0 * pow(1 - L*y/ t0, gMRL);
+                rho = p * M / (R * T);
+                double kRho = k * rho;
+                v_x -= dt_update*kRho*(cw_1*v_x*v_x+cw_2*v_x);
+                v_y -= dt_update*(g+kRho*(cw_1*v_y*v_y+cw_2*fabs(v_y)*signum(v_y)));
+                t += dt_update;
+                
             }
+
+            
         }
+
+        for(std::size_t i=0; i< vSize; ++i){
+            s.get_impact(start + i, impact::distance) = groupX[i];
+        }   
     }
 
     // Several trajectories done in one chunk to allow for vectorization
@@ -550,9 +572,10 @@ class shellCalc {
             vx[j] = s.get_v0() * cos(radianLaunch);
             vy[j] = s.get_v0() * sin(radianLaunch);
         }
-        for (unsigned int j = 0; (j + i < s.impactSize) & (j < vSize); j++) {
-            singleTraj<AddTraj, Numerical, Hybrid>(i, j, s, vx, vy, tVec);
-        }
+        //for (unsigned int j = 0; (j + i < s.impactSize) & (j < vSize); j++) {
+        //    singleTraj<AddTraj, Numerical, Hybrid>(i, j, s, vx, vy, tVec);
+        //}
+        multiTraj(i, s, vx, vy, tVec);
         for (unsigned int j = 0; j < vSize; j++) {
             double IA_R = atan(vy[j] / vx[j]);
 
