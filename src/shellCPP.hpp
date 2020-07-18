@@ -519,6 +519,25 @@ class shellCalc {
             }
         }
 
+        auto delta = [&](double x, double &dx, 
+                        double y, double &dy, 
+                        double v_x, double &ddx, 
+                        double v_y, double &ddy, bool update = false){
+            update |= (y >= 0);
+            double T, p, rho, dt_update = update * dt_min;
+            dx = dt_update * v_x;
+            dy = dt_update * v_y;
+            y += dy; //x not needed
+            //Air Density
+            T = t0 - L * y;
+            p = p0 * pow(1 - L*y/ t0, gMRL);
+            rho = p * M / (R * T);
+            double kRho = k * rho;
+            //Calculate Drag Components
+            ddx = -1*dt_update*   kRho*(cw_1*v_x*v_x+cw_2*v_x);
+            ddy = -1*dt_update*(g+kRho*(cw_1*v_y*v_y+cw_2*fabs(v_y)*signum(v_y)));
+        };
+
         if constexpr (isMultistep<Numerical>()){
             //adamsBashforth5();
         }else{
@@ -528,24 +547,6 @@ class shellCalc {
             for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
                 groupY[i] = j < s.impactSize ? 0: -1;
             }
-            auto delta = [&](double x, double &dx, 
-                            double y, double &dy, 
-                            double v_x, double &ddx, 
-                            double v_y, double &ddy, bool update = false){
-                update |= (y >= 0);
-                double T, p, rho, dt_update = update * dt_min;
-                dx = dt_update * v_x;
-                dy = dt_update * v_y;
-                y += dy; //x not needed
-                //Air Density
-                T = t0 - L * y;
-                p = p0 * pow(1 - L*y/ t0, gMRL);
-                rho = p * M / (R * T);
-                double kRho = k * rho;
-                //Calculate Drag Components
-                ddx = -1*dt_update*   kRho*(cw_1*v_x*v_x+cw_2*v_x);
-                ddy = -1*dt_update*(g+kRho*(cw_1*v_y*v_y+cw_2*fabs(v_y)*signum(v_y)));
-            };
             auto RK4Final = [](std::array<double, 4> &d) -> double{
                 return (d[0] + 2*d[1] + 2*d[2] + d[3]) / 6;
             };
