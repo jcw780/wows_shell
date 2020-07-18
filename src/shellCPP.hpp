@@ -510,7 +510,7 @@ class shellCalc {
         std::array<double, vSize> groupX;
         groupX.fill(0);
         std::array<double, vSize> groupY;
-        for(std::size_t i=0, j=start; i<vSize; ++i, ++j){
+        for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
             groupY[i] = j < s.impactSize ? 0: -1;
         }
         auto delta = [&](double x, double &dx, 
@@ -528,7 +528,7 @@ class shellCalc {
             rho = p * M / (R * T);
             double kRho = k * rho;
             //Calculate Drag Components
-            ddx = -1*dt_update*kRho*(cw_1*v_x*v_x+cw_2*v_x);
+            ddx = -1*dt_update*   kRho*(cw_1*v_x*v_x+cw_2*v_x);
             ddy = -1*dt_update*(g+kRho*(cw_1*v_y*v_y+cw_2*fabs(v_y)*signum(v_y)));
         };
 
@@ -590,24 +590,45 @@ class shellCalc {
             t += dt_update;
         };
 
+        if constexpr (AddTraj) {
+            for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
+                if(j < s.impactSize){
+                    s.trajectories[2 * (j)].clear();
+                    s.trajectories[2 * (j) + 1].clear();
+                    s.trajectories[2 * (j)].push_back(x0);
+                    s.trajectories[2 * (j) + 1].push_back(y0);
+                }
+            }
+        }
+
         auto checkContinue = [&]() {
             bool any = false;
-            for (std::size_t i = 0; i < vSize; ++i) {
+            for (unsigned int i = 0; i < vSize; ++i) {
                 any |= (groupY[i] >= 0);
             }
             return any;
         };
-        if constexpr (isMultistep(Numerical)){
+        if constexpr (isMultistep<Numerical>()){
 
         }else{
             while(checkContinue()){
-                for(std::size_t i=0; i< vSize; ++i){
+                for(unsigned int i=0; i< vSize; ++i){
                     if constexpr(Numerical == numerical::forwardEuler){
                         forwardEuler(i);
                     }else if(Numerical == numerical::rungeKutta2){
                         rungeKutta2(i);
                     }else if(Numerical == numerical::rungeKutta4){
                         rungeKutta4(i);
+                    }else{
+                        //dependent false
+                    }
+                }
+                if constexpr (AddTraj) {
+                    for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
+                        if(j < s.impactSize){
+                            s.trajectories[2 * (j)].push_back(groupX[i]);
+                            s.trajectories[2 * (j) + 1].push_back(groupY[i]);
+                        }
                     }
                 }
             }

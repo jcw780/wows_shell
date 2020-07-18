@@ -24,7 +24,7 @@ void runtime() {
         // 45,
         //                        60, "Yamato");
         auto t1 = std::chrono::high_resolution_clock::now();
-        sc.calculateImpact<shell::numerical::forwardEuler, false>(*test, false);
+        sc.calculateImpact<shell::numerical::rungeKutta4, false>(*test, true);
         auto t2 = std::chrono::high_resolution_clock::now();
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>(
                      t2 - t1)
