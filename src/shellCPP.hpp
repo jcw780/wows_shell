@@ -508,89 +508,6 @@ class shellCalc {
                    double *vx, double *vy, double *tVec) {
         const double k = s.get_k();
         const double cw_2 = s.get_cw_2();
-        std::array<double, vSize> groupX;
-        groupX.fill(0);
-        std::array<double, vSize> groupY;
-        for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
-            groupY[i] = j < s.impactSize ? 0: -1;
-        }
-        auto delta = [&](double x, double &dx, 
-                        double y, double &dy, 
-                        double v_x, double &ddx, 
-                        double v_y, double &ddy, bool update = false){
-            update |= (y >= 0);
-            double T, p, rho, dt_update = update * dt_min;
-            dx = dt_update * v_x;
-            dy = dt_update * v_y;
-            y += dy; //x not needed
-            //Air Density
-            T = t0 - L * y;
-            p = p0 * pow(1 - L*y/ t0, gMRL);
-            rho = p * M / (R * T);
-            double kRho = k * rho;
-            //Calculate Drag Components
-            ddx = -1*dt_update*   kRho*(cw_1*v_x*v_x+cw_2*v_x);
-            ddy = -1*dt_update*(g+kRho*(cw_1*v_y*v_y+cw_2*fabs(v_y)*signum(v_y)));
-        };
-
-        auto RK4Final = [](std::array<double, 4> &d) -> double{
-            return (d[0] + 2*d[1] + 2*d[2] + d[3]) / 6;
-        };
-        auto rungeKutta4 = [&](std::size_t i){
-            double &x = groupX[i], &y = groupY[i], 
-                &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
-            //double T, p, rho;
-            bool update = (y >= 0); //Force update even if it becomes zero
-            double dt_update = update * dt_min;
-            std::array<double, 4> dx, dy, ddx, ddy;
-            // K1->K4
-            delta(x           , dx[0] , y           , dy[0], 
-                  v_x         , ddx[0], v_y         , ddy[0]);
-            delta(x+dx[0]/2   , dx[1] , y+dy[0]/2   , dy[1], 
-                  v_x+ddx[0]/2, ddx[1], v_y+ddy[0]/2, ddy[1], update); 
-            delta(x+dx[1]/2   , dx[2] , y+dy[1]/2   , dy[2], 
-                  v_x+ddx[1]/2, ddx[2], v_y+ddy[1]/2, ddy[2], update);
-            delta(x+dx[2]     , dx[3] , y+dy[2]     , dy[3], 
-                  v_x+ddx[2]  , ddx[3], v_y+ddy[2]  , ddy[3], update);
-
-            x += RK4Final(dx); y += RK4Final(dy);
-            v_x += RK4Final(ddx); v_y += RK4Final(ddy);
-            t += dt_update;
-        };
-
-        auto RK2Final = [](std::array<double, 2> &d) -> double{
-            return (d[0] + d[1]) / 2;
-        };
-        auto rungeKutta2 = [&](std::size_t i){
-            double &x = groupX[i], &y = groupY[i], 
-                &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
-            //double T, p, rho;
-            double dt_update = (y >= 0) * dt_min;
-            std::array<double, 2> dx, dy, ddx, ddy;
-            
-            delta(x, dx[0], y, dy[0], v_x, ddx[0], v_y, ddy[0]);
-            delta(x+dx[0], dx[1], y+dy[0], dy[1], 
-                v_x+ddx[0], ddx[1], v_y+ddy[0], ddy[1], y >= 0); 
-            //Force update even if it becomes zero
-
-            x += RK2Final(dx); y += RK2Final(dy);
-            v_x += RK2Final(ddx); v_y += RK2Final(ddy);
-            t += dt_update;
-        };
-
-        auto forwardEuler = [&](std::size_t i){
-            double &x = groupX[i], &y = groupY[i], 
-                &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
-            //double T, p, rho;
-            double dt_update = (y >= 0) * dt_min;
-            double dx, dy, ddx, ddy;
-
-            delta(x, dx, y, dy, v_x, ddx, v_y, ddy);
-            x += dx; y += dy;
-            v_x += ddx; v_y += ddy;
-            t += dt_update;
-        };
-
         if constexpr (AddTraj) {
             for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
                 if(j < s.impactSize){
@@ -602,16 +519,98 @@ class shellCalc {
             }
         }
 
-        auto checkContinue = [&]() {
-            bool any = false;
-            for (unsigned int i = 0; i < vSize; ++i) {
-                any |= (groupY[i] >= 0);
-            }
-            return any;
-        };
         if constexpr (isMultistep<Numerical>()){
-
+            //adamsBashforth5();
         }else{
+            std::array<double, vSize> groupX;
+            groupX.fill(0);
+            std::array<double, vSize> groupY;
+            for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
+                groupY[i] = j < s.impactSize ? 0: -1;
+            }
+            auto delta = [&](double x, double &dx, 
+                            double y, double &dy, 
+                            double v_x, double &ddx, 
+                            double v_y, double &ddy, bool update = false){
+                update |= (y >= 0);
+                double T, p, rho, dt_update = update * dt_min;
+                dx = dt_update * v_x;
+                dy = dt_update * v_y;
+                y += dy; //x not needed
+                //Air Density
+                T = t0 - L * y;
+                p = p0 * pow(1 - L*y/ t0, gMRL);
+                rho = p * M / (R * T);
+                double kRho = k * rho;
+                //Calculate Drag Components
+                ddx = -1*dt_update*   kRho*(cw_1*v_x*v_x+cw_2*v_x);
+                ddy = -1*dt_update*(g+kRho*(cw_1*v_y*v_y+cw_2*fabs(v_y)*signum(v_y)));
+            };
+            auto RK4Final = [](std::array<double, 4> &d) -> double{
+                return (d[0] + 2*d[1] + 2*d[2] + d[3]) / 6;
+            };
+            auto rungeKutta4 = [&](std::size_t i){
+                double &x = groupX[i], &y = groupY[i], 
+                    &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+                //double T, p, rho;
+                bool update = (y >= 0); //Force update even if it becomes zero
+                double dt_update = update * dt_min;
+                std::array<double, 4> dx, dy, ddx, ddy;
+                // K1->K4
+                delta(x           , dx[0] , y           , dy[0], 
+                    v_x         , ddx[0], v_y         , ddy[0]);
+                delta(x+dx[0]/2   , dx[1] , y+dy[0]/2   , dy[1], 
+                    v_x+ddx[0]/2, ddx[1], v_y+ddy[0]/2, ddy[1], update); 
+                delta(x+dx[1]/2   , dx[2] , y+dy[1]/2   , dy[2], 
+                    v_x+ddx[1]/2, ddx[2], v_y+ddy[1]/2, ddy[2], update);
+                delta(x+dx[2]     , dx[3] , y+dy[2]     , dy[3], 
+                    v_x+ddx[2]  , ddx[3], v_y+ddy[2]  , ddy[3], update);
+
+                x += RK4Final(dx); y += RK4Final(dy);
+                v_x += RK4Final(ddx); v_y += RK4Final(ddy);
+                t += dt_update;
+            };
+
+            auto RK2Final = [](std::array<double, 2> &d) -> double{
+                return (d[0] + d[1]) / 2;
+            };
+            auto rungeKutta2 = [&](std::size_t i){
+                double &x = groupX[i], &y = groupY[i], 
+                    &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+                //double T, p, rho;
+                double dt_update = (y >= 0) * dt_min;
+                std::array<double, 2> dx, dy, ddx, ddy;
+                
+                delta(x, dx[0], y, dy[0], v_x, ddx[0], v_y, ddy[0]);
+                delta(x+dx[0], dx[1], y+dy[0], dy[1], 
+                    v_x+ddx[0], ddx[1], v_y+ddy[0], ddy[1], y >= 0); 
+                //Force update even if it becomes zero
+
+                x += RK2Final(dx); y += RK2Final(dy);
+                v_x += RK2Final(ddx); v_y += RK2Final(ddy);
+                t += dt_update;
+            };
+
+            auto forwardEuler = [&](std::size_t i){
+                double &x = groupX[i], &y = groupY[i], 
+                    &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+                //double T, p, rho;
+                double dt_update = (y >= 0) * dt_min;
+                double dx, dy, ddx, ddy;
+
+                delta(x, dx, y, dy, v_x, ddx, v_y, ddy);
+                x += dx; y += dy;
+                v_x += ddx; v_y += ddy;
+                t += dt_update;
+            };
+
+            auto checkContinue = [&]() {
+                bool any = false;
+                for (unsigned int i = 0; i < vSize; ++i) {
+                    any |= (groupY[i] >= 0);
+                }
+                return any;
+            };
             while(checkContinue()){
                 for(unsigned int i=0; i< vSize; ++i){
                     if constexpr(Numerical == numerical::forwardEuler){
@@ -621,8 +620,8 @@ class shellCalc {
                     }else if constexpr(Numerical == numerical::rungeKutta4){
                         rungeKutta4(i);
                     }else{
-                        static_assert(utility::falsy_v<
-                        std::integral_constant<unsigned int, Numerical>>, 
+                        static_assert(utility::falsy_v
+                        <std::integral_constant<unsigned int, Numerical>>, 
                         "Invalid numerical algorithm");
                     }
                 }
@@ -635,11 +634,10 @@ class shellCalc {
                     }
                 }
             }
-        }
-
-        for(std::size_t i=0; i< vSize; ++i){
-            s.get_impact(start + i, impact::distance) = groupX[i];
-        }   
+            for(std::size_t i=0; i< vSize; ++i){
+                s.get_impact(start + i, impact::distance) = groupX[i];
+            } 
+        }  
     }
 
     // Several trajectories done in one chunk to allow for vectorization
