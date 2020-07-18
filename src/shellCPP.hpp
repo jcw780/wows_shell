@@ -510,25 +510,59 @@ class shellCalc {
         std::array<double, vSize> groupX;
         groupX.fill(0);
         std::array<double, vSize> groupY;
-
         for(std::size_t i=0, j=start; i<vSize; ++i, ++j){
             groupY[i] = j < s.impactSize ? 0: -1;
         }
-        
-        auto calc = [&](std::size_t i){
-            double &x = groupX[i], &y = groupY[i], 
-                &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
-            double T, p, rho, dt_update = (y >= 0) * dt_min;
-            
-            x += dt_update * v_x;
-            y += dt_update * v_y;
-            
+        auto delta = [&](double x, double &dx, 
+                        double y, double &dy, 
+                        double v_x, double &ddx, 
+                        double v_y, double &ddy, bool update = false){
+            update |= (y >= 0);
+            double T, p, rho, dt_update = update * dt_min;
+            dx = dt_update * v_x;
+            dy = dt_update * v_y;
+            y += dy; //x not needed
+            //Air Density
             T = t0 - L * y;
             p = p0 * pow(1 - L*y/ t0, gMRL);
             rho = p * M / (R * T);
             double kRho = k * rho;
-            v_x -= dt_update*kRho*(cw_1*v_x*v_x+cw_2*v_x);
-            v_y -= dt_update*(g+kRho*(cw_1*v_y*v_y+cw_2*fabs(v_y)*signum(v_y)));
+            //Calculate Drag Components
+            ddx = -1*dt_update*kRho*(cw_1*v_x*v_x+cw_2*v_x);
+            ddy = -1*dt_update*(g+kRho*(cw_1*v_y*v_y+cw_2*fabs(v_y)*signum(v_y)));
+        };
+
+        auto RK2Final = [](std::array<double, 2> &d) -> double{
+            return (d[0] + d[1]) / 2;
+        };
+        auto rungeKutta2 = [&](std::size_t i){
+            double &x = groupX[i], &y = groupY[i], 
+                &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+            //double T, p, rho;
+            double dt_update = (y >= 0) * dt_min;
+            std::array<double, 2> dx, dy, ddx, ddy;
+            double ix=x, iy=y, iv_x=v_x, iv_y=v_y; //Intermediate Values
+            
+            delta(x, dx[0], y, dy[0], v_x, ddx[0], v_y, ddy[0]);
+            ix += dx[0]; iy += dy[0]; iv_x += ddx[0]; iv_y += ddy[0];
+            delta(ix, dx[1], iy, dy[1], iv_x, ddx[1], iv_y, ddy[1], y >= 0); 
+            //Force update even if it becomes zero
+
+            x += RK2Final(dx); y += RK2Final(dy);
+            v_x += RK2Final(ddx); v_y += RK2Final(ddy);
+            t += dt_update;
+        };
+
+        auto forwardEuler = [&](std::size_t i){
+            double &x = groupX[i], &y = groupY[i], 
+                &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+            //double T, p, rho;
+            double dt_update = (y >= 0) * dt_min;
+            double dx, dy, ddx, ddy;
+
+            delta(x, dx, y, dy, v_x, ddx, v_y, ddy);
+            x += dx; y += dy;
+            v_x += ddx; v_y += ddy;
             t += dt_update;
         };
 
@@ -541,7 +575,8 @@ class shellCalc {
         };
         while(checkContinue()){
             for(std::size_t i=0; i< vSize; ++i){
-                calc(i);
+                //forwardEuler(i);
+                rungeKutta2(i);
             }
         }
 
