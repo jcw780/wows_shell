@@ -165,6 +165,7 @@ class shellCalc {
         }
     }
 
+    //https://godbolt.org/z/xj8qGz
     template <bool AddTraj, unsigned int Numerical>
     void multiTraj(const unsigned int &start, shell &s,
                    std::array<double, 2*vSize>& velocities, 
