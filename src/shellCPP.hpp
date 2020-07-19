@@ -562,80 +562,48 @@ class shellCalc {
                     return index + ((stage + offset) % 5) * vSize;
                 };
 
-                if(checkContinue()){ //AB1 == Euler Method
+                auto ABG = [&](unsigned int stage, auto final){
                     for(unsigned int i=0; i<vSize; ++i){
                         double &x = groupX[i], &y = groupY[i], 
                         &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
                         bool update = (y >= 0);
                         double dt_update = update * dt_min;
-                        unsigned int s1 = get(i, 0);
+                        unsigned int s1 = get(i, stage);
                         delta(x, dx[s1], y, dy[s1], v_x, ddx[s1], v_y, ddy[s1]);
-                        x += dx[s1]; y += dy[s1]; v_x += ddx[s1]; v_y += ddy[s1];
+                        x += final(dx, i, update); y += final(dy, i, update); 
+                        v_x += final(ddx, i, update); v_y += final(ddy, i, update);
                         t += dt_update;
                     }
-                    if(checkContinue()){ //2 AB2
-                        auto ABF2 = [&](std::array<double, 5*vSize> &d, unsigned int i){
-                            return (3/2*d[get(i, 1)] - 1/2*d[get(i, 0)]) * (groupY[i] >= 0); 
+                };
+
+                if(checkContinue()){ //AB1 == Euler Method - L1 Traj
+                    auto ABF1 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
+                        return d[get(i, 0)] * update;
+                    };
+                    ABG(0, ABF1);
+                    if(checkContinue()){ //2 AB2 - L2 Traj
+                        auto ABF2 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
+                            return (3/2*d[get(i, 1)] - 1/2*d[get(i, 0)]) * update; 
                         };
-                        for(unsigned int i=0; i<vSize; ++i){
-                            double &x = groupX[i], &y = groupY[i], 
-                            &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
-                            bool update = (y >= 0);
-                            double dt_update = update * dt_min;
-                            unsigned int s2 = get(i, 1);
-                            delta(x, dx[s2], y, dy[s2], v_x, ddx[s2], v_y, ddy[s2]);
-                            x += ABF2(dx, i); y += ABF2(dy, i); 
-                            v_x += ABF2(ddx, i); v_y += ABF2(ddy, i);
-                            t += dt_update;
-                        }
-                        if(checkContinue()){ //3 AB3
-                            auto ABF3 = [&](std::array<double, 5*vSize> &d, unsigned int i){
+                        ABG(1, ABF2);
+                        if(checkContinue()){ //3 AB3 - L3 Traj
+                            auto ABF3 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
                                 return (23/12*d[get(i, 2)] - 16/12*d[get(i, 1)] + 5/12*d[get(i, 0)]) 
-                                * (groupY[i] >= 0); 
+                                * update; 
                             };
-                            for(unsigned int i=0; i<vSize; ++i){
-                                double &x = groupX[i], &y = groupY[i], 
-                                &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
-                                bool update = (y >= 0);
-                                double dt_update = update * dt_min;
-                                unsigned int s3 = get(i, 2);
-                                delta(x, dx[s3], y, dy[s3], v_x, ddx[s3], v_y, ddy[s3]);
-                                x += ABF3(dx, i); y += ABF3(dy, i); 
-                                v_x += ABF3(ddx, i); v_y += ABF3(ddy, i);
-                                t += dt_update;
-                            }
-                            if(checkContinue()){ //4 AB4
-                                auto ABF4 = [&](std::array<double, 5*vSize> &d, unsigned int i){
+                            ABG(2, ABF3);
+                            if(checkContinue()){ //4 AB4 - L4 Traj
+                                auto ABF4 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
                                     return (55/24*d[get(i, 3)] - 59/24*d[get(i, 2)] + 37/24*d[get(i, 1)]
-                                    - 9/24*d[get(i, 0)]) * (groupY[i] >= 0); 
+                                    - 9/24*d[get(i, 0)]) * update; 
                                 };
-                                for(unsigned int i=0; i<vSize; ++i){
-                                    double &x = groupX[i], &y = groupY[i], 
-                                    &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
-                                    bool update = (y >= 0);
-                                    double dt_update = update * dt_min;
-                                    unsigned int s4 = get(i, 3);
-                                    delta(x, dx[s4], y, dy[s4], v_x, ddx[s4], v_y, ddy[s4]);
-                                    x += ABF4(dx, i); y += ABF4(dy, i); 
-                                    v_x += ABF4(ddx, i); v_y += ABF4(ddy, i);
-                                    t += dt_update;
-                                }
-                                while(checkContinue()){ //5 AB5
-                                    auto ABF5 = [&](std::array<double, 5*vSize> &d, unsigned int i){
+                                ABG(3, ABF4);
+                                while(checkContinue()){ //5 AB5 - L5+ Traj
+                                    auto ABF5 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
                                         return (1901/720*d[get(i, 4)] - 2774/720*d[get(i, 3)] + 2616/720*d[get(i, 2)]
-                                        - 1274/720*d[get(i, 1)] + 251/720*d[get(i, 0)]) * (groupY[i] >= 0); 
+                                        - 1274/720*d[get(i, 1)] + 251/720*d[get(i, 0)]) * update; 
                                     };
-                                    for(unsigned int i=0; i<vSize; ++i){
-                                        double &x = groupX[i], &y = groupY[i], 
-                                        &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
-                                        bool update = (y >= 0);
-                                        double dt_update = update * dt_min;
-                                        unsigned int s5 = get(i, 4);
-                                        delta(x, dx[s5], y, dy[s5], v_x, ddx[s5], v_y, ddy[s5]);
-                                        x += ABF5(dx, i); y += ABF5(dy, i); 
-                                        v_x += ABF5(ddx, i); v_y += ABF5(ddy, i);
-                                        t += dt_update;
-                                    }
+                                    ABG(4, ABF5);
                                     offset++; //Circle back 
                                     offset = offset == 5? 0 : offset;
                                 }
