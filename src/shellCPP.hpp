@@ -504,10 +504,11 @@ class shellCalc {
     }
 
     template <bool AddTraj, unsigned int Numerical>
-    void multiTraj(const unsigned int start, shell &s,
-                   double *vx, double *vy, double *tVec) {
-        const double k = s.get_k();
-        const double cw_2 = s.get_cw_2();
+    void multiTraj(const unsigned int &start, shell &s,
+                   std::array<double, vSize>& vx, 
+                   std::array<double, vSize>& vy, 
+                   std::array<double, vSize>& tVec) {
+        double k = s.get_k(), cw_2 = s.get_cw_2();
         if constexpr (AddTraj) {
             for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
                 if(j < s.impactSize){
@@ -519,14 +520,13 @@ class shellCalc {
             }
         }
 
-        std::array<double, vSize> groupX;
-        groupX.fill(0);
-        std::array<double, vSize> groupY;
+        std::array<double, vSize> groupX{}, groupY;
+        //groupX.fill(x0);
         for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
             groupY[i] = j < s.impactSize ? 0: -1;
         }
 
-        auto checkContinue = [&]() {
+        auto checkContinue = [&]() -> bool {
             bool any = false;
             for (unsigned int i = 0; i < vSize; ++i) {
                 any |= (groupY[i] >= 0);
@@ -534,10 +534,11 @@ class shellCalc {
             return any;
         };
 
-        auto delta = [&](double x, double &dx, 
+        auto delta = [&](const double &x, double &dx, 
                         double y, double &dy, 
-                        double v_x, double &ddx, 
-                        double v_y, double &ddy, bool update = false){
+                        const double &v_x, double &ddx, 
+                        const double &v_y, double &ddy, 
+                        bool update = false){
             update |= (y >= 0);
             double T, p, rho, dt_update = update * dt_min;
             dx = dt_update * v_x;
@@ -554,11 +555,9 @@ class shellCalc {
         };
 
         auto addTraj = [&](){
-            for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
-                if(j < s.impactSize){
-                    s.trajectories[2 * (j)].push_back(groupX[i]);
-                    s.trajectories[2 * (j) + 1].push_back(groupY[i]);
-                }
+            for(unsigned int i=0, j=start; i<vSize & j < s.impactSize; ++i, ++j){
+                s.trajectories[2 * (j)].push_back(groupX[i]);
+                s.trajectories[2 * (j) + 1].push_back(groupY[i]);
             }
         };
 
@@ -567,57 +566,56 @@ class shellCalc {
                 std::array<double, 5*vSize> dx, dy, ddx, ddy;
                 //0 -> vSize -> ... -> 5 * vSize
                 unsigned int offset = 0; //Make it a circular buffer
-                auto get = [&](unsigned int index, unsigned int stage) -> unsigned int{
+                auto get = [&](const unsigned int &index, const unsigned int &stage) -> unsigned int{
                     return index + ((stage + offset) % 5) * vSize;
                 };
 
-                auto ABG = [&](unsigned int stage, auto final){
+                auto ABG = [&](const unsigned int &stage, auto final){
                     for(unsigned int i=0; i<vSize; ++i){
                         double &x = groupX[i], &y = groupY[i], 
                         &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
                         bool update = (y >= 0);
-                        double dt_update = update * dt_min;
-                        unsigned int s1 = get(i, stage);
-                        delta(x, dx[s1], y, dy[s1], v_x, ddx[s1], v_y, ddy[s1]);
+                        unsigned int index = get(i, stage);
+                        delta(x, dx[index], y, dy[index], v_x, ddx[index], v_y, ddy[index]);
                         x += final(dx, i, update); y += final(dy, i, update); 
                         v_x += final(ddx, i, update); v_y += final(ddy, i, update);
-                        t += dt_update;
+                        t += update * dt_min;
                     }
                 };
 
-                if(checkContinue()){ //AB1 == Euler Method - L1 Traj
-                    auto ABF1 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
+                if(checkContinue()){ //AB1 == Euler Method - Length 1 Traj
+                    auto ABF1 = [&](const std::array<double, 5*vSize> &d, const unsigned int &i, const bool &update){
                         return d[get(i, 0)] * update;
                     };
                     ABG(0, ABF1);
-                    if constexpr (AddTraj) addTraj();
-                    if(checkContinue()){ //2 AB2 - L2 Traj
-                        auto ABF2 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
+                    if constexpr (AddTraj){addTraj();}
+                    if(checkContinue()){ //2 AB2 - Length 2 Traj
+                        auto ABF2 = [&](const std::array<double, 5*vSize> &d, const unsigned int &i, const bool &update){
                             return (3/2*d[get(i, 1)] - 1/2*d[get(i, 0)]) * update; 
                         };
                         ABG(1, ABF2);
-                        if constexpr (AddTraj) addTraj();
-                        if(checkContinue()){ //3 AB3 - L3 Traj
-                            auto ABF3 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
+                        if constexpr (AddTraj){addTraj();}
+                        if(checkContinue()){ //3 AB3 - Length 3 Traj
+                            auto ABF3 = [&](const std::array<double, 5*vSize> &d, const unsigned int &i, const bool &update){
                                 return (23/12*d[get(i, 2)] - 16/12*d[get(i, 1)] + 5/12*d[get(i, 0)]) 
                                 * update; 
                             };
                             ABG(2, ABF3);
-                            if constexpr (AddTraj) addTraj();
-                            if(checkContinue()){ //4 AB4 - L4 Traj
-                                auto ABF4 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
+                            if constexpr (AddTraj){addTraj();}
+                            if(checkContinue()){ //4 AB4 - Length 4 Traj
+                                auto ABF4 = [&](const std::array<double, 5*vSize> &d, const unsigned int &i, const bool &update){
                                     return (55/24*d[get(i, 3)] - 59/24*d[get(i, 2)] + 37/24*d[get(i, 1)]
                                     - 9/24*d[get(i, 0)]) * update; 
                                 };
                                 ABG(3, ABF4);
-                                if constexpr (AddTraj) addTraj();
-                                while(checkContinue()){ //5 AB5 - L5+ Traj
-                                    auto ABF5 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
+                                if constexpr (AddTraj){addTraj();}
+                                while(checkContinue()){ //5 AB5 - Length 5+ Traj
+                                    auto ABF5 = [&](const std::array<double, 5*vSize> &d, const unsigned int &i, const bool &update){
                                         return (1901/720*d[get(i, 4)] - 2774/720*d[get(i, 3)] + 2616/720*d[get(i, 2)]
                                         - 1274/720*d[get(i, 1)] + 251/720*d[get(i, 0)]) * update; 
                                     };
                                     ABG(4, ABF5);
-                                    if constexpr (AddTraj) addTraj();
+                                    if constexpr (AddTraj){addTraj();}
                                     offset++; //Circle back 
                                     offset = offset == 5? 0 : offset;
                                 }
@@ -625,6 +623,10 @@ class shellCalc {
                         }
                     }
                 }
+            }else{
+                static_assert(utility::falsy_v
+                <std::integral_constant<unsigned int, Numerical>>, 
+                "Invalid multistep algorithm");
             }
         }else{
             auto RK4Final = [](std::array<double, 4> &d) -> double{
@@ -696,7 +698,7 @@ class shellCalc {
                     }else{
                         static_assert(utility::falsy_v
                         <std::integral_constant<unsigned int, Numerical>>, 
-                        "Invalid numerical algorithm");
+                        "Invalid single step algorithm");
                     }
                 }
                 if constexpr (AddTraj) addTraj();
@@ -715,7 +717,7 @@ class shellCalc {
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_normalizationR();
 
-        double vx[vSize], vy[vSize], tVec[vSize];
+        std::array<double, vSize> vx, vy, tVec{};
         for (unsigned int j = 0; j < vSize; j++) {
             if constexpr (!Fit) {
                 s.get_impact(i + j, impact::launchAngle) =
@@ -727,7 +729,7 @@ class shellCalc {
             vy[j] = s.get_v0() * sin(radianLaunch);
         }
         //for (unsigned int j = 0; (j + i < s.impactSize) & (j < vSize); j++) {
-        //    singleTraj<AddTraj, Numerical, Hybrid>(i, j, s, vx, vy, tVec);
+        //    singleTraj<AddTraj, Numerical, Hybrid>(i, j, s, vx.data(), vy.data(), tVec.data());
         //}
         multiTraj<AddTraj, Numerical>(i, s, vx, vy, tVec);
         for (unsigned int j = 0; j < vSize; j++) {

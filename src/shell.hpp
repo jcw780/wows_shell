@@ -174,11 +174,11 @@ class shell {
     }
 
     // internal computed data - fixed
-    double get_v0() { return v0; }
-    double get_k() { return k; }
-    double get_cw_2() { return cw_2; }
-    double get_pPPC() { return pPPC; }
-    double get_normalizationR() { return normalizationR; }
+    const double& get_v0() { return v0; }
+    const double& get_k() { return k; }
+    const double& get_cw_2() { return cw_2; }
+    const double& get_pPPC() { return pPPC; }
+    const double& get_normalizationR() { return normalizationR; }
 
     void printAngleData() {
         for (unsigned int i = 0; i < impactSize; i++) {
