@@ -519,6 +519,21 @@ class shellCalc {
             }
         }
 
+        std::array<double, vSize> groupX;
+        groupX.fill(0);
+        std::array<double, vSize> groupY;
+        for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
+            groupY[i] = j < s.impactSize ? 0: -1;
+        }
+
+        auto checkContinue = [&]() {
+            bool any = false;
+            for (unsigned int i = 0; i < vSize; ++i) {
+                any |= (groupY[i] >= 0);
+            }
+            return any;
+        };
+
         auto delta = [&](double x, double &dx, 
                         double y, double &dy, 
                         double v_x, double &ddx, 
@@ -539,16 +554,99 @@ class shellCalc {
         };
 
         if constexpr (isMultistep<Numerical>()){
-            //adamsBashforth5();
-        }else{
-            std::array<double, vSize> groupX;
-            groupX.fill(0);
-            std::array<double, vSize> groupY;
-            for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
-                groupY[i] = j < s.impactSize ? 0: -1;
+            if constexpr (Numerical == numerical::adamsBashforth5){
+                std::array<double, 5*vSize> dx, dy, ddx, ddy;
+                //0 -> vSize -> ... -> 5 * vSize
+                unsigned int offset = 0; //Make it a circular buffer
+                auto get = [&](unsigned int index, unsigned int stage) -> unsigned int{
+                    return index + ((stage + offset) % 5) * vSize;
+                };
+
+                if(checkContinue()){ //AB1 == Euler Method
+                    for(unsigned int i=0; i<vSize; ++i){
+                        double &x = groupX[i], &y = groupY[i], 
+                        &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+                        bool update = (y >= 0);
+                        double dt_update = update * dt_min;
+                        unsigned int s1 = get(i, 0);
+                        delta(x, dx[s1], y, dy[s1], v_x, ddx[s1], v_y, ddy[s1]);
+                        x += dx[s1]; y += dy[s1]; v_x += ddx[s1]; v_y += ddy[s1];
+                        t += dt_update;
+                    }
+                    if(checkContinue()){ //2 AB2
+                        auto ABF2 = [&](std::array<double, 5*vSize> &d, unsigned int i){
+                            return (3/2*d[get(i, 1)] - 1/2*d[get(i, 0)]) * (groupY[i] >= 0); 
+                        };
+                        for(unsigned int i=0; i<vSize; ++i){
+                            double &x = groupX[i], &y = groupY[i], 
+                            &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+                            bool update = (y >= 0);
+                            double dt_update = update * dt_min;
+                            unsigned int s2 = get(i, 1);
+                            delta(x, dx[s2], y, dy[s2], v_x, ddx[s2], v_y, ddy[s2]);
+                            x += ABF2(dx, i); y += ABF2(dy, i); 
+                            v_x += ABF2(ddx, i); v_y += ABF2(ddy, i);
+                            t += dt_update;
+                        }
+                        if(checkContinue()){ //3 AB3
+                            auto ABF3 = [&](std::array<double, 5*vSize> &d, unsigned int i){
+                                return (23/12*d[get(i, 2)] - 16/12*d[get(i, 1)] + 5/12*d[get(i, 0)]) 
+                                * (groupY[i] >= 0); 
+                            };
+                            for(unsigned int i=0; i<vSize; ++i){
+                                double &x = groupX[i], &y = groupY[i], 
+                                &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+                                bool update = (y >= 0);
+                                double dt_update = update * dt_min;
+                                unsigned int s3 = get(i, 2);
+                                delta(x, dx[s3], y, dy[s3], v_x, ddx[s3], v_y, ddy[s3]);
+                                x += ABF3(dx, i); y += ABF3(dy, i); 
+                                v_x += ABF3(ddx, i); v_y += ABF3(ddy, i);
+                                t += dt_update;
+                            }
+                            if(checkContinue()){ //4 AB4
+                                auto ABF4 = [&](std::array<double, 5*vSize> &d, unsigned int i){
+                                    return (55/24*d[get(i, 3)] - 59/24*d[get(i, 2)] + 37/24*d[get(i, 1)]
+                                    - 9/24*d[get(i, 0)]) * (groupY[i] >= 0); 
+                                };
+                                for(unsigned int i=0; i<vSize; ++i){
+                                    double &x = groupX[i], &y = groupY[i], 
+                                    &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+                                    bool update = (y >= 0);
+                                    double dt_update = update * dt_min;
+                                    unsigned int s4 = get(i, 3);
+                                    delta(x, dx[s4], y, dy[s4], v_x, ddx[s4], v_y, ddy[s4]);
+                                    x += ABF4(dx, i); y += ABF4(dy, i); 
+                                    v_x += ABF4(ddx, i); v_y += ABF4(ddy, i);
+                                    t += dt_update;
+                                }
+                                while(checkContinue()){ //5 AB5
+                                    auto ABF5 = [&](std::array<double, 5*vSize> &d, unsigned int i){
+                                        return (1901/720*d[get(i, 4)] - 2774/720*d[get(i, 3)] + 2616/720*d[get(i, 2)]
+                                        - 1274/720*d[get(i, 1)] + 251/720*d[get(i, 0)]) * (groupY[i] >= 0); 
+                                    };
+                                    for(unsigned int i=0; i<vSize; ++i){
+                                        double &x = groupX[i], &y = groupY[i], 
+                                        &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+                                        bool update = (y >= 0);
+                                        double dt_update = update * dt_min;
+                                        unsigned int s5 = get(i, 4);
+                                        delta(x, dx[s5], y, dy[s5], v_x, ddx[s5], v_y, ddy[s5]);
+                                        x += ABF5(dx, i); y += ABF5(dy, i); 
+                                        v_x += ABF5(ddx, i); v_y += ABF5(ddy, i);
+                                        t += dt_update;
+                                    }
+                                    offset++; //Circle back 
+                                    offset = offset == 5? 0 : offset;
+                                }
+                            }
+                        }
+                    }
+                }
             }
+        }else{
             auto RK4Final = [](std::array<double, 4> &d) -> double{
-                return (d[0] + 2*d[1] + 2*d[2] + d[3]) / 6;
+                return (std::fma(2, d[1], d[0]) + std::fma(2, d[2], d[3])) / 6;
             };
             auto rungeKutta4 = [&](std::size_t i){
                 double &x = groupX[i], &y = groupY[i], 
@@ -605,13 +703,6 @@ class shellCalc {
                 t += dt_update;
             };
 
-            auto checkContinue = [&]() {
-                bool any = false;
-                for (unsigned int i = 0; i < vSize; ++i) {
-                    any |= (groupY[i] >= 0);
-                }
-                return any;
-            };
             while(checkContinue()){
                 for(unsigned int i=0; i< vSize; ++i){
                     if constexpr(Numerical == numerical::forwardEuler){
@@ -635,10 +726,10 @@ class shellCalc {
                     }
                 }
             }
-            for(std::size_t i=0; i< vSize; ++i){
-                s.get_impact(start + i, impact::distance) = groupX[i];
-            } 
         }  
+        for(std::size_t i=0; i< vSize; ++i){
+            s.get_impact(start + i, impact::distance) = groupX[i];
+        } 
     }
 
     // Several trajectories done in one chunk to allow for vectorization
