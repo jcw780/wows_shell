@@ -519,9 +519,7 @@ class shellCalc {
             }
         }
 
-        //std::array<double, vSize> groupX{}, groupY;
         std::array<double, 2*vSize> xy{};
-        //groupX.fill(x0);
         for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
             xy[i+vSize] = j < s.impactSize ? 0: -1;
         }
@@ -554,13 +552,6 @@ class shellCalc {
             ddy = -1*dt_update*(g+kRho*(cw_1*v_y*v_y+cw_2*fabs(v_y)*signum(v_y)));
         };
 
-        /*auto addTraj = [&](){
-            for(unsigned int i=0, j=start; i<vSize & j < s.impactSize; ++i, ++j){
-                s.trajectories[2 * (j)].push_back(xy[i]);
-                s.trajectories[2 * (j) + 1].push_back(xy[i+vSize]);
-            }
-        };*/
-
         if constexpr (isMultistep<Numerical>()){
             if constexpr (Numerical == numerical::adamsBashforth5){
                 std::array<double, 5*vSize> dx, dy, ddx, ddy;
@@ -569,20 +560,6 @@ class shellCalc {
                 auto get = [&](const unsigned int &index, const unsigned int &stage) -> unsigned int{
                     return index + ((stage + offset) % 5) * vSize;
                 };
-
-                /*auto ABG = [&](const unsigned int &stage, auto final){
-                    for(unsigned int i=0; i<vSize; ++i){
-                        double &x = xy[i], &y = xy[i+vSize], 
-                        &v_x = velocities[i], &v_y = velocities[i+vSize], 
-                        &t = tVec[i];
-                        bool update = (y >= 0);
-                        unsigned int index = get(i, stage);
-                        delta(x, dx[index], y, dy[index], v_x, ddx[index], v_y, ddy[index]);
-                        x += final(dx, i, update); y += final(dy, i, update); 
-                        v_x += final(ddx, i, update); v_y += final(ddy, i, update);
-                        t += update * dt_min;
-                    }
-                };*/
 
                 if(checkContinue()){ //AB1 == Euler Method - Length 1 Traj
                     auto ABF1 = [&](const std::array<double, 5*vSize> &d, const unsigned int &i, const bool &update){
@@ -709,69 +686,16 @@ class shellCalc {
             auto RK4Final = [](std::array<double, 4> &d) -> double{
                 return (std::fma(2, d[1], d[0]) + std::fma(2, d[2], d[3])) / 6;
             };
-            /*auto rungeKutta4 = [&](std::size_t i){
-                double &x = xy[i], &y = xy[i+vSize],
-                    &v_x = velocities[i], &v_y = velocities[i+vSize], 
-                    &t = tVec[i];
-                //double T, p, rho;
-                bool update = (y >= 0); //Force update even if it becomes zero
-                double dt_update = update * dt_min;
-                std::array<double, 4> dx, dy, ddx, ddy;
-                // K1->K4
-                delta(x           , dx[0] , y           , dy[0], 
-                    v_x         , ddx[0], v_y         , ddy[0]);
-                delta(x+dx[0]/2   , dx[1] , y+dy[0]/2   , dy[1], 
-                    v_x+ddx[0]/2, ddx[1], v_y+ddy[0]/2, ddy[1], update); 
-                delta(x+dx[1]/2   , dx[2] , y+dy[1]/2   , dy[2], 
-                    v_x+ddx[1]/2, ddx[2], v_y+ddy[1]/2, ddy[2], update);
-                delta(x+dx[2]     , dx[3] , y+dy[2]     , dy[3], 
-                    v_x+ddx[2]  , ddx[3], v_y+ddy[2]  , ddy[3], update);
-
-                x += RK4Final(dx); y += RK4Final(dy);
-                v_x += RK4Final(ddx); v_y += RK4Final(ddy);
-                t += dt_update;
-            };*/
 
             auto RK2Final = [](std::array<double, 2> &d) -> double{
                 return (d[0] + d[1]) / 2;
             };
-            /*auto rungeKutta2 = [&](std::size_t i){
-                double &x = xy[i], &y = xy[i+vSize],
-                    &v_x = velocities[i], &v_y = velocities[i+vSize],
-                    &t = tVec[i];
-                //double T, p, rho;
-                double dt_update = (y >= 0) * dt_min;
-                std::array<double, 2> dx, dy, ddx, ddy;
-                
-                delta(x, dx[0], y, dy[0], v_x, ddx[0], v_y, ddy[0]);
-                delta(x+dx[0], dx[1], y+dy[0], dy[1], 
-                    v_x+ddx[0], ddx[1], v_y+ddy[0], ddy[1], y >= 0); 
-                //Force update even if it becomes zero
-
-                x += RK2Final(dx); y += RK2Final(dy);
-                v_x += RK2Final(ddx); v_y += RK2Final(ddy);
-                t += dt_update;
-            };*/
-
-            /*auto forwardEuler = [&](std::size_t i){
-                double &x = xy[i], &y = xy[i+vSize],
-                   &v_x = velocities[i], &v_y = velocities[i+vSize], &t = tVec[i];
-                //double T, p, rho;
-                double dt_update = (y >= 0) * dt_min;
-                double dx, dy, ddx, ddy;
-
-                delta(x, dx, y, dy, v_x, ddx, v_y, ddy);
-                x += dx; y += dy;
-                v_x += ddx; v_y += ddy;
-                t += dt_update;
-            };*/
 
             while(checkContinue()){
                 for(unsigned int i=0; i< vSize; ++i){
+                    double &x = xy[i], &y = xy[i+vSize],
+                    &v_x = velocities[i], &v_y = velocities[i+vSize], &t = tVec[i];
                     if constexpr(Numerical == numerical::forwardEuler){
-                        double &x = xy[i], &y = xy[i+vSize],
-                        &v_x = velocities[i], &v_y = velocities[i+vSize], &t = tVec[i];
-                        //double T, p, rho;
                         double dt_update = (y >= 0) ? dt_min:0;
                         double dx, dy, ddx, ddy;
 
@@ -780,10 +704,6 @@ class shellCalc {
                         v_x += ddx; v_y += ddy;
                         t += dt_update;
                     }else if constexpr(Numerical == numerical::rungeKutta2){
-                        double &x = xy[i], &y = xy[i+vSize],
-                            &v_x = velocities[i], &v_y = velocities[i+vSize],
-                            &t = tVec[i];
-                        //double T, p, rho;
                         double dt_update = (y >= 0) ? dt_min:0;
                         std::array<double, 2> dx, dy, ddx, ddy;
                         
@@ -796,10 +716,6 @@ class shellCalc {
                         v_x += RK2Final(ddx); v_y += RK2Final(ddy);
                         t += dt_update;
                     }else if constexpr(Numerical == numerical::rungeKutta4){
-                        double &x = xy[i], &y = xy[i+vSize],
-                            &v_x = velocities[i], &v_y = velocities[i+vSize], 
-                            &t = tVec[i];
-                        //double T, p, rho;
                         bool update = (y >= 0); //Force update even if it becomes zero
                         double dt_update = update ? dt_min:0;
                         std::array<double, 4> dx, dy, ddx, ddy;
