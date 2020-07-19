@@ -165,6 +165,15 @@ class shellCalc {
         }
     }
 
+    template <unsigned int Numerical>
+    static constexpr bool isMultistep() {
+        if constexpr (Numerical == numerical::adamsBashforth5) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     //https://godbolt.org/z/xj8qGz
     template <bool AddTraj, unsigned int Numerical>
     void multiTraj(const unsigned int &start, shell &s,

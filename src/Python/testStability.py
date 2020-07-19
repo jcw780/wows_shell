@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 
 
 
-s = shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, "Yamato")
+#s = shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, "Yamato")
+s = shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, 'Yamato')
 impacts = {}
 
 s.setDtMin(.1)
@@ -88,13 +89,13 @@ ax2L = []
 
 for key, value in impacts.items():
     ax1V, = ax1.plot(
-        value[impactDataIndex.launchA,:], 
+        value[impactDataIndex.launchAngle,:], 
         value[impactDataIndex.distance,:] - reference[impactDataIndex.distance,:],
         label=key)
     ax1L.append(ax1V)
     ax2V, = ax2.plot(
-        value[impactDataIndex.launchA,:], 
-        value[impactDataIndex.tToTarget,:] - reference[impactDataIndex.tToTarget,:],
+        value[impactDataIndex.launchAngle,:], 
+        value[impactDataIndex.timeToTarget,:] - reference[impactDataIndex.timeToTarget,:],
         label=key)
     ax2L.append(ax2V)
     '''ax3V, = ax3.plot(
