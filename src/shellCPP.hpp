@@ -505,8 +505,7 @@ class shellCalc {
 
     template <bool AddTraj, unsigned int Numerical>
     void multiTraj(const unsigned int &start, shell &s,
-                   std::array<double, vSize>& vx, 
-                   std::array<double, vSize>& vy, 
+                   std::array<double, 2*vSize>& velocities, 
                    std::array<double, vSize>& tVec) {
         double k = s.get_k(), cw_2 = s.get_cw_2();
         if constexpr (AddTraj) {
@@ -520,16 +519,17 @@ class shellCalc {
             }
         }
 
-        std::array<double, vSize> groupX{}, groupY;
+        //std::array<double, vSize> groupX{}, groupY;
+        std::array<double, 2*vSize> xy{};
         //groupX.fill(x0);
         for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
-            groupY[i] = j < s.impactSize ? 0: -1;
+            xy[i+vSize] = j < s.impactSize ? 0: -1;
         }
 
         auto checkContinue = [&]() -> bool {
             bool any = false;
             for (unsigned int i = 0; i < vSize; ++i) {
-                any |= (groupY[i] >= 0);
+                any |= (xy[i+vSize] >= 0);
             }
             return any;
         };
@@ -540,7 +540,7 @@ class shellCalc {
                         const double &v_y, double &ddy, 
                         bool update = false){
             update |= (y >= 0);
-            double T, p, rho, dt_update = update * dt_min;
+            double T, p, rho, dt_update = update ? dt_min:0;
             dx = dt_update * v_x;
             dy = dt_update * v_y;
             y += dy; //x not needed
@@ -554,12 +554,12 @@ class shellCalc {
             ddy = -1*dt_update*(g+kRho*(cw_1*v_y*v_y+cw_2*fabs(v_y)*signum(v_y)));
         };
 
-        auto addTraj = [&](){
+        /*auto addTraj = [&](){
             for(unsigned int i=0, j=start; i<vSize & j < s.impactSize; ++i, ++j){
-                s.trajectories[2 * (j)].push_back(groupX[i]);
-                s.trajectories[2 * (j) + 1].push_back(groupY[i]);
+                s.trajectories[2 * (j)].push_back(xy[i]);
+                s.trajectories[2 * (j) + 1].push_back(xy[i+vSize]);
             }
-        };
+        };*/
 
         if constexpr (isMultistep<Numerical>()){
             if constexpr (Numerical == numerical::adamsBashforth5){
@@ -570,10 +570,11 @@ class shellCalc {
                     return index + ((stage + offset) % 5) * vSize;
                 };
 
-                auto ABG = [&](const unsigned int &stage, auto final){
+                /*auto ABG = [&](const unsigned int &stage, auto final){
                     for(unsigned int i=0; i<vSize; ++i){
-                        double &x = groupX[i], &y = groupY[i], 
-                        &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+                        double &x = xy[i], &y = xy[i+vSize], 
+                        &v_x = velocities[i], &v_y = velocities[i+vSize], 
+                        &t = tVec[i];
                         bool update = (y >= 0);
                         unsigned int index = get(i, stage);
                         delta(x, dx[index], y, dy[index], v_x, ddx[index], v_y, ddy[index]);
@@ -581,41 +582,117 @@ class shellCalc {
                         v_x += final(ddx, i, update); v_y += final(ddy, i, update);
                         t += update * dt_min;
                     }
-                };
+                };*/
 
                 if(checkContinue()){ //AB1 == Euler Method - Length 1 Traj
                     auto ABF1 = [&](const std::array<double, 5*vSize> &d, const unsigned int &i, const bool &update){
                         return d[get(i, 0)] * update;
                     };
-                    ABG(0, ABF1);
-                    if constexpr (AddTraj){addTraj();}
+                    //ABG(0, ABF1);
+                    for(unsigned int i=0; i<vSize; ++i){
+                        double &x = xy[i], &y = xy[i+vSize], 
+                        &v_x = velocities[i], &v_y = velocities[i+vSize], 
+                        &t = tVec[i];
+                        bool update = (y >= 0);
+                        unsigned int index = get(i, 0);
+                        delta(x, dx[index], y, dy[index], v_x, ddx[index], v_y, ddy[index]);
+                        x += ABF1(dx, i, update); y += ABF1(dy, i, update); 
+                        v_x += ABF1(ddx, i, update); v_y += ABF1(ddy, i, update);
+                        t += update * dt_min;
+                    }
+                    if constexpr (AddTraj){
+                        for(unsigned int i=0, j=start; i<vSize & j < s.impactSize; ++i, ++j){
+                            s.trajectories[2 * (j)].push_back(xy[i]);
+                            s.trajectories[2 * (j) + 1].push_back(xy[i+vSize]);
+                        }
+                    }
                     if(checkContinue()){ //2 AB2 - Length 2 Traj
                         auto ABF2 = [&](const std::array<double, 5*vSize> &d, const unsigned int &i, const bool &update){
                             return (3/2*d[get(i, 1)] - 1/2*d[get(i, 0)]) * update; 
                         };
-                        ABG(1, ABF2);
-                        if constexpr (AddTraj){addTraj();}
+                        for(unsigned int i=0; i<vSize; ++i){
+                            double &x = xy[i], &y = xy[i+vSize], 
+                            &v_x = velocities[i], &v_y = velocities[i+vSize], 
+                            &t = tVec[i];
+                            bool update = (y >= 0);
+                            unsigned int index = get(i, 1);
+                            delta(x, dx[index], y, dy[index], v_x, ddx[index], v_y, ddy[index]);
+                            x += ABF2(dx, i, update); y += ABF2(dy, i, update); 
+                            v_x += ABF2(ddx, i, update); v_y += ABF2(ddy, i, update);
+                            t += update * dt_min;
+                        }
+                        if constexpr (AddTraj){
+                            for(unsigned int i=0, j=start; i<vSize & j < s.impactSize; ++i, ++j){
+                                s.trajectories[2 * (j)].push_back(xy[i]);
+                                s.trajectories[2 * (j) + 1].push_back(xy[i+vSize]);
+                            }
+                        }
                         if(checkContinue()){ //3 AB3 - Length 3 Traj
                             auto ABF3 = [&](const std::array<double, 5*vSize> &d, const unsigned int &i, const bool &update){
                                 return (23/12*d[get(i, 2)] - 16/12*d[get(i, 1)] + 5/12*d[get(i, 0)]) 
                                 * update; 
                             };
-                            ABG(2, ABF3);
-                            if constexpr (AddTraj){addTraj();}
+                            for(unsigned int i=0; i<vSize; ++i){
+                                double &x = xy[i], &y = xy[i+vSize], 
+                                &v_x = velocities[i], &v_y = velocities[i+vSize], 
+                                &t = tVec[i];
+                                bool update = (y >= 0);
+                                unsigned int index = get(i, 2);
+                                delta(x, dx[index], y, dy[index], v_x, ddx[index], v_y, ddy[index]);
+                                x += ABF3(dx, i, update); y += ABF3(dy, i, update); 
+                                v_x += ABF3(ddx, i, update); v_y += ABF3(ddy, i, update);
+                                t += update * dt_min;
+                            }
+                            if constexpr (AddTraj){
+                                for(unsigned int i=0, j=start; i<vSize & j < s.impactSize; ++i, ++j){
+                                    s.trajectories[2 * (j)].push_back(xy[i]);
+                                    s.trajectories[2 * (j) + 1].push_back(xy[i+vSize]);
+                                }
+                            }
                             if(checkContinue()){ //4 AB4 - Length 4 Traj
                                 auto ABF4 = [&](const std::array<double, 5*vSize> &d, const unsigned int &i, const bool &update){
                                     return (55/24*d[get(i, 3)] - 59/24*d[get(i, 2)] + 37/24*d[get(i, 1)]
                                     - 9/24*d[get(i, 0)]) * update; 
                                 };
-                                ABG(3, ABF4);
-                                if constexpr (AddTraj){addTraj();}
+                                for(unsigned int i=0; i<vSize; ++i){
+                                    double &x = xy[i], &y = xy[i+vSize], 
+                                    &v_x = velocities[i], &v_y = velocities[i+vSize], 
+                                    &t = tVec[i];
+                                    bool update = (y >= 0);
+                                    unsigned int index = get(i, 3);
+                                    delta(x, dx[index], y, dy[index], v_x, ddx[index], v_y, ddy[index]);
+                                    x += ABF4(dx, i, update); y += ABF4(dy, i, update); 
+                                    v_x += ABF4(ddx, i, update); v_y += ABF4(ddy, i, update);
+                                    t += update * dt_min;
+                                }
+                                if constexpr (AddTraj){
+                                    for(unsigned int i=0, j=start; i<vSize & j < s.impactSize; ++i, ++j){
+                                        s.trajectories[2 * (j)].push_back(xy[i]);
+                                        s.trajectories[2 * (j) + 1].push_back(xy[i+vSize]);
+                                    }
+                                }
                                 while(checkContinue()){ //5 AB5 - Length 5+ Traj
                                     auto ABF5 = [&](const std::array<double, 5*vSize> &d, const unsigned int &i, const bool &update){
                                         return (1901/720*d[get(i, 4)] - 2774/720*d[get(i, 3)] + 2616/720*d[get(i, 2)]
                                         - 1274/720*d[get(i, 1)] + 251/720*d[get(i, 0)]) * update; 
                                     };
-                                    ABG(4, ABF5);
-                                    if constexpr (AddTraj){addTraj();}
+                                    for(unsigned int i=0; i<vSize; ++i){
+                                        double &x = xy[i], &y = xy[i+vSize], 
+                                        &v_x = velocities[i], &v_y = velocities[i+vSize], 
+                                        &t = tVec[i];
+                                        bool update = (y >= 0);
+                                        unsigned int index = get(i, 4);
+                                        delta(x, dx[index], y, dy[index], v_x, ddx[index], v_y, ddy[index]);
+                                        x += ABF5(dx, i, update); y += ABF5(dy, i, update); 
+                                        v_x += ABF5(ddx, i, update); v_y += ABF5(ddy, i, update);
+                                        t += update * dt_min;
+                                    }
+                                    if constexpr (AddTraj){
+                                        for(unsigned int i=0, j=start; i<vSize & j < s.impactSize; ++i, ++j){
+                                            s.trajectories[2 * (j)].push_back(xy[i]);
+                                            s.trajectories[2 * (j) + 1].push_back(xy[i+vSize]);
+                                        }
+                                    }
                                     offset++; //Circle back 
                                     offset = offset == 5? 0 : offset;
                                 }
@@ -632,9 +709,10 @@ class shellCalc {
             auto RK4Final = [](std::array<double, 4> &d) -> double{
                 return (std::fma(2, d[1], d[0]) + std::fma(2, d[2], d[3])) / 6;
             };
-            auto rungeKutta4 = [&](std::size_t i){
-                double &x = groupX[i], &y = groupY[i], 
-                    &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+            /*auto rungeKutta4 = [&](std::size_t i){
+                double &x = xy[i], &y = xy[i+vSize],
+                    &v_x = velocities[i], &v_y = velocities[i+vSize], 
+                    &t = tVec[i];
                 //double T, p, rho;
                 bool update = (y >= 0); //Force update even if it becomes zero
                 double dt_update = update * dt_min;
@@ -652,14 +730,15 @@ class shellCalc {
                 x += RK4Final(dx); y += RK4Final(dy);
                 v_x += RK4Final(ddx); v_y += RK4Final(ddy);
                 t += dt_update;
-            };
+            };*/
 
             auto RK2Final = [](std::array<double, 2> &d) -> double{
                 return (d[0] + d[1]) / 2;
             };
-            auto rungeKutta2 = [&](std::size_t i){
-                double &x = groupX[i], &y = groupY[i], 
-                    &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+            /*auto rungeKutta2 = [&](std::size_t i){
+                double &x = xy[i], &y = xy[i+vSize],
+                    &v_x = velocities[i], &v_y = velocities[i+vSize],
+                    &t = tVec[i];
                 //double T, p, rho;
                 double dt_update = (y >= 0) * dt_min;
                 std::array<double, 2> dx, dy, ddx, ddy;
@@ -672,11 +751,11 @@ class shellCalc {
                 x += RK2Final(dx); y += RK2Final(dy);
                 v_x += RK2Final(ddx); v_y += RK2Final(ddy);
                 t += dt_update;
-            };
+            };*/
 
-            auto forwardEuler = [&](std::size_t i){
-                double &x = groupX[i], &y = groupY[i], 
-                    &v_x = vx[i], &v_y = vy[i], &t = tVec[i];
+            /*auto forwardEuler = [&](std::size_t i){
+                double &x = xy[i], &y = xy[i+vSize],
+                   &v_x = velocities[i], &v_y = velocities[i+vSize], &t = tVec[i];
                 //double T, p, rho;
                 double dt_update = (y >= 0) * dt_min;
                 double dx, dy, ddx, ddy;
@@ -685,27 +764,74 @@ class shellCalc {
                 x += dx; y += dy;
                 v_x += ddx; v_y += ddy;
                 t += dt_update;
-            };
+            };*/
 
             while(checkContinue()){
                 for(unsigned int i=0; i< vSize; ++i){
                     if constexpr(Numerical == numerical::forwardEuler){
-                        forwardEuler(i);
+                        double &x = xy[i], &y = xy[i+vSize],
+                        &v_x = velocities[i], &v_y = velocities[i+vSize], &t = tVec[i];
+                        //double T, p, rho;
+                        double dt_update = (y >= 0) ? dt_min:0;
+                        double dx, dy, ddx, ddy;
+
+                        delta(x, dx, y, dy, v_x, ddx, v_y, ddy);
+                        x += dx; y += dy;
+                        v_x += ddx; v_y += ddy;
+                        t += dt_update;
                     }else if constexpr(Numerical == numerical::rungeKutta2){
-                        rungeKutta2(i);
+                        double &x = xy[i], &y = xy[i+vSize],
+                            &v_x = velocities[i], &v_y = velocities[i+vSize],
+                            &t = tVec[i];
+                        //double T, p, rho;
+                        double dt_update = (y >= 0) ? dt_min:0;
+                        std::array<double, 2> dx, dy, ddx, ddy;
+                        
+                        delta(x, dx[0], y, dy[0], v_x, ddx[0], v_y, ddy[0]);
+                        delta(x+dx[0], dx[1], y+dy[0], dy[1], 
+                            v_x+ddx[0], ddx[1], v_y+ddy[0], ddy[1], y >= 0); 
+                        //Force update even if it becomes zero
+
+                        x += RK2Final(dx); y += RK2Final(dy);
+                        v_x += RK2Final(ddx); v_y += RK2Final(ddy);
+                        t += dt_update;
                     }else if constexpr(Numerical == numerical::rungeKutta4){
-                        rungeKutta4(i);
+                        double &x = xy[i], &y = xy[i+vSize],
+                            &v_x = velocities[i], &v_y = velocities[i+vSize], 
+                            &t = tVec[i];
+                        //double T, p, rho;
+                        bool update = (y >= 0); //Force update even if it becomes zero
+                        double dt_update = update ? dt_min:0;
+                        std::array<double, 4> dx, dy, ddx, ddy;
+                        // K1->K4
+                        delta(x           , dx[0] , y           , dy[0], 
+                            v_x         , ddx[0], v_y         , ddy[0]);
+                        delta(x+dx[0]/2   , dx[1] , y+dy[0]/2   , dy[1], 
+                            v_x+ddx[0]/2, ddx[1], v_y+ddy[0]/2, ddy[1], update); 
+                        delta(x+dx[1]/2   , dx[2] , y+dy[1]/2   , dy[2], 
+                            v_x+ddx[1]/2, ddx[2], v_y+ddy[1]/2, ddy[2], update);
+                        delta(x+dx[2]     , dx[3] , y+dy[2]     , dy[3], 
+                            v_x+ddx[2]  , ddx[3], v_y+ddy[2]  , ddy[3], update);
+
+                        x += RK4Final(dx); y += RK4Final(dy);
+                        v_x += RK4Final(ddx); v_y += RK4Final(ddy);
+                        t += dt_update;
                     }else{
                         static_assert(utility::falsy_v
                         <std::integral_constant<unsigned int, Numerical>>, 
                         "Invalid single step algorithm");
                     }
                 }
-                if constexpr (AddTraj) addTraj();
+                if constexpr (AddTraj) {
+                    for(unsigned int i=0, j=start; i<vSize & j < s.impactSize; ++i, ++j){
+                        s.trajectories[2 * (j)].push_back(xy[i]);
+                        s.trajectories[2 * (j) + 1].push_back(xy[i+vSize]);
+                    }
+                };
             }
         }  
         for(std::size_t i=0; i< vSize; ++i){
-            s.get_impact(start + i, impact::distance) = groupX[i];
+            s.get_impact(start + i, impact::distance) = xy[i];
         } 
     }
 
@@ -716,24 +842,29 @@ class shellCalc {
         shell &s = *shellPointer;
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_normalizationR();
-
-        std::array<double, vSize> vx, vy, tVec{};
+        //std::cout<<"Entered\n";
+        std::array<double, vSize * 2> velocities; 
+        //0 -> (v_x) -> vSize -> (v_y) -> 2*vSize
+        std::array<double, vSize> tVec{};
         for (unsigned int j = 0; j < vSize; j++) {
             if constexpr (!Fit) {
                 s.get_impact(i + j, impact::launchAngle) =
-                    std::fma(precision, (i + j), min);
+                    precision * (i + j) + min;
             }
             double radianLaunch =
                 s.get_impact(i + j, impact::launchAngle) * M_PI / 180;
-            vx[j] = s.get_v0() * cos(radianLaunch);
-            vy[j] = s.get_v0() * sin(radianLaunch);
+            velocities[j] = s.get_v0() * cos(radianLaunch);
+            velocities[j+vSize] = s.get_v0() * sin(radianLaunch);
         }
         //for (unsigned int j = 0; (j + i < s.impactSize) & (j < vSize); j++) {
         //    singleTraj<AddTraj, Numerical, Hybrid>(i, j, s, vx.data(), vy.data(), tVec.data());
         //}
-        multiTraj<AddTraj, Numerical>(i, s, vx, vy, tVec);
+        //std::cout<<"Calculating\n";
+        multiTraj<AddTraj, Numerical>(i, s, velocities, tVec);
+        //std::cout<<"Processing\n";
         for (unsigned int j = 0; j < vSize; j++) {
-            double IA_R = atan(vy[j] / vx[j]);
+            const double &v_x = velocities[j], &v_y = velocities[j+vSize];
+            double IA_R = atan(v_y / v_x);
 
             s.get_impact(i + j, impact::impactAngleHorizontalRadians) = IA_R;
             double IAD_R = M_PI_2 + IA_R;
@@ -742,7 +873,7 @@ class shellCalc {
                 IA_D * -1;
             s.get_impact(i + j, impact::impactAngleDeckDegrees) = 90 + IA_D;
 
-            double IV = sqrt(vx[j] * vx[j] + vy[j] * vy[j]);
+            double IV = sqrt(v_x * v_x + v_y * v_y);
             s.get_impact(i + j, impact::impactVelocity) = IV;
             s.get_impact(i + j, impact::timeToTarget) = tVec[j];
             s.get_impact(i + j, impact::timeToTargetAdjusted) = tVec[j] / 3.1;
