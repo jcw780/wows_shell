@@ -553,6 +553,15 @@ class shellCalc {
             ddy = -1*dt_update*(g+kRho*(cw_1*v_y*v_y+cw_2*fabs(v_y)*signum(v_y)));
         };
 
+        auto addTraj = [&](){
+            for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
+                if(j < s.impactSize){
+                    s.trajectories[2 * (j)].push_back(groupX[i]);
+                    s.trajectories[2 * (j) + 1].push_back(groupY[i]);
+                }
+            }
+        };
+
         if constexpr (isMultistep<Numerical>()){
             if constexpr (Numerical == numerical::adamsBashforth5){
                 std::array<double, 5*vSize> dx, dy, ddx, ddy;
@@ -581,29 +590,34 @@ class shellCalc {
                         return d[get(i, 0)] * update;
                     };
                     ABG(0, ABF1);
+                    if constexpr (AddTraj) addTraj();
                     if(checkContinue()){ //2 AB2 - L2 Traj
                         auto ABF2 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
                             return (3/2*d[get(i, 1)] - 1/2*d[get(i, 0)]) * update; 
                         };
                         ABG(1, ABF2);
+                        if constexpr (AddTraj) addTraj();
                         if(checkContinue()){ //3 AB3 - L3 Traj
                             auto ABF3 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
                                 return (23/12*d[get(i, 2)] - 16/12*d[get(i, 1)] + 5/12*d[get(i, 0)]) 
                                 * update; 
                             };
                             ABG(2, ABF3);
+                            if constexpr (AddTraj) addTraj();
                             if(checkContinue()){ //4 AB4 - L4 Traj
                                 auto ABF4 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
                                     return (55/24*d[get(i, 3)] - 59/24*d[get(i, 2)] + 37/24*d[get(i, 1)]
                                     - 9/24*d[get(i, 0)]) * update; 
                                 };
                                 ABG(3, ABF4);
+                                if constexpr (AddTraj) addTraj();
                                 while(checkContinue()){ //5 AB5 - L5+ Traj
                                     auto ABF5 = [&](std::array<double, 5*vSize> &d, unsigned int i, bool update){
                                         return (1901/720*d[get(i, 4)] - 2774/720*d[get(i, 3)] + 2616/720*d[get(i, 2)]
                                         - 1274/720*d[get(i, 1)] + 251/720*d[get(i, 0)]) * update; 
                                     };
                                     ABG(4, ABF5);
+                                    if constexpr (AddTraj) addTraj();
                                     offset++; //Circle back 
                                     offset = offset == 5? 0 : offset;
                                 }
@@ -685,14 +699,7 @@ class shellCalc {
                         "Invalid numerical algorithm");
                     }
                 }
-                if constexpr (AddTraj) {
-                    for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
-                        if(j < s.impactSize){
-                            s.trajectories[2 * (j)].push_back(groupX[i]);
-                            s.trajectories[2 * (j) + 1].push_back(groupY[i]);
-                        }
-                    }
-                }
+                if constexpr (AddTraj) addTraj();
             }
         }  
         for(std::size_t i=0; i< vSize; ++i){
