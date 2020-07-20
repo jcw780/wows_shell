@@ -225,12 +225,16 @@ class shellCalc {
             ddy = -1*dt_update*(g+kRho*(cw_1*v_y*v_y+cw_2*fabs(v_y)*signum(v_y)));
         };
 
-        auto RK4Final = [](std::array<double, 4> &d) -> double{
-                return (std::fma(2, d[1], d[0]) + std::fma(2, d[2], d[3])) / 6;
-            };
+        auto getIntermediate = [](unsigned int index, unsigned int stage){
+            return index + stage * vSize;
+        };
 
-        auto RK2Final = [](std::array<double, 2> &d) -> double{
-            return (d[0] + d[1]) / 2;
+        auto RK4Final = [&](std::array<double, 4*vSize> &d, unsigned int index) -> double{
+            return (std::fma(2, d[getIntermediate(index, 1)], d[getIntermediate(index, 0)]) + std::fma(2, d[getIntermediate(index, 2)], d[getIntermediate(index, 3)])) / 6;
+        };
+
+        auto RK2Final = [&](std::array<double, 2*vSize> &d, unsigned int index) -> double{
+            return (d[getIntermediate(index, 0)] + d[getIntermediate(index, 1)]) / 2;
         };
 
         if constexpr (isMultistep<Numerical>()){
@@ -243,6 +247,7 @@ class shellCalc {
                 };
                 
                 //Fill in first 5 w/ RK2
+                std::array<double, 2*vSize> rdx, rdy, rddx, rddy;
                 for(int stage=0; (stage<4) & checkContinue(); ++stage){
                     for(unsigned int i=0; i< vSize; ++i){
                         double &x = xy[i], &y = xy[i+vSize],
@@ -251,17 +256,15 @@ class shellCalc {
 
                         //RK2
                         double dt_update = (y >= 0) * dt_min;
-                        std::array<double, 2> rdx, rdy, rddx, rddy;
+                        //std::array<double, 2> rdx, rdy, rddx, rddy;
                         
-                        delta(x, rdx[0], y, rdy[0], v_x, rddx[0], v_y, rddy[0]);
-                        delta(x+rdx[0], rdx[1], y+rdy[0], rdy[1], 
-                            v_x+rddx[0], rddx[1], v_y+rddy[0], rddy[1], y >= 0); 
+                        delta(x, rdx[getIntermediate(i, 0)], y, rdy[getIntermediate(i, 0)], v_x, rddx[getIntermediate(i, 0)], v_y, rddy[getIntermediate(i, 0)]);
+                        delta(x+rdx[getIntermediate(i, 0)], rdx[getIntermediate(i, 1)], y+rdy[getIntermediate(i, 0)], rdy[getIntermediate(i, 1)], 
+                            v_x+rddx[getIntermediate(i, 0)], rddx[getIntermediate(i, 1)], v_y+rddy[getIntermediate(i, 0)], rddy[getIntermediate(i, 1)], y >= 0); 
                         //Force update even if it becomes zero
 
-                        double fdx = RK2Final(rdx), fdy = RK2Final(rdy), 
-                            fddx = RK2Final(rddx), fddy = RK2Final(rddy);
-                        //x += RK2Final(dx); y += RK2Final(dy);
-                        //v_x += RK2Final(ddx); v_y += RK2Final(ddy);
+                        double fdx = RK2Final(rdx, i), fdy = RK2Final(rdy, i), 
+                            fddx = RK2Final(rddx, i), fddy = RK2Final(rddy, i);
                         x += fdx; y += fdy; v_x += fddx; v_y += fddy;
                         dx[get(i, stage)] = fdx; dy[get(i, stage)] = fdy; 
                         ddx[get(i, stage)] = fddx; ddy[get(i, stage)] = fddy;
@@ -307,53 +310,67 @@ class shellCalc {
             }
         }else{
             while(checkContinue()){
-                for(unsigned int i=0; i< vSize; ++i){
-                    double &x = xy[i], &y = xy[i+vSize],
-                    &v_x = velocities[i], &v_y = velocities[i+vSize], 
-                    &t = velocities[i+vSize*2];
-                    if constexpr(Numerical == numerical::forwardEuler){
+                if constexpr(Numerical == numerical::forwardEuler){
+                    std::array<double, vSize> dx, dy, ddx, ddy;
+                    for(unsigned int i=0; i< vSize; ++i){
+                        double &x = xy[i], &y = xy[i+vSize],
+                        &v_x = velocities[i], &v_y = velocities[i+vSize], 
+                        &t = velocities[i+vSize*2];
                         double dt_update = (y >= 0) * dt_min;
-                        double dx, dy, ddx, ddy;
+                        //double dx, dy, ddx, ddy;
 
-                        delta(x, dx, y, dy, v_x, ddx, v_y, ddy);
-                        x += dx; y += dy;
-                        v_x += ddx; v_y += ddy;
+                        delta(x, dx[i], y, dy[i], v_x, ddx[i], v_y, ddy[i]);
+                        x += dx[i]; y += dy[i];
+                        v_x += ddx[i]; v_y += ddy[i];
                         t += dt_update;
-                    }else if constexpr(Numerical == numerical::rungeKutta2){
+                    }
+                }else if constexpr(Numerical == numerical::rungeKutta2){
+                    std::array<double, 2*vSize> dx, dy, ddx, ddy;
+                    for(unsigned int i=0; i< vSize; ++i){
+                        double &x = xy[i], &y = xy[i+vSize],
+                        &v_x = velocities[i], &v_y = velocities[i+vSize], 
+                        &t = velocities[i+vSize*2];
                         double dt_update = (y >= 0) * dt_min;
-                        std::array<double, 2> dx, dy, ddx, ddy;
+                        //std::array<double, 2> dx, dy, ddx, ddy;
                         
-                        delta(x, dx[0], y, dy[0], v_x, ddx[0], v_y, ddy[0]);
-                        delta(x+dx[0], dx[1], y+dy[0], dy[1], 
-                            v_x+ddx[0], ddx[1], v_y+ddy[0], ddy[1], y >= 0); 
+                        delta(x, dx[getIntermediate(i, 0)], y, dy[getIntermediate(i, 0)], v_x, ddx[getIntermediate(i, 0)], v_y, ddy[getIntermediate(i, 0)]);
+                        delta(x+dx[getIntermediate(i, 0)], dx[getIntermediate(i, 1)], y+dy[getIntermediate(i, 0)], dy[getIntermediate(i, 1)], 
+                            v_x+ddx[getIntermediate(i, 0)], ddx[getIntermediate(i, 1)], v_y+ddy[getIntermediate(i, 0)], ddy[getIntermediate(i, 1)], y >= 0); 
                         //Force update even if it becomes zero
 
-                        x += RK2Final(dx); y += RK2Final(dy);
-                        v_x += RK2Final(ddx); v_y += RK2Final(ddy);
+                        x += RK2Final(dx, i); y += RK2Final(dy, i);
+                        v_x += RK2Final(ddx, i); v_y += RK2Final(ddy, i);
                         t += dt_update;
-                    }else if constexpr(Numerical == numerical::rungeKutta4){
+                    }
+                }else if constexpr(Numerical == numerical::rungeKutta4){
+                    std::array<double, 4*vSize> dx, dy, ddx, ddy;
+                    for(unsigned int i=0; i< vSize; ++i){
+                        double &x = xy[i], &y = xy[i+vSize],
+                        &v_x = velocities[i], &v_y = velocities[i+vSize], 
+                        &t = velocities[i+vSize*2];
                         bool update = (y >= 0); //Force update even if it becomes zero
                         double dt_update = update * dt_min;
-                        std::array<double, 4> dx, dy, ddx, ddy;
+                        //std::array<double, 4> dx, dy, ddx, ddy;
                         // K1->K4
-                        delta(x           , dx[0] , y           , dy[0], 
-                            v_x         , ddx[0], v_y         , ddy[0]);
-                        delta(x+dx[0]/2   , dx[1] , y+dy[0]/2   , dy[1], 
-                            v_x+ddx[0]/2, ddx[1], v_y+ddy[0]/2, ddy[1], update); 
-                        delta(x+dx[1]/2   , dx[2] , y+dy[1]/2   , dy[2], 
-                            v_x+ddx[1]/2, ddx[2], v_y+ddy[1]/2, ddy[2], update);
-                        delta(x+dx[2]     , dx[3] , y+dy[2]     , dy[3], 
-                            v_x+ddx[2]  , ddx[3], v_y+ddy[2]  , ddy[3], update);
+                        delta(x                             , dx[getIntermediate(i, 0)] , y                               , dy[getIntermediate(i, 0)], 
+                            v_x                             , ddx[getIntermediate(i, 0)], v_y                             , ddy[getIntermediate(i, 0)]);
+                        delta(x+dx[getIntermediate(i, 0)]/2 , dx[getIntermediate(i, 1)] , y+dy[getIntermediate(i, 0)]/2   , dy[getIntermediate(i, 1)], 
+                            v_x+ddx[getIntermediate(i, 0)]/2, ddx[getIntermediate(i, 1)], v_y+ddy[getIntermediate(i, 0)]/2, ddy[getIntermediate(i, 1)], update); 
+                        delta(x+dx[getIntermediate(i, 1)]/2 , dx[getIntermediate(i, 2)] , y+dy[getIntermediate(i, 1)]/2   , dy[getIntermediate(i, 2)], 
+                            v_x+ddx[getIntermediate(i, 1)]/2, ddx[getIntermediate(i, 2)], v_y+ddy[getIntermediate(i, 1)]/2, ddy[getIntermediate(i, 2)], update);
+                        delta(x+dx[getIntermediate(i, 2)]   , dx[getIntermediate(i, 3)] , y+dy[getIntermediate(i, 2)]     , dy[getIntermediate(i, 3)], 
+                            v_x+ddx[getIntermediate(i, 2)]  , ddx[getIntermediate(i, 3)], v_y+ddy[getIntermediate(i, 2)]  , ddy[getIntermediate(i, 3)], update);
 
-                        x += RK4Final(dx); y += RK4Final(dy);
-                        v_x += RK4Final(ddx); v_y += RK4Final(ddy);
+                        x += RK4Final(dx, i); y += RK4Final(dy, i);
+                        v_x += RK4Final(ddx, i); v_y += RK4Final(ddy, i);
                         t += dt_update;
-                    }else{
-                        static_assert(utility::falsy_v
-                        <std::integral_constant<unsigned int, Numerical>>, 
-                        "Invalid single step algorithm");
                     }
+                }else{
+                    static_assert(utility::falsy_v
+                    <std::integral_constant<unsigned int, Numerical>>, 
+                    "Invalid single step algorithm");
                 }
+                
                 if constexpr (AddTraj) {
                     for(unsigned int i=0, j=start; i<vSize & j < s.impactSize; ++i, ++j){
                         s.trajectories[2 * (j)].push_back(xy[i]);

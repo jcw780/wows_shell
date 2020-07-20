@@ -1,6 +1,6 @@
 /*cppimport
 <%
-cfg['compiler_args'] = ['-std=c++17', '/std:c++17', '-O3', '/Ot',
+cfg['compiler_args'] = ['-std=c++17', '/std:c++17', '-Ofast', '/Ot',
 '-march=native','/arch:AVX2', '/D_USE_MATH_DEFINES']
 setup_pybind11(cfg)
 %>
