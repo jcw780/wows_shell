@@ -151,8 +151,6 @@ class shellCalc {
             if(index < length){
                 //std::cout<<index<<"\n";
                 (object->*function)(index * vSize, args...);
-            }else{
-                break;
             }
         }
     }
@@ -211,7 +209,7 @@ class shellCalc {
                         const double &v_y, double &ddy, 
                         bool update = false){
             update |= (y >= 0);
-            double T, p, rho, dt_update = update ? dt_min:0;
+            double T, p, rho, dt_update = update * dt_min;
             dx = dt_update * v_x;
             dy = dt_update * v_y;
             y += dy; //x not needed
@@ -271,7 +269,8 @@ class shellCalc {
                         t += dt_update;
                     }
                     if constexpr (AddTraj){
-                        for(unsigned int i=0, j=start; (i<vSize) & (j < s.impactSize); ++i, ++j){
+                        const unsigned int loopSize = std::min(vSize, s.impactSize - start);
+                        for(unsigned int i=0, j=start; i<loopSize; ++i, ++j){
                             s.trajectories[2 * (j)].push_back(xy[i]);
                             s.trajectories[2 * (j) + 1].push_back(xy[i+vSize]);
                         }
@@ -295,7 +294,8 @@ class shellCalc {
                         t += update * dt_min;
                     }
                     if constexpr (AddTraj){
-                        for(unsigned int i=0, j=start; i<vSize & j < s.impactSize; ++i, ++j){
+                        const unsigned int loopSize = std::min(vSize, s.impactSize - start);
+                        for(unsigned int i=0, j=start; i<loopSize; ++i, ++j){
                             s.trajectories[2 * (j)].push_back(xy[i]);
                             s.trajectories[2 * (j) + 1].push_back(xy[i+vSize]);
                         }
@@ -372,7 +372,8 @@ class shellCalc {
                 }
                 
                 if constexpr (AddTraj) {
-                    for(unsigned int i=0, j=start; i<vSize & j < s.impactSize; ++i, ++j){
+                    const unsigned int loopSize = std::min(vSize, s.impactSize - start);
+                    for(unsigned int i=0, j=start; i<loopSize; ++i, ++j){ //Breaks Vectorization
                         s.trajectories[2 * (j)].push_back(xy[i]);
                         s.trajectories[2 * (j) + 1].push_back(xy[i+vSize]);
                     }
@@ -391,8 +392,7 @@ class shellCalc {
         const double normalizationR = s.get_normalizationR();
         //std::cout<<"Entered\n";
         std::array<double, vSize * 3> velocitiesTime{}; 
-        //0 -> (v_x) -> vSize -> (v_y) -> 2*vSize -> (t) -> 3*vSize 
-
+        //0 -> (v_x) -> vSize -> (v_y) -> 2*vSize -> (t) -> 3*vSize     
         for (unsigned int j = 0; j < vSize; j++) {
             double radianLaunch;
             if constexpr (!Fit) {
@@ -561,14 +561,17 @@ class shellCalc {
                      shell *const shellPointer) {
         static_assert(fusing <= 2 && fusing >= 0, "Invalid fusing parameter");
         shell &s = *shellPointer;
+        const unsigned int ISA = s.impactSizeAligned;
         for (unsigned int j = 0; j < vSize; j++) {
             double fallAngleAdjusted =
-                s.get_impact(
-                    i + j,
-                    impact::impactDataIndex::impactAngleHorizontalRadians) +
+                //s.get_impact(
+                //    i + j,
+                //    impact::impactDataIndex::impactAngleHorizontalRadians) +
+                s.impactData[i+j+impact::impactAngleHorizontalRadians*ISA] + 
                 inclination_R;
             double rawPenetration =
-                s.get_impact(i + j, impact::impactDataIndex::rawPenetration);
+                //s.get_impact(i + j, impact::impactDataIndex::rawPenetration);
+                s.impactData[i+j+impact::rawPenetration*ISA];
 
             double penetrationCriticalAngle;
             if constexpr (nonAP) {
@@ -605,13 +608,9 @@ class shellCalc {
             {
                 int k = angle::armorRadians / 2;
 
-                if (criticalAngles[k] < M_PI_2) {
-                    out[k] =
-                        acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
-                    out[k] = std::isnan(out[k]) ? 0 : out[k];
-                } else {
-                    out[k] = M_PI_2;
-                }
+                out[k] = acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
+                out[k] = std::isnan(out[k]) ? 0 : out[k];
+                out[k] = criticalAngles[k] < M_PI_2 ? out[k] : M_PI_2;
             }
             {
                 int k = angle::fuseRadians / 2;
@@ -852,7 +851,9 @@ class shellCalc {
             eThicknessV[l] = eThickness;
         }
 
-        for (unsigned int j = 0; (j < vSize) & (j + i < s.postPenSize); j++) {
+        //#pragma clang loop vectorize(enable)
+        const unsigned int loopSize = std::min(vSize, s.postPenSize - i);
+        for (unsigned int j = 0; j < loopSize; j++) {
             postPenTraj<fast>(i + j, s, v_x[j], v_y[j], v_z[j], eThicknessV[j]);
         }
         // std::cout<<index<<" Completed\n";

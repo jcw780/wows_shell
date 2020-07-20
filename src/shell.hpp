@@ -124,7 +124,7 @@ class shell {
     // Getter Functions
     double &get_impact(unsigned int row, unsigned int impact) {
         return impactData[row + impact * impactSizeAligned];
-    }
+    } //Prevents Vectorization
 
     double *get_impactPtr(unsigned int row, unsigned int impact) {
         return impactData.data() + row + impact * impactSizeAligned;
