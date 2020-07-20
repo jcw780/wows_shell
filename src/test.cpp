@@ -11,13 +11,15 @@ void runtime() {
     //shell::shell *test;
     std::unique_ptr<shell::shell> test;
     shell::shellCalc sc;
-    unsigned int runs = 1;
-    for (int i = 0; i < runs; i++) {
+    unsigned int runs = 1000;
+    test = std::make_unique<shell::shell>(
+            .460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, "Yamato");
+    for (unsigned int i = 0; i < runs; i++) {
 
         //test = new shell::shell(.460, 780, .292, 1460, 2574, 6, .001, 2, 91, 60,
         //                        76, "Yamato");
-        test = std::make_unique<shell::shell>(
-            .460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, "Yamato");
+        //test = std::make_unique<shell::shell>(
+        //    .460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, "Yamato");
 
 
         // test = new shell::shell(.102, 805, .3536, 15.2, 2300, 10, .01, 17,

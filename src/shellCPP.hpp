@@ -174,12 +174,12 @@ class shellCalc {
         }
     }
 
-    //https://godbolt.org/z/xj8qGz
+    //https://godbolt.org/z/a71Ebc
     template <bool AddTraj, unsigned int Numerical>
     void multiTraj(const unsigned int &start, shell &s,
-                   std::array<double, 2*vSize>& velocities, 
-                   std::array<double, vSize>& tVec) {
-        double k = s.get_k(), cw_2 = s.get_cw_2();
+                   std::array<double, 3*vSize>& velocities
+                   ) {
+        const double k = s.get_k(), cw_2 = s.get_cw_2();
         if constexpr (AddTraj) {
             for(unsigned int i=0, j=start; i<vSize; ++i, ++j){
                 if(j < s.impactSize){
@@ -241,7 +241,7 @@ class shellCalc {
                     for(unsigned int i=0; i<vSize; ++i){
                         double &x = xy[i], &y = xy[i+vSize], 
                         &v_x = velocities[i], &v_y = velocities[i+vSize], 
-                        &t = tVec[i];
+                        &t = velocities[i+vSize*2];
                         bool update = (y >= 0);
                         unsigned int index = get(i, 0);
                         delta(x, dx[index], y, dy[index], v_x, ddx[index], v_y, ddy[index]);
@@ -262,7 +262,7 @@ class shellCalc {
                         for(unsigned int i=0; i<vSize; ++i){
                             double &x = xy[i], &y = xy[i+vSize], 
                             &v_x = velocities[i], &v_y = velocities[i+vSize], 
-                            &t = tVec[i];
+                            &t = velocities[i+vSize*2];
                             bool update = (y >= 0);
                             unsigned int index = get(i, 1);
                             delta(x, dx[index], y, dy[index], v_x, ddx[index], v_y, ddy[index]);
@@ -284,7 +284,7 @@ class shellCalc {
                             for(unsigned int i=0; i<vSize; ++i){
                                 double &x = xy[i], &y = xy[i+vSize], 
                                 &v_x = velocities[i], &v_y = velocities[i+vSize], 
-                                &t = tVec[i];
+                                &t = velocities[i+vSize*2];
                                 bool update = (y >= 0);
                                 unsigned int index = get(i, 2);
                                 delta(x, dx[index], y, dy[index], v_x, ddx[index], v_y, ddy[index]);
@@ -306,7 +306,7 @@ class shellCalc {
                                 for(unsigned int i=0; i<vSize; ++i){
                                     double &x = xy[i], &y = xy[i+vSize], 
                                     &v_x = velocities[i], &v_y = velocities[i+vSize], 
-                                    &t = tVec[i];
+                                    &t = velocities[i+vSize*2];
                                     bool update = (y >= 0);
                                     unsigned int index = get(i, 3);
                                     delta(x, dx[index], y, dy[index], v_x, ddx[index], v_y, ddy[index]);
@@ -328,7 +328,7 @@ class shellCalc {
                                     for(unsigned int i=0; i<vSize; ++i){
                                         double &x = xy[i], &y = xy[i+vSize], 
                                         &v_x = velocities[i], &v_y = velocities[i+vSize], 
-                                        &t = tVec[i];
+                                        &t = velocities[i+vSize*2];
                                         bool update = (y >= 0);
                                         unsigned int index = get(i, 4);
                                         delta(x, dx[index], y, dy[index], v_x, ddx[index], v_y, ddy[index]);
@@ -366,9 +366,10 @@ class shellCalc {
             while(checkContinue()){
                 for(unsigned int i=0; i< vSize; ++i){
                     double &x = xy[i], &y = xy[i+vSize],
-                    &v_x = velocities[i], &v_y = velocities[i+vSize], &t = tVec[i];
+                    &v_x = velocities[i], &v_y = velocities[i+vSize], 
+                    &t = velocities[i+vSize*2];
                     if constexpr(Numerical == numerical::forwardEuler){
-                        double dt_update = (y >= 0) ? dt_min:0;
+                        double dt_update = (y >= 0) * dt_min;
                         double dx, dy, ddx, ddy;
 
                         delta(x, dx, y, dy, v_x, ddx, v_y, ddy);
@@ -376,7 +377,7 @@ class shellCalc {
                         v_x += ddx; v_y += ddy;
                         t += dt_update;
                     }else if constexpr(Numerical == numerical::rungeKutta2){
-                        double dt_update = (y >= 0) ? dt_min:0;
+                        double dt_update = (y >= 0) * dt_min;
                         std::array<double, 2> dx, dy, ddx, ddy;
                         
                         delta(x, dx[0], y, dy[0], v_x, ddx[0], v_y, ddy[0]);
@@ -389,7 +390,7 @@ class shellCalc {
                         t += dt_update;
                     }else if constexpr(Numerical == numerical::rungeKutta4){
                         bool update = (y >= 0); //Force update even if it becomes zero
-                        double dt_update = update ? dt_min:0;
+                        double dt_update = update * dt_min;
                         std::array<double, 4> dx, dy, ddx, ddy;
                         // K1->K4
                         delta(x           , dx[0] , y           , dy[0], 
@@ -418,9 +419,7 @@ class shellCalc {
                 };
             }
         }  
-        for(std::size_t i=0; i< vSize; ++i){
-            s.get_impact(start + i, impact::distance) = xy[i];
-        } 
+        std::copy_n(xy.begin(), vSize, s.get_impactPtr(start, impact::distance)); 
     }
 
     // Several trajectories done in one chunk to allow for vectorization
@@ -431,24 +430,29 @@ class shellCalc {
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_normalizationR();
         //std::cout<<"Entered\n";
-        std::array<double, vSize * 2> velocities; 
-        //0 -> (v_x) -> vSize -> (v_y) -> 2*vSize
-        std::array<double, vSize> tVec{};
+        std::array<double, vSize * 3> velocitiesTime{}; 
+        //0 -> (v_x) -> vSize -> (v_y) -> 2*vSize -> (t) -> 3*vSize 
+
         for (unsigned int j = 0; j < vSize; j++) {
+            double radianLaunch;
             if constexpr (!Fit) {
-                s.get_impact(i + j, impact::launchAngle) =
+                double degreeLaunch =
                     precision * (i + j) + min;
-            }
-            double radianLaunch =
+                s.get_impact(i + j, impact::launchAngle) =
+                    degreeLaunch;
+                radianLaunch = degreeLaunch * M_PI / 180;
+            }else{
+                radianLaunch =
                 s.get_impact(i + j, impact::launchAngle) * M_PI / 180;
-            velocities[j] = s.get_v0() * cos(radianLaunch);
-            velocities[j+vSize] = s.get_v0() * sin(radianLaunch);
+            }
+            velocitiesTime[j] = s.get_v0() * cos(radianLaunch);
+            velocitiesTime[j+vSize] = s.get_v0() * sin(radianLaunch);
         }
         //std::cout<<"Calculating\n";
-        multiTraj<AddTraj, Numerical>(i, s, velocities, tVec);
+        multiTraj<AddTraj, Numerical>(i, s, velocitiesTime);
         //std::cout<<"Processing\n";
         for (unsigned int j = 0; j < vSize; j++) {
-            const double &v_x = velocities[j], &v_y = velocities[j+vSize];
+            const double &v_x = velocitiesTime[j], &v_y = velocitiesTime[j+vSize];
             double IA_R = atan(v_y / v_x);
 
             s.get_impact(i + j, impact::impactAngleHorizontalRadians) = IA_R;
@@ -460,8 +464,10 @@ class shellCalc {
 
             double IV = sqrt(v_x * v_x + v_y * v_y);
             s.get_impact(i + j, impact::impactVelocity) = IV;
-            s.get_impact(i + j, impact::timeToTarget) = tVec[j];
-            s.get_impact(i + j, impact::timeToTargetAdjusted) = tVec[j] / 3.1;
+
+            double time = velocitiesTime[j+2*vSize];
+            s.get_impact(i + j, impact::timeToTarget) = time;
+            s.get_impact(i + j, impact::timeToTargetAdjusted) = time / 3.1;
 
             if constexpr (!Fit) {
                 if constexpr (nonAP) {
