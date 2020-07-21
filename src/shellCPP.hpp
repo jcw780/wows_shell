@@ -172,7 +172,7 @@ class shellCalc {
         }
     }
 
-    //https://godbolt.org/z/a71Ebc
+    //https://godbolt.org/z/4b1sn5
     template <bool AddTraj, unsigned int Numerical>
     void multiTraj(const unsigned int &start, shell &s,
                    std::array<double, 3*vSize>& velocities
@@ -228,13 +228,16 @@ class shellCalc {
         };
 
         auto RK4Final = [&](std::array<double, 4*vSize> &d, unsigned int index) -> double{
-            return (std::fma(2, d[getIntermediate(index, 1)], d[getIntermediate(index, 0)]) + std::fma(2, d[getIntermediate(index, 2)], d[getIntermediate(index, 3)])) / 6;
+            //Adds deltas in Runge Kutta 4 manner
+            return (std::fma(2, d[getIntermediate(index, 1)], d[getIntermediate(index, 0)])
+             + std::fma(2, d[getIntermediate(index, 2)], d[getIntermediate(index, 3)])) / 6;
         };
 
         auto RK2Final = [&](std::array<double, 2*vSize> &d, unsigned int index) -> double{
+            //Adds deltas in Runge Kutta 2 manner
             return (d[getIntermediate(index, 0)] + d[getIntermediate(index, 1)]) / 2;
         };
-
+        //TODO: Add numerical orders
         if constexpr (isMultistep<Numerical>()){
             if constexpr (Numerical == numerical::adamsBashforth5){
                 std::array<double, 5*vSize> dx, dy, ddx, ddy;
@@ -279,6 +282,7 @@ class shellCalc {
                 
                 while(checkContinue()){ //5 AB5 - Length 5+ Traj
                     auto ABF5 = [&](const std::array<double, 5*vSize> &d, const unsigned int &i, const bool &update){
+                        //Adds deltas in Adams Bashforth 5 manner
                         return (1901/720*d[get(i, 4)] - 2774/720*d[get(i, 3)] + 2616/720*d[get(i, 2)]
                         - 1274/720*d[get(i, 1)] + 251/720*d[get(i, 0)]) * update; 
                     };
@@ -561,16 +565,18 @@ class shellCalc {
                      shell *const shellPointer) {
         static_assert(fusing <= 2 && fusing >= 0, "Invalid fusing parameter");
         shell &s = *shellPointer;
-        const unsigned int ISA = s.impactSizeAligned;
+        const unsigned int ISA = s.impactSizeAligned; 
+        // ^^^
+        // Otherwise Clang would think that assigned values are 
+        // "value[s] that could not be identified as reduction is used outside the loop"
+        // This doesn't vectorize anyways - because of the acos's - 
+        // but that's there so that when acos vectorization is added 
+        // to compilers this will autovectorize
         for (unsigned int j = 0; j < vSize; j++) {
             double fallAngleAdjusted =
-                //s.get_impact(
-                //    i + j,
-                //    impact::impactDataIndex::impactAngleHorizontalRadians) +
                 s.impactData[i+j+impact::impactAngleHorizontalRadians*ISA] + 
                 inclination_R;
             double rawPenetration =
-                //s.get_impact(i + j, impact::impactDataIndex::rawPenetration);
                 s.impactData[i+j+impact::rawPenetration*ISA];
 
             double penetrationCriticalAngle;
@@ -611,6 +617,8 @@ class shellCalc {
                 out[k] = acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
                 out[k] = std::isnan(out[k]) ? 0 : out[k];
                 out[k] = criticalAngles[k] < M_PI_2 ? out[k] : M_PI_2;
+                //Can't use ifs because for some reason (cond) ? (v1) : (v2) 
+                //is not equal to if(cond) v1 else v2 - creates jumps
             }
             {
                 int k = angle::fuseRadians / 2;
