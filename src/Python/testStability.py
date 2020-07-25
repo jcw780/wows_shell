@@ -1,6 +1,5 @@
 from pythonwrapper import shell
-from pythonwrapper import impactDataIndex, angleDataIndex
-from pythonwrapper import postPenDataIndex
+from pythonwrapper import impactDataIndex, angleDataIndex, postPenDataIndex
 import numpy as np
 import matplotlib
 matplotlib.use('TkAgg',warn=False, force=True)

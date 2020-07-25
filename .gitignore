@@ -22,8 +22,7 @@
 
 # Cppimport Files
 *.cppimporthash
-.rendered
-src/Python/.rendered.pythonwrapper.cpp
+.rendered.*.cpp
 
 # Fortran module files
 *.mod
@@ -44,6 +43,7 @@ src/Python/.rendered.pythonwrapper.cpp
 *.js
 *.wasm
 
+# WASM Testing
 _site/
 .jekyll-cache/
 .jekyll-metadata
@@ -51,5 +51,20 @@ _site/
 # Assembler View
 *.s
 
-
+# Visual Studio Code cache/options directory
 .vscode/
+
+# Visual Studio 2015/2017 cache/options directory
+.vs/
+CMakeSettings.json
+
+# out-of-source build top-level folders.
+build/
+_build/
+build*/
+
+# cmake files.
+/Testing
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake

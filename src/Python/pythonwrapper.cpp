@@ -58,24 +58,19 @@ public:
     void setDtf(const double dtf) { calc.set_dtf(dtf); }
 
     void calcImpactForwardEuler() {
-        calc.calculateImpact<shell::numerical::forwardEuler, false>(s, false);
+        calc.calculateImpact<false, shell::numerical::forwardEuler, false>(s);
     }
 
     void calcImpactAdamsBashforth5() {
-        calc.calculateImpact<shell::numerical::adamsBashforth5, false>(s,
-                                                                       false);
+        calc.calculateImpact<false, shell::numerical::adamsBashforth5, false>(s);
     }
 
     void calcImpactRungeKutta2() {
-        calc.calculateImpact<shell::numerical::rungeKutta2, false>(s, false);
+        calc.calculateImpact<false, shell::numerical::rungeKutta2, false>(s);
     }
 
     void calcImpactRungeKutta4() {
-        calc.calculateImpact<shell::numerical::rungeKutta4, false>(s, false);
-    }
-
-    void calcImpactRungeKutta4Hybrid() {
-        calc.calculateImpact<shell::numerical::rungeKutta4, true>(s, true);
+        calc.calculateImpact<false, shell::numerical::rungeKutta4, false>(s);
     }
 
     void calcAngles(const double thickness, const double inclination) {
@@ -197,8 +192,7 @@ PYBIND11_MODULE(pythonwrapper, m) {
              &shellCombined::calcImpactAdamsBashforth5)
         .def("calcImpactRungeKutta2", &shellCombined::calcImpactRungeKutta2)
         .def("calcImpactRungeKutta4", &shellCombined::calcImpactRungeKutta4)
-        .def("calcImpactRungeKutta4Hybrid",
-             &shellCombined::calcImpactRungeKutta4Hybrid)
+        
         .def("calcAngles", &shellCombined::calcAngles)
         .def("calcPostPen", &shellCombined::calcPostPen)
         .def("interpolateDistanceImpact", &shellCombined::interpolateDistanceImpact)
