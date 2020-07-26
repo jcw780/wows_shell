@@ -186,9 +186,14 @@ class shell {
     }
 
     double interpolateDistanceImpact(double distance, unsigned int impact) {
-        std::size_t maxIndex = maxDist();
-        if (maxIndex == std::numeric_limits<std::size_t>::max())
-            return std::numeric_limits<double>::max();
+        std::size_t maxIndex = maxDist(),
+                    maxErrorCode = std::numeric_limits<std::size_t>::max();
+        double errorCode = std::numeric_limits<double>::max();
+        if (maxIndex == maxErrorCode) return errorCode;
+        if (distance < get_impact(0, impact::distance)) return errorCode;
+        if (distance > get_impact(maxIndex, impact::distance)) return errorCode;
+
+        // Only get lower set
         auto iter_max = std::lower_bound(
             get_impactPtr(0, impact::impactDataIndex::distance),
             get_impactPtr(maxIndex, impact::impactDataIndex::distance),
@@ -197,6 +202,9 @@ class shell {
         unsigned int upperIndex =
             iter_max - get_impactPtr(0, impact::impactDataIndex::distance);
         double upperTarget = get_impact(upperIndex, impact);
+
+        if (upperIndex == 0) return upperIndex;
+        // Only activates if distance = min and prevents segfault
 
         auto iter_min = iter_max - 1;
         double lowerDistance = *iter_min;
