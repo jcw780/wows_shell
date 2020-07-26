@@ -290,7 +290,7 @@ class shellCalc {
                     }
                     if constexpr (AddTraj) {
                         const unsigned int loopSize =
-                            std::min(vSize, s.impactSize - start);
+                            std::min<unsigned int>(vSize, s.impactSize - start);
                         for (unsigned int i = 0, j = start; i < loopSize;
                              ++i, ++j) {
                             s.trajectories[2 * (j)].push_back(xy[i]);
@@ -328,7 +328,7 @@ class shellCalc {
                     }
                     if constexpr (AddTraj) {
                         const unsigned int loopSize =
-                            std::min(vSize, s.impactSize - start);
+                            std::min<unsigned int>(vSize, s.impactSize - start);
                         for (unsigned int i = 0, j = start; i < loopSize;
                              ++i, ++j) {
                             s.trajectories[2 * (j)].push_back(xy[i]);
@@ -450,7 +450,7 @@ class shellCalc {
 
                 if constexpr (AddTraj) {
                     const unsigned int loopSize =
-                        std::min(vSize, s.impactSize - start);
+                        std::min<unsigned int>(vSize, s.impactSize - start);
                     for (unsigned int i = 0, j = start; i < loopSize;
                          ++i, ++j) {  // Breaks Vectorization
                         s.trajectories[2 * (j)].push_back(xy[i]);
@@ -900,7 +900,7 @@ class shellCalc {
         unsigned int distIndex = (i < s.impactSize) ? i : i % s.impactSize;
 
         std::copy_n(s.get_postPenPtr(i, post::angle, 0),
-                    std::min(vSize, s.postPenSize - i), hAngleV);
+                    std::min<unsigned int>(vSize, s.postPenSize - i), hAngleV);
         std::copy_n(
             s.get_impactPtr(distIndex, impact::impactAngleHorizontalRadians),
             vSize, vAngleV);
@@ -937,7 +937,8 @@ class shellCalc {
         }
 
         //#pragma clang loop vectorize(enable)
-        const unsigned int loopSize = std::min(vSize, s.postPenSize - i);
+        const unsigned int loopSize =
+            std::min<unsigned int>(vSize, s.postPenSize - i);
         for (unsigned int j = 0; j < loopSize; j++) {
             postPenTraj<fast>(i + j, s, v_x[j], v_y[j], v_z[j], eThicknessV[j]);
         }

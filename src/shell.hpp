@@ -4,16 +4,17 @@
 #ifndef _USE_MATH_DEFINES
 #define _USE_MATH_DEFINES
 #endif
-#include <cmath>
 #include <algorithm>
-#include <string>
-#include <vector>
+#include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <string>
+#include <type_traits>
+#include <vector>
 
 #include "controlEnums.hpp"
 
-namespace shell{
+namespace shell {
 class shell {
    public:                 // Description                units
     double v0;             // muzzle velocity            m/s
@@ -49,9 +50,6 @@ class shell {
         ricochet1R = ricochet1 / 180 * M_PI;
     }
 
-    unsigned int impactSize,
-        postPenSize;  // number of distances in: standard, postPen
-    unsigned int impactSizeAligned, postPenSizeAligned;
     // Not 100% necessary - sizes adjusted to fulfill alignment
     bool completedImpact = false, completedAngles = false,
          completedPostPen = false;
@@ -64,6 +62,7 @@ class shell {
     std::vector<std::vector<double>> trajectories;
 
     // Refer to stdDataIndex enums defined above
+    std::size_t impactSize = 0, impactSizeAligned;
     std::vector<double> impactData;
 
     /* Angles data
@@ -80,6 +79,7 @@ class shell {
      * SIMD ALIGNMENT MAY NOT BE GUARANTEED [0:1) Lateral Angle [1:2) Distance
      * [2:3) X [3:4) Y [4:5) Z             [5:6) XWF See enums defined above
      */
+    std::size_t postPenSize = 0, postPenSizeAligned;
     std::vector<double> postPenData;
 
     shell() = default;
@@ -124,7 +124,7 @@ class shell {
     // Getter Functions
     double &get_impact(unsigned int row, unsigned int impact) {
         return impactData[row + impact * impactSizeAligned];
-    } //Prevents Vectorization
+    }  // Prevents Vectorization
 
     double *get_impactPtr(unsigned int row, unsigned int impact) {
         return impactData.data() + row + impact * impactSizeAligned;
@@ -150,35 +150,74 @@ class shell {
     }
 
     // Linear interpolate by distance - WIP
+    std::size_t maxDist() {
+        std::size_t errorCode = std::numeric_limits<std::size_t>::max();
+        if (impactSize == 0) return errorCode;
+        if (impactSize == 1) return 0;
+        if (impactSize == 2)
+            return get_impact(1, impact::distance) >
+                           get_impact(0, impact::distance)
+                       ? 1
+                       : 0;
+
+        std::size_t start = 0, end = impactSize - 1;
+        if (get_impact(end, impact::distance) >=
+            get_impact(end - 1, impact::distance))
+            return end;
+
+        using T = typename std::decay<decltype(*impactData.begin())>::type;
+        while (start <= end) {
+            std::size_t mid = start + (end - start) / 2;
+            T midValue = get_impact(mid, impact::distance),
+              leftValue = get_impact(mid - 1, impact::distance),
+              rightValue = get_impact(mid + 1, impact::distance);
+            // std::cout << mid << " " << leftValue << " " << midValue << " "
+            //          << rightValue << "\n";
+            if (leftValue <= midValue && midValue >= rightValue) {
+                return mid;
+            }
+            if (leftValue < midValue && midValue < rightValue) {
+                start = ++mid;
+            } else if (leftValue > midValue && midValue > rightValue) {
+                end = --mid;
+            }
+        }
+        return errorCode;
+    }
 
     double interpolateDistanceImpact(double distance, unsigned int impact) {
+        std::size_t maxIndex = maxDist();
+        if (maxIndex == std::numeric_limits<std::size_t>::max())
+            return std::numeric_limits<double>::max();
         auto iter_max = std::lower_bound(
             get_impactPtr(0, impact::impactDataIndex::distance),
-            get_impactPtr(0, impact::impactDataIndex::distance + 1), distance);
-        double maxDistance = *iter_max;
-        unsigned int maxIndex =
+            get_impactPtr(maxIndex, impact::impactDataIndex::distance),
+            distance);
+        double upperDistance = *iter_max;
+        unsigned int upperIndex =
             iter_max - get_impactPtr(0, impact::impactDataIndex::distance);
-        double maxTarget = get_impact(maxIndex, impact);
+        double upperTarget = get_impact(upperIndex, impact);
 
         auto iter_min = iter_max - 1;
-        double minDistance = *iter_min;
-        unsigned int minIndex =
+        double lowerDistance = *iter_min;
+        unsigned int lowerIndex =
             iter_min - get_impactPtr(0, impact::impactDataIndex::distance);
-        double minTarget = get_impact(minIndex, impact);
+        double lowerTarget = get_impact(lowerIndex, impact);
 
         /*std::cout << minIndex << " " << minDistance << " " << minTarget << " "
                   << maxIndex << " " << maxDistance << " " << maxTarget << "\n";
                   */
-        double slope = ((maxTarget - minTarget) / (maxDistance - minDistance));
-        return slope * (distance - minDistance) + minTarget;
+        double slope =
+            ((upperTarget - lowerTarget) / (upperDistance - lowerDistance));
+        return slope * (distance - lowerDistance) + lowerTarget;
     }
 
     // internal computed data - fixed
-    const double& get_v0() { return v0; }
-    const double& get_k() { return k; }
-    const double& get_cw_2() { return cw_2; }
-    const double& get_pPPC() { return pPPC; }
-    const double& get_normalizationR() { return normalizationR; }
+    const double &get_v0() { return v0; }
+    const double &get_k() { return k; }
+    const double &get_cw_2() { return cw_2; }
+    const double &get_pPPC() { return pPPC; }
+    const double &get_normalizationR() { return normalizationR; }
 
     void printAngleData() {
         for (unsigned int i = 0; i < impactSize; i++) {
@@ -226,5 +265,5 @@ class shell {
         }
     }
 };
-}
+}  // namespace shell
 #endif
