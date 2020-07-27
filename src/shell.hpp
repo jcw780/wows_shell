@@ -123,7 +123,7 @@ class shell {
 
     // Getter Functions
     double &get_impact(const unsigned int row, impact::impactIndices impact) {
-        return get_impact(row, static_cast<impact::indexT>(impact));
+        return get_impact(row, toUnderlying(impact));
     }
     double &get_impact(const unsigned int row, const unsigned int impact) {
         return impactData[row + impact * impactSizeAligned];
@@ -131,21 +131,21 @@ class shell {
 
     double *get_impactPtr(const unsigned int row,
                           impact::impactIndices impact) {
-        return get_impactPtr(row, static_cast<impact::indexT>(impact));
+        return get_impactPtr(row, toUnderlying(impact));
     }
     double *get_impactPtr(const unsigned int row, const unsigned int impact) {
         return impactData.data() + row + impact * impactSizeAligned;
     }
 
     double &get_angle(const unsigned int row, angle::angleIndices data) {
-        return get_angle(row, static_cast<angle::indexT>(data));
+        return get_angle(row, toUnderlying(data));
     }
     double &get_angle(const unsigned int row, const unsigned int impact) {
         return angleData[row + impact * impactSizeAligned];
     }
 
     double *get_anglePtr(const unsigned int row, angle::angleIndices data) {
-        return get_anglePtr(row, static_cast<angle::indexT>(data));
+        return get_anglePtr(row, toUnderlying(data));
     }
     double *get_anglePtr(const unsigned int row, const unsigned int impact) {
         return angleData.data() + row + impact * impactSizeAligned;
@@ -153,7 +153,7 @@ class shell {
 
     double &get_postPen(const unsigned int row, post::postPenIndices data,
                         const unsigned int angle) {
-        return get_postPen(row, static_cast<post::indexT>(data), angle);
+        return get_postPen(row, toUnderlying(data), angle);
     }
     double &get_postPen(const unsigned int row, const unsigned int data,
                         const unsigned int angle) {
@@ -162,7 +162,7 @@ class shell {
 
     double *get_postPenPtr(const unsigned int row, post::postPenIndices data,
                            const unsigned int angle) {
-        return get_postPenPtr(row, static_cast<post::indexT>(data), angle);
+        return get_postPenPtr(row, toUnderlying(data), angle);
     }
     double *get_postPenPtr(const unsigned int row, const unsigned int angle,
                            const unsigned int impact) {

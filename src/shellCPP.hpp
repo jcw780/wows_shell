@@ -666,15 +666,14 @@ class shellCalc {
         // to compilers this will autovectorize
         for (unsigned int j = 0; j < vSize; j++) {
             double fallAngleAdjusted =
-                s.impactData
-                    [i + j +
-                     static_cast<impact::indexT>(
-                         impact::impactIndices::impactAngleHorizontalRadians) *
-                         ISA] +
+                s.impactData[i + j +
+                             toUnderlying(impact::impactIndices::
+                                              impactAngleHorizontalRadians) *
+                                 ISA] +
                 inclination_R;
             double rawPenetration =
                 s.impactData[i + j +
-                             static_cast<impact::indexT>(
+                             toUnderlying(
                                  impact::impactIndices::rawPenetration) *
                                  ISA];
 
@@ -711,9 +710,7 @@ class shellCalc {
             }
 
             {
-                int k = static_cast<angle::indexT>(
-                            angle::angleIndices::armorRadians) /
-                        2;
+                int k = toUnderlying(angle::angleIndices::armorRadians) / 2;
 
                 out[k] = acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
                 out[k] = std::isnan(out[k]) ? 0 : out[k];
@@ -722,9 +719,7 @@ class shellCalc {
                 // is not equal to if(cond) v1 else v2 - creates jumps
             }
             {
-                int k = static_cast<angle::indexT>(
-                            angle::angleIndices::fuseRadians) /
-                        2;
+                int k = toUnderlying(angle::angleIndices::fuseRadians) / 2;
                 if constexpr (fusing == fuseStatus::never) {
                     out[k] = M_PI_2;
                 } else if (fusing == fuseStatus::check) {
