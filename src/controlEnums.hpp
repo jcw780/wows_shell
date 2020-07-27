@@ -59,7 +59,12 @@ static_assert(toUnderlying(postPenIndices::xwf) == (maxColumns - 1),
               "Invaild postpen columns");
 }  // namespace post
 
-enum numerical { forwardEuler, rungeKutta2, rungeKutta4, adamsBashforth5 };
+enum class numerical {
+    forwardEuler,
+    rungeKutta2,
+    rungeKutta4,
+    adamsBashforth5
+};
 }  // namespace shell
 
 #endif

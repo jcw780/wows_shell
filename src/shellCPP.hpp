@@ -158,8 +158,10 @@ class shellCalc {
         }
     }
 
-    template <unsigned int Numerical>
+    template <typename NumericalClass, NumericalClass Numerical>
     static constexpr bool isMultistep() {
+        static_assert(std::is_same_v<NumericalClass, numerical>,
+                      "Incorrect Enum Type");
         if constexpr (Numerical == numerical::adamsBashforth5) {
             return true;
         } else {
@@ -168,9 +170,11 @@ class shellCalc {
     }
 
     // https://godbolt.org/z/4b1sn5
-    template <bool AddTraj, unsigned int Numerical>
+    template <bool AddTraj, typename NumericalClass, NumericalClass Numerical>
     void multiTraj(const unsigned int &start, shell &s,
                    std::array<double, 3 * vSize> &velocities) {
+        static_assert(std::is_same_v<NumericalClass, numerical>,
+                      "Incorrect Enum Type");
         const double k = s.get_k(), cw_2 = s.get_cw_2();
         if constexpr (AddTraj) {
             for (unsigned int i = 0, j = start; i < vSize; ++i, ++j) {
@@ -239,7 +243,7 @@ class shellCalc {
                    2;
         };
         // TODO: Add numerical orders
-        if constexpr (isMultistep<Numerical>()) {
+        if constexpr (isMultistep<NumericalClass, Numerical>()) {
             if constexpr (Numerical == numerical::adamsBashforth5) {
                 std::array<double, 5 * vSize> dx, dy, ddx, ddy;
                 // 0 -> vSize -> ... -> 5 * vSize
@@ -465,8 +469,7 @@ class shellCalc {
     }
 
     // Several trajectories done in one chunk to allow for vectorization
-    template <bool AddTraj, unsigned int Numerical, bool Hybrid, bool Fit,
-              bool nonAP>
+    template <bool AddTraj, auto Numerical, bool Hybrid, bool Fit, bool nonAP>
     void impactGroup(const unsigned int i, shell *const shellPointer) {
         shell &s = *shellPointer;
         const double pPPC = s.get_pPPC();
@@ -490,7 +493,8 @@ class shellCalc {
             velocitiesTime[j + vSize] = s.get_v0() * sin(radianLaunch);
         }
         // std::cout<<"Calculating\n";
-        multiTraj<AddTraj, Numerical>(i, s, velocitiesTime);
+        multiTraj<AddTraj, decltype(Numerical), Numerical>(i, s,
+                                                           velocitiesTime);
         // std::cout<<"Processing\n";
         for (unsigned int j = 0; j < vSize; j++) {
             const double &v_x = velocitiesTime[j],
@@ -578,7 +582,7 @@ class shellCalc {
         return vSize - (processedSize % vSize) + processedSize;
     }
     // Templates to reduce branching
-    template <unsigned int Numerical, bool Hybrid>
+    template <auto Numerical, bool Hybrid>
     void calculateImpact(
         shell &s, bool addTraj,
         unsigned int nThreads = std::thread::hardware_concurrency()) {
@@ -589,7 +593,7 @@ class shellCalc {
         }
     }
 
-    template <bool AddTraj, unsigned int Numerical, bool Hybrid>
+    template <bool AddTraj, auto Numerical, bool Hybrid>
     void calculateImpact(
         shell &s, unsigned int nThreads = std::thread::hardware_concurrency()) {
         if (s.enableNonAP) {
@@ -599,7 +603,7 @@ class shellCalc {
         }
     }
 
-    template <bool AddTraj, unsigned int Numerical, bool Hybrid, bool nonAP>
+    template <bool AddTraj, auto Numerical, bool Hybrid, bool nonAP>
     void calculateImpact(
         shell &s, unsigned int nThreads = std::thread::hardware_concurrency()) {
         s.impactSize = ((max / precision - min / precision)) + 1;
@@ -622,7 +626,7 @@ class shellCalc {
         s.completedImpact = true;
     }
 
-    template <unsigned int Numerical>
+    template <auto Numerical>
     void calculateFit(
         shell &s, unsigned int nThreads = std::thread::hardware_concurrency()) {
         if (nThreads > std::thread::hardware_concurrency()) {
