@@ -149,7 +149,6 @@ class shell {
                impact * impactSize;
     }
 
-    // Linear interpolate by distance - WIP
     std::size_t maxDist() {
         std::size_t errorCode = std::numeric_limits<std::size_t>::max();
         if (impactSize == 0) return errorCode;
