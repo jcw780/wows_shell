@@ -1,11 +1,18 @@
 #ifndef _CONTROL_INDICES_
 #define _CONTROL_INDICES_
 
-namespace shell{
+namespace shell {
+
+// https://stackoverflow.com/questions/8357240/how-to-automatically-convert-strongly-typed-enum-into-int
+template <typename E>
+constexpr typename std::underlying_type<E>::type toUnderlying(E e) noexcept {
+    return static_cast<typename std::underlying_type<E>::type>(e);
+}
+
 namespace impact {
 static constexpr unsigned int maxColumns = 13;
 static constexpr unsigned int maxColumnsFit = 7;
-enum impactDataIndex {
+enum class impactIndices {
     distance,
     launchAngle,
     impactAngleHorizontalRadians,  // Negative for Falling
@@ -20,13 +27,15 @@ enum impactDataIndex {
     effectivePenetrationDeck,
     effectivePenetrationDeckNormalized,
 };
-static_assert(effectivePenetrationDeckNormalized == (maxColumns - 1),
+using indexT = typename std::underlying_type<impactIndices>::type;
+static_assert(toUnderlying(impactIndices::effectivePenetrationDeckNormalized) ==
+                  (maxColumns - 1),
               "Invalid standard columns");
 }  // namespace impact
 
 namespace angle {
 static constexpr unsigned int maxColumns = 9;
-enum angleDataIndex {
+enum class angleIndices {
     distance,
     ricochetAngle0Radians,
     ricochetAngle0Degrees,
@@ -37,16 +46,25 @@ enum angleDataIndex {
     fuseRadians,
     fuseDegrees
 };
-static_assert(fuseDegrees == (maxColumns - 1), "Invalid angle columns");
+using indexT = typename std::underlying_type<angleIndices>::type;
+static_assert(toUnderlying(angleIndices::fuseDegrees) == (maxColumns - 1),
+              "Invalid angle columns");
 }  // namespace angle
 
 namespace post {
 static constexpr unsigned int maxColumns = 6;
-enum postPenDataIndex { angle, distance, x, y, z, xwf };
-static_assert(xwf == (maxColumns - 1), "Invaild postpen columns");
+enum class postPenIndices { angle, distance, x, y, z, xwf };
+using indexT = typename std::underlying_type<postPenIndices>::type;
+static_assert(toUnderlying(postPenIndices::xwf) == (maxColumns - 1),
+              "Invaild postpen columns");
 }  // namespace post
 
-enum numerical { forwardEuler, rungeKutta2, rungeKutta4, adamsBashforth5 };
-}
+enum class numerical {
+    forwardEuler,
+    rungeKutta2,
+    rungeKutta4,
+    adamsBashforth5
+};
+}  // namespace shell
 
 #endif

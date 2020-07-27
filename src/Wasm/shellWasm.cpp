@@ -1,16 +1,18 @@
-#include "../shellCPP.hpp"
+#include <emscripten/bind.h>
+
 #include <algorithm>
 #include <cstddef>
-#include <emscripten/bind.h>
 #include <utility>
 
+#include "../shellCPP.hpp"
+
 class shellCombined {
-private:
+   private:
     shell::shellCalc calc;
     // shell::shell s;
     std::vector<shell::shell> ships;
 
-public:
+   public:
     /*shellCombined(const double caliber, const double v0, const double cD,
                   const double mass, const double krupp,
                   const double normalization, const double fuseTime,
@@ -46,10 +48,12 @@ public:
     // Impact Wrappers
     // Default: Adams Bashforth 5
 
-    template <unsigned short Numerical> void calcImpact() {
+    template <unsigned short Numerical>
+    void calcImpact() {
         for (auto &s : ships) {
-            calc.calculateImpact<Numerical, false>(s, false,
-                                                   1); // atomics don't work yet
+            calc.calculateImpact<Numerical, false>(
+                s, false,
+                1);  // atomics don't work yet
         }
     }
 
@@ -101,7 +105,7 @@ public:
         for (auto &s : ships) {
             calc.calculatePostPen(thickness, inclination, s, input,
                                   changeDirection, fast,
-                                  1); // atomics don't work yet
+                                  1);  // atomics don't work yet
         }
     }
 
@@ -212,46 +216,44 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
     emscripten::register_vector<double>("vector<double>");
 
     // Enums
-    emscripten::enum_<shell::impact::impactDataIndex>("impactDataIndex")
-        .value("distance", shell::impact::impactDataIndex::distance)
-        .value("launchA", shell::impact::impactDataIndex::launchAngle)
+    emscripten::enum_<shell::impact::impactIndices>("impactIndices")
+        .value("distance", shell::impact::impactIndices::distance)
+        .value("launchA", shell::impact::impactIndices::launchAngle)
         .value("impactAHR",
-               shell::impact::impactDataIndex::impactAngleHorizontalRadians)
+               shell::impact::impactIndices::impactAngleHorizontalRadians)
         .value("impactAHD",
-               shell::impact::impactDataIndex::impactAngleHorizontalDegrees)
-        .value("impactV", shell::impact::impactDataIndex::impactVelocity)
-        .value("rawPen", shell::impact::impactDataIndex::rawPenetration)
+               shell::impact::impactIndices::impactAngleHorizontalDegrees)
+        .value("impactV", shell::impact::impactIndices::impactVelocity)
+        .value("rawPen", shell::impact::impactIndices::rawPenetration)
         .value("ePenH",
-               shell::impact::impactDataIndex::effectivePenetrationHorizontal)
-        .value("ePenHN", shell::impact::impactDataIndex::
+               shell::impact::impactIndices::effectivePenetrationHorizontal)
+        .value("ePenHN", shell::impact::impactIndices::
                              effectivePenetrationHorizontalNormalized)
         .value("impactADD",
-               shell::impact::impactDataIndex::impactAngleDeckDegrees)
-        .value("ePenD",
-               shell::impact::impactDataIndex::effectivePenetrationDeck)
-        .value(
-            "ePenDN",
-            shell::impact::impactDataIndex::effectivePenetrationDeckNormalized)
-        .value("tToTarget", shell::impact::impactDataIndex::timeToTarget)
+               shell::impact::impactIndices::impactAngleDeckDegrees)
+        .value("ePenD", shell::impact::impactIndices::effectivePenetrationDeck)
+        .value("ePenDN",
+               shell::impact::impactIndices::effectivePenetrationDeckNormalized)
+        .value("tToTarget", shell::impact::impactIndices::timeToTarget)
         .value("tToTargetA",
-               shell::impact::impactDataIndex::timeToTargetAdjusted);
+               shell::impact::impactIndices::timeToTargetAdjusted);
 
-    emscripten::enum_<shell::angle::angleDataIndex>("angleDataIndex")
-        .value("distance", shell::angle::angleDataIndex::distance)
-        .value("ra0", shell::angle::angleDataIndex::ricochetAngle0Radians)
-        .value("ra0D", shell::angle::angleDataIndex::ricochetAngle0Degrees)
-        .value("ra1", shell::angle::angleDataIndex::ricochetAngle1Radians)
-        .value("ra1D", shell::angle::angleDataIndex::ricochetAngle1Degrees)
-        .value("armor", shell::angle::angleDataIndex::armorRadians)
-        .value("armorD", shell::angle::angleDataIndex::armorDegrees)
-        .value("fuse", shell::angle::angleDataIndex::fuseRadians)
-        .value("fuseD", shell::angle::angleDataIndex::fuseDegrees);
+    emscripten::enum_<shell::angle::angleIndices>("angleIndices")
+        .value("distance", shell::angle::angleIndices::distance)
+        .value("ra0", shell::angle::angleIndices::ricochetAngle0Radians)
+        .value("ra0D", shell::angle::angleIndices::ricochetAngle0Degrees)
+        .value("ra1", shell::angle::angleIndices::ricochetAngle1Radians)
+        .value("ra1D", shell::angle::angleIndices::ricochetAngle1Degrees)
+        .value("armor", shell::angle::angleIndices::armorRadians)
+        .value("armorD", shell::angle::angleIndices::armorDegrees)
+        .value("fuse", shell::angle::angleIndices::fuseRadians)
+        .value("fuseD", shell::angle::angleIndices::fuseDegrees);
 
-    emscripten::enum_<shell::post::postPenDataIndex>("postPenDataIndex")
-        .value("angle", shell::post::postPenDataIndex::angle)
-        .value("distance", shell::post::postPenDataIndex::distance)
-        .value("x", shell::post::postPenDataIndex::x)
-        .value("y", shell::post::postPenDataIndex::y)
-        .value("z", shell::post::postPenDataIndex::z)
-        .value("xwf", shell::post::postPenDataIndex::xwf);
+    emscripten::enum_<shell::post::postPenIndices>("postPenIndices")
+        .value("angle", shell::post::postPenIndices::angle)
+        .value("distance", shell::post::postPenIndices::distance)
+        .value("x", shell::post::postPenIndices::x)
+        .value("y", shell::post::postPenIndices::y)
+        .value("z", shell::post::postPenIndices::z)
+        .value("xwf", shell::post::postPenIndices::xwf);
 };

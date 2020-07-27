@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <script src="https://unpkg.com/wasm-feature-detect/dist/umd/index.js"></script>
 <script type="text/javascript" src="shellWasmV.js"></script>
-<script type="text/javascript" src="shellWasm.js"></script>
+<script type="text/javascript" src="shellWasm.wasm.js"></script>
 <script>
     console.log('Started');
     var safe = false;
@@ -12,7 +12,7 @@
     var instance;
 
     wasmFeatureDetect.simd().then(simdSupported => {
-        if (simdSupported) {
+        if (false) {
             console.log('vectorized');
             ShellWasmV().then(function (M) {
                 console.log('Ready', M);
@@ -45,8 +45,8 @@
     function runFunc() {
         console.log('Entered');
         //instance = new M.shell(2);
-        instance.setValues(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0);
-        instance.setValues(.220, 995, .2549, 207, 2574, 7, .022, 37, 55, 65, 1);
+        instance.setValues(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, 0);
+        instance.setValues(.220, 995, .2549, 207, 2574, 7, .022, 37, 55, 65, 0, 1);
         //console.log(instance);
         instance.calcImpact();
         //instance.printImpact();
@@ -60,23 +60,23 @@
         //instance.delete();
         for (var num = 0; num < 2; num++) {
             for (var i = 0; i < instance.getImpactSize(); i++) {
-                console.log(i, instance.getAnglePoint(i, Module.angleDataIndex.distance.value, num),
-                    instance.getAnglePoint(i, Module.angleDataIndex.ra0.value, num)
+                console.log(i, instance.getAnglePoint(i, Module.angleIndices.distance.value, num),
+                    instance.getAnglePoint(i, Module.angleIndices.ra0.value, num)
                 );
             }
 
 
             for (var i = 0; i < instance.getImpactSize(); i++) {
                 //console.log(i);
-                console.log(i, instance.getPostPenPoint(i, Module.postPenDataIndex.distance.value, 0, num),
-                    instance.getPostPenPoint(i, Module.postPenDataIndex.x.value, 0, num),
-                    instance.getPostPenPoint(i, Module.postPenDataIndex.xwf.value, 0, num)
+                console.log(i, instance.getPostPenPoint(i, Module.postPenIndices.distance.value, 0, num),
+                    instance.getPostPenPoint(i, Module.postPenIndices.x.value, 0, num),
+                    instance.getPostPenPoint(i, Module.postPenIndices.xwf.value, 0, num)
                 );
             }
         }
 
-        instance.setValues(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0);
-        instance.setValues(.220, 995, .2549, 207, 2574, 7, .022, 37, 55, 65, 1);
+        instance.setValues(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, 0);
+        instance.setValues(.220, 995, .2549, 207, 2574, 7, .022, 37, 55, 65, 0, 1);
         instance.calcImpact();
         console.log("ran");
         instance.calcAngles(70, -20);
@@ -87,17 +87,17 @@
         //instance.delete();
         for (var num = 0; num < 2; num++) {
             for (var i = 0; i < instance.getImpactSize(); i++) {
-                console.log(i, instance.getAnglePoint(i, Module.angleDataIndex.distance.value, num),
-                    instance.getAnglePoint(i, Module.angleDataIndex.ra0.value, num)
+                console.log(i, instance.getAnglePoint(i, Module.angleIndices.distance.value, num),
+                    instance.getAnglePoint(i, Module.angleIndices.ra0.value, num)
                 );
             }
 
 
             for (var i = 0; i < instance.getImpactSize(); i++) {
                 //console.log(i);
-                console.log(i, instance.getPostPenPoint(i, Module.postPenDataIndex.distance.value, 0, num),
-                    instance.getPostPenPoint(i, Module.postPenDataIndex.x.value, 0, num),
-                    instance.getPostPenPoint(i, Module.postPenDataIndex.xwf.value, 0, num)
+                console.log(i, instance.getPostPenPoint(i, Module.postPenIndices.distance.value, 0, num),
+                    instance.getPostPenPoint(i, Module.postPenIndices.x.value, 0, num),
+                    instance.getPostPenPoint(i, Module.postPenIndices.xwf.value, 0, num)
                 );
             }
         }
