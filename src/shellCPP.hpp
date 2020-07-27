@@ -630,9 +630,9 @@ class shellCalc {
         }
         unsigned int length = ceil((double)s.impactSize / vSize);
         unsigned int assigned = assignThreadNum(length, nThreads);
-        mtFunctionRunner(assigned, length, s.impactSize, this,
-                         &shellCalc::impactGroup<false, Numerical, false, true>,
-                         &s);
+        mtFunctionRunner(
+            assigned, length, s.impactSize, this,
+            &shellCalc::impactGroup<false, Numerical, false, true, false>, &s);
     }
 
    private:
