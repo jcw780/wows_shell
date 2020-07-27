@@ -18,22 +18,24 @@ https://github.com/pybind/pybind11/issues/1212
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "../shellCPP.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <utility>
 
+#include "../shellCPP.hpp"
+
 class shellCombined {
-private:
+   private:
     shell::shellCalc calc;
     shell::shell s;
 
-public:
+   public:
     shellCombined(const double caliber, const double v0, const double cD,
                   const double mass, const double krupp,
                   const double normalization, const double fuseTime,
                   const double threshold, const double ricochet0,
-                  const double ricochet1, const double nonAP, const std::string &name) {
+                  const double ricochet1, const double nonAP,
+                  const std::string &name) {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
@@ -42,7 +44,8 @@ public:
                    const double mass, const double krupp,
                    const double normalization, const double fuseTime,
                    const double threshold, const double ricochet0,
-                   const double ricochet1, const double nonAP, const std::string &name) {
+                   const double ricochet1, const double nonAP,
+                   const std::string &name) {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
@@ -62,7 +65,8 @@ public:
     }
 
     void calcImpactAdamsBashforth5() {
-        calc.calculateImpact<false, shell::numerical::adamsBashforth5, false>(s);
+        calc.calculateImpact<false, shell::numerical::adamsBashforth5, false>(
+            s);
     }
 
     void calcImpactRungeKutta2() {
@@ -108,7 +112,7 @@ public:
         }
     }
 
-    double interpolateDistanceImpact(double distance, unsigned int impact){
+    double interpolateDistanceImpact(double distance, unsigned int impact) {
         return s.interpolateDistanceImpact(distance, impact);
     }
 
@@ -175,7 +179,8 @@ public:
 PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::class_<shellCombined>(m, "shell", pybind11::buffer_protocol())
         .def(pybind11::init<double, double, double, double, double, double,
-                            double, double, double, double, double, std::string &>())
+                            double, double, double, double, double,
+                            std::string &>())
         .def("setValues", &shellCombined::setValues)
         .def("setMax", &shellCombined::setMax)
         .def("setMin", &shellCombined::setMin)
@@ -192,10 +197,11 @@ PYBIND11_MODULE(pythonwrapper, m) {
              &shellCombined::calcImpactAdamsBashforth5)
         .def("calcImpactRungeKutta2", &shellCombined::calcImpactRungeKutta2)
         .def("calcImpactRungeKutta4", &shellCombined::calcImpactRungeKutta4)
-        
+
         .def("calcAngles", &shellCombined::calcAngles)
         .def("calcPostPen", &shellCombined::calcPostPen)
-        .def("interpolateDistanceImpact", &shellCombined::interpolateDistanceImpact)
+        .def("interpolateDistanceImpact",
+             &shellCombined::interpolateDistanceImpact)
         .def("getImpact", &shellCombined::getImpact)
         // pybind11::return_value_policy::reference)
         .def("getAngles", &shellCombined::getAngles)
@@ -206,57 +212,56 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("printPostPen", &shellCombined::printPostPen);
 
     // Enums
-    pybind11::enum_<shell::impact::impactDataIndex>(m, "impactDataIndex",
-                                                    pybind11::arithmetic())
-        .value("distance", shell::impact::impactDataIndex::distance)
-        .value("launchAngle", shell::impact::impactDataIndex::launchAngle)
+    pybind11::enum_<shell::impact::impactIndices>(m, "impactIndices",
+                                                  pybind11::arithmetic())
+        .value("distance", shell::impact::impactIndices::distance)
+        .value("launchAngle", shell::impact::impactIndices::launchAngle)
         .value("impactAngleHorizontalRadians",
-               shell::impact::impactDataIndex::impactAngleHorizontalRadians)
+               shell::impact::impactIndices::impactAngleHorizontalRadians)
         .value("impactAngleHorizontalDegrees",
-               shell::impact::impactDataIndex::impactAngleHorizontalDegrees)
-        .value("impactVelocity", shell::impact::impactDataIndex::impactVelocity)
-        .value("rawPenetration", shell::impact::impactDataIndex::rawPenetration)
+               shell::impact::impactIndices::impactAngleHorizontalDegrees)
+        .value("impactVelocity", shell::impact::impactIndices::impactVelocity)
+        .value("rawPenetration", shell::impact::impactIndices::rawPenetration)
         .value("effectivePenetrationHorizontal",
-               shell::impact::impactDataIndex::effectivePenetrationHorizontal)
+               shell::impact::impactIndices::effectivePenetrationHorizontal)
         .value("effectivePenetrationHorizontalNormalized",
-               shell::impact::impactDataIndex::
+               shell::impact::impactIndices::
                    effectivePenetrationHorizontalNormalized)
         .value("impactAngleDeckDegrees",
-               shell::impact::impactDataIndex::impactAngleDeckDegrees)
+               shell::impact::impactIndices::impactAngleDeckDegrees)
         .value("effectivePenetrationDeck",
-               shell::impact::impactDataIndex::effectivePenetrationDeck)
-        .value(
-            "effectivePenetrationDeckNormalized",
-            shell::impact::impactDataIndex::effectivePenetrationDeckNormalized)
-        .value("timeToTarget", shell::impact::impactDataIndex::timeToTarget)
+               shell::impact::impactIndices::effectivePenetrationDeck)
+        .value("effectivePenetrationDeckNormalized",
+               shell::impact::impactIndices::effectivePenetrationDeckNormalized)
+        .value("timeToTarget", shell::impact::impactIndices::timeToTarget)
         .value("timeToTargetAdjusted",
-               shell::impact::impactDataIndex::timeToTargetAdjusted)
+               shell::impact::impactIndices::timeToTargetAdjusted)
         .export_values();
 
-    pybind11::enum_<shell::angle::angleDataIndex>(m, "angleDataIndex",
-                                                  pybind11::arithmetic())
-        .value("distance", shell::angle::angleDataIndex::distance)
+    pybind11::enum_<shell::angle::angleIndices>(m, "angleIndices",
+                                                pybind11::arithmetic())
+        .value("distance", shell::angle::angleIndices::distance)
         .value("ricochetAngle0Radians",
-               shell::angle::angleDataIndex::ricochetAngle0Radians)
+               shell::angle::angleIndices::ricochetAngle0Radians)
         .value("ricochetAngle0Degrees",
-               shell::angle::angleDataIndex::ricochetAngle0Degrees)
+               shell::angle::angleIndices::ricochetAngle0Degrees)
         .value("ricochetAngle1Radians",
-               shell::angle::angleDataIndex::ricochetAngle1Radians)
+               shell::angle::angleIndices::ricochetAngle1Radians)
         .value("ricochetAngle1Degrees",
-               shell::angle::angleDataIndex::ricochetAngle1Degrees)
-        .value("armorRadians", shell::angle::angleDataIndex::armorRadians)
-        .value("armorDegrees", shell::angle::angleDataIndex::armorDegrees)
-        .value("fuseRadians", shell::angle::angleDataIndex::fuseRadians)
-        .value("fuseDegrees", shell::angle::angleDataIndex::fuseDegrees)
+               shell::angle::angleIndices::ricochetAngle1Degrees)
+        .value("armorRadians", shell::angle::angleIndices::armorRadians)
+        .value("armorDegrees", shell::angle::angleIndices::armorDegrees)
+        .value("fuseRadians", shell::angle::angleIndices::fuseRadians)
+        .value("fuseDegrees", shell::angle::angleIndices::fuseDegrees)
         .export_values();
 
-    pybind11::enum_<shell::post::postPenDataIndex>(m, "postPenDataIndex",
-                                                   pybind11::arithmetic())
-        .value("angle", shell::post::postPenDataIndex::angle)
-        .value("distance", shell::post::postPenDataIndex::distance)
-        .value("x", shell::post::postPenDataIndex::x)
-        .value("y", shell::post::postPenDataIndex::y)
-        .value("z", shell::post::postPenDataIndex::z)
-        .value("xwf", shell::post::postPenDataIndex::xwf)
+    pybind11::enum_<shell::post::postPenIndices>(m, "postPenIndices",
+                                                 pybind11::arithmetic())
+        .value("angle", shell::post::postPenIndices::angle)
+        .value("distance", shell::post::postPenIndices::distance)
+        .value("x", shell::post::postPenIndices::x)
+        .value("y", shell::post::postPenIndices::y)
+        .value("z", shell::post::postPenIndices::z)
+        .value("xwf", shell::post::postPenIndices::xwf)
         .export_values();
 };

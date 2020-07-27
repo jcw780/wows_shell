@@ -49,13 +49,14 @@ void runtime() {
     std::size_t maxIndex = test->maxDist();
     if (maxIndex != std::numeric_limits<std::size_t>::max()) {
         std::cout << maxIndex << " "
-                  << test->get_impact(maxIndex, shell::impact::distance)
+                  << test->get_impact(maxIndex,
+                                      shell::impact::impactIndices::distance)
                   << "\n";
     } else {
         std::cout << maxIndex << " Error\n";
     }
     std::cout << test->interpolateDistanceImpact(
-                     30000, shell::impact::impactDataIndex::rawPenetration)
+                     30000, shell::impact::impactIndices::rawPenetration)
               << "\n";
     // test->printTrajectory(0);
     // test->printPostPenData();

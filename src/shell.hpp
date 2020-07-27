@@ -122,29 +122,50 @@ class shell {
     }
 
     // Getter Functions
-    double &get_impact(unsigned int row, unsigned int impact) {
+    double &get_impact(const unsigned int row, impact::impactIndices impact) {
+        return get_impact(row, static_cast<impact::indexT>(impact));
+    }
+    double &get_impact(const unsigned int row, const unsigned int impact) {
         return impactData[row + impact * impactSizeAligned];
-    }  // Prevents Vectorization
+    }
 
-    double *get_impactPtr(unsigned int row, unsigned int impact) {
+    double *get_impactPtr(const unsigned int row,
+                          impact::impactIndices impact) {
+        return get_impactPtr(row, static_cast<impact::indexT>(impact));
+    }
+    double *get_impactPtr(const unsigned int row, const unsigned int impact) {
         return impactData.data() + row + impact * impactSizeAligned;
     }
 
-    double &get_angle(unsigned int row, unsigned int impact) {
+    double &get_angle(const unsigned int row, angle::angleIndices data) {
+        return get_angle(row, static_cast<angle::indexT>(data));
+    }
+    double &get_angle(const unsigned int row, const unsigned int impact) {
         return angleData[row + impact * impactSizeAligned];
     }
 
-    double *get_anglePtr(unsigned int row, unsigned int impact) {
+    double *get_anglePtr(const unsigned int row, angle::angleIndices data) {
+        return get_anglePtr(row, static_cast<angle::indexT>(data));
+    }
+    double *get_anglePtr(const unsigned int row, const unsigned int impact) {
         return angleData.data() + row + impact * impactSizeAligned;
     }
 
-    double &get_postPen(unsigned int row, unsigned int angle,
-                        unsigned int impact) {
-        return postPenData[row + angle * postPenSize + impact * impactSize];
+    double &get_postPen(const unsigned int row, post::postPenIndices data,
+                        const unsigned int angle) {
+        return get_postPen(row, static_cast<post::indexT>(data), angle);
+    }
+    double &get_postPen(const unsigned int row, const unsigned int data,
+                        const unsigned int angle) {
+        return postPenData[row + data * postPenSize + angle * impactSize];
     }
 
-    double *get_postPenPtr(unsigned int row, unsigned int angle,
-                           unsigned int impact) {
+    double *get_postPenPtr(const unsigned int row, post::postPenIndices data,
+                           const unsigned int angle) {
+        return get_postPenPtr(row, static_cast<post::indexT>(data), angle);
+    }
+    double *get_postPenPtr(const unsigned int row, const unsigned int angle,
+                           const unsigned int impact) {
         return postPenData.data() + row + angle * postPenSize +
                impact * impactSize;
     }
@@ -154,22 +175,22 @@ class shell {
         if (impactSize == 0) return errorCode;
         if (impactSize == 1) return 0;
         if (impactSize == 2)
-            return get_impact(1, impact::distance) >
-                           get_impact(0, impact::distance)
+            return get_impact(1, impact::impactIndices::distance) >
+                           get_impact(0, impact::impactIndices::distance)
                        ? 1
                        : 0;
 
         std::size_t start = 0, end = impactSize - 1;
-        if (get_impact(end, impact::distance) >=
-            get_impact(end - 1, impact::distance))
+        if (get_impact(end, impact::impactIndices::distance) >=
+            get_impact(end - 1, impact::impactIndices::distance))
             return end;
 
         using T = typename std::decay<decltype(*impactData.begin())>::type;
         while (start <= end) {
             std::size_t mid = start + (end - start) / 2;
-            T midValue = get_impact(mid, impact::distance),
-              leftValue = get_impact(mid - 1, impact::distance),
-              rightValue = get_impact(mid + 1, impact::distance);
+            T midValue = get_impact(mid, impact::impactIndices::distance),
+              leftValue = get_impact(mid - 1, impact::impactIndices::distance),
+              rightValue = get_impact(mid + 1, impact::impactIndices::distance);
             // std::cout << mid << " " << leftValue << " " << midValue << " "
             //          << rightValue << "\n";
             if (leftValue <= midValue && midValue >= rightValue) {
@@ -184,22 +205,28 @@ class shell {
         return errorCode;
     }
 
+    double interpolateDistanceImpact(double distance,
+                                     impact::impactIndices data) {
+        return interpolateDistanceImpact(distance,
+                                         static_cast<impact::indexT>(data));
+    }
     double interpolateDistanceImpact(double distance, unsigned int impact) {
         std::size_t maxIndex = maxDist(),
                     maxErrorCode = std::numeric_limits<std::size_t>::max();
         double errorCode = std::numeric_limits<double>::max();
         if (maxIndex == maxErrorCode) return errorCode;
-        if (distance < get_impact(0, impact::distance)) return errorCode;
-        if (distance > get_impact(maxIndex, impact::distance)) return errorCode;
+        if (distance < get_impact(0, impact::impactIndices::distance))
+            return errorCode;
+        if (distance > get_impact(maxIndex, impact::impactIndices::distance))
+            return errorCode;
 
         // Only get lower set
         auto iter_max = std::lower_bound(
-            get_impactPtr(0, impact::impactDataIndex::distance),
-            get_impactPtr(maxIndex, impact::impactDataIndex::distance),
-            distance);
+            get_impactPtr(0, impact::impactIndices::distance),
+            get_impactPtr(maxIndex, impact::impactIndices::distance), distance);
         double upperDistance = *iter_max;
         unsigned int upperIndex =
-            iter_max - get_impactPtr(0, impact::impactDataIndex::distance);
+            iter_max - get_impactPtr(0, impact::impactIndices::distance);
         double upperTarget = get_impact(upperIndex, impact);
 
         if (upperIndex == 0) return upperIndex;
@@ -208,7 +235,7 @@ class shell {
         auto iter_min = iter_max - 1;
         double lowerDistance = *iter_min;
         unsigned int lowerIndex =
-            iter_min - get_impactPtr(0, impact::impactDataIndex::distance);
+            iter_min - get_impactPtr(0, impact::impactIndices::distance);
         double lowerTarget = get_impact(lowerIndex, impact);
 
         /*std::cout << minIndex << " " << minDistance << " " << minTarget << " "

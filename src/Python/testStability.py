@@ -1,5 +1,5 @@
 from pythonwrapper import shell
-from pythonwrapper import impactDataIndex, angleDataIndex, postPenDataIndex
+from pythonwrapper import impactIndices, angleIndices, postPenIndices
 import numpy as np
 import matplotlib
 matplotlib.use('TkAgg',warn=False, force=True)
@@ -88,18 +88,18 @@ ax2L = []
 
 for key, value in impacts.items():
     ax1V, = ax1.plot(
-        value[impactDataIndex.launchAngle,:], 
-        value[impactDataIndex.distance,:] - reference[impactDataIndex.distance,:],
+        value[impactIndices.launchAngle,:], 
+        value[impactIndices.distance,:] - reference[impactIndices.distance,:],
         label=key)
     ax1L.append(ax1V)
     ax2V, = ax2.plot(
-        value[impactDataIndex.launchAngle,:], 
-        value[impactDataIndex.timeToTarget,:] - reference[impactDataIndex.timeToTarget,:],
+        value[impactIndices.launchAngle,:], 
+        value[impactIndices.timeToTarget,:] - reference[impactIndices.timeToTarget,:],
         label=key)
     ax2L.append(ax2V)
     '''ax3V, = ax3.plot(
-        value[impactDataIndex.launchA,:], 
-        value[impactDataIndex.ePenHN,:] - reference[impactDataIndex.ePenHN,:],
+        value[impactIndices.launchA,:], 
+        value[impactIndices.ePenHN,:] - reference[impactIndices.ePenHN,:],
         label=key)
     ax3L.append(ax3V)'''
 

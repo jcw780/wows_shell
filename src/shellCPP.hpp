@@ -48,19 +48,20 @@ class shellCalc {
     // For vectorization - though probably not 100% necessary anymore since
     // intrinsics were removed [intrinsics had no significant improvements in
     // runtime] - but might still make it easier to vectorize
-    static_assert(
-        sizeof(double) == 8,
-        "Size of double is not 8 - required for AVX2");  // Use float64
-                                                         // in the future
+    static_assert(sizeof(double) == 8,
+                  "Size of double is not 8 - required for vectorization");
+    // Use float64 in the future
     static_assert(std::numeric_limits<double>::is_iec559,
                   "Type is not IEE754 compliant");
-    static constexpr unsigned int vSize = (256 / 8) / sizeof(double);
+    // For setting up vectorization lane widths
+    // 128bit because compilers cannot seem to generate 256bit instructions
+    static constexpr unsigned int vSize = (128 / 8) / sizeof(double);
     static constexpr unsigned int minTasksPerThread = vSize;
 
    public:
     double calcNormalizationR(
-        const double angle,
-        const double normalizationR) {  // Input in radians
+        const double &angle,
+        const double &normalizationR) {  // Input in radians
         return (fabs(angle) > normalizationR) * (fabs(angle) - normalizationR);
     }
 
@@ -460,7 +461,7 @@ class shellCalc {
             }
         }
         std::copy_n(xy.begin(), vSize,
-                    s.get_impactPtr(start, impact::distance));
+                    s.get_impactPtr(start, impact::impactIndices::distance));
     }
 
     // Several trajectories done in one chunk to allow for vectorization
@@ -477,11 +478,13 @@ class shellCalc {
             double radianLaunch;
             if constexpr (!Fit) {
                 double degreeLaunch = precision * (i + j) + min;
-                s.get_impact(i + j, impact::launchAngle) = degreeLaunch;
+                s.get_impact(i + j, impact::impactIndices::launchAngle) =
+                    degreeLaunch;
                 radianLaunch = degreeLaunch * M_PI / 180;
             } else {
                 radianLaunch =
-                    s.get_impact(i + j, impact::launchAngle) * M_PI / 180;
+                    s.get_impact(i + j, impact::impactIndices::launchAngle) *
+                    M_PI / 180;
             }
             velocitiesTime[j] = s.get_v0() * cos(radianLaunch);
             velocitiesTime[j + vSize] = s.get_v0() * sin(radianLaunch);
@@ -494,53 +497,67 @@ class shellCalc {
                          &v_y = velocitiesTime[j + vSize];
             double IA_R = atan(v_y / v_x);
 
-            s.get_impact(i + j, impact::impactAngleHorizontalRadians) = IA_R;
+            s.get_impact(i + j,
+                         impact::impactIndices::impactAngleHorizontalRadians) =
+                IA_R;
             double IAD_R = M_PI_2 + IA_R;
             double IA_D = IA_R * 180 / M_PI;
-            s.get_impact(i + j, impact::impactAngleHorizontalDegrees) =
+            s.get_impact(i + j,
+                         impact::impactIndices::impactAngleHorizontalDegrees) =
                 IA_D * -1;
-            s.get_impact(i + j, impact::impactAngleDeckDegrees) = 90 + IA_D;
+            s.get_impact(i + j, impact::impactIndices::impactAngleDeckDegrees) =
+                90 + IA_D;
 
             double IV = sqrt(v_x * v_x + v_y * v_y);
-            s.get_impact(i + j, impact::impactVelocity) = IV;
+            s.get_impact(i + j, impact::impactIndices::impactVelocity) = IV;
 
             double time = velocitiesTime[j + 2 * vSize];
-            s.get_impact(i + j, impact::timeToTarget) = time;
-            s.get_impact(i + j, impact::timeToTargetAdjusted) = time / 3.1;
+            s.get_impact(i + j, impact::impactIndices::timeToTarget) = time;
+            s.get_impact(i + j, impact::impactIndices::timeToTargetAdjusted) =
+                time / 3.1;
 
             if constexpr (!Fit) {
                 if constexpr (nonAP) {
-                    s.get_impact(i + j, impact::rawPenetration) = s.nonAP;
-                    s.get_impact(i + j,
-                                 impact::effectivePenetrationHorizontal) =
-                        s.nonAP;
-                    s.get_impact(i + j, impact::effectivePenetrationDeck) =
+                    s.get_impact(i + j, impact::impactIndices::rawPenetration) =
                         s.nonAP;
                     s.get_impact(
                         i + j,
-                        impact::effectivePenetrationHorizontalNormalized) =
+                        impact::impactIndices::effectivePenetrationHorizontal) =
+                        s.nonAP;
+                    s.get_impact(
+                        i + j,
+                        impact::impactIndices::effectivePenetrationDeck) =
                         s.nonAP;
                     s.get_impact(i + j,
-                                 impact::effectivePenetrationDeckNormalized) =
+                                 impact::impactIndices::
+                                     effectivePenetrationHorizontalNormalized) =
+                        s.nonAP;
+                    s.get_impact(i + j,
+                                 impact::impactIndices::
+                                     effectivePenetrationDeckNormalized) =
                         s.nonAP;
                 } else {
                     double rawPenetration = pPPC * pow(IV, 1.1001);
-                    s.get_impact(i + j, impact::rawPenetration) =
+                    s.get_impact(i + j, impact::impactIndices::rawPenetration) =
                         rawPenetration;
-
-                    s.get_impact(i + j,
-                                 impact::effectivePenetrationHorizontal) =
-                        rawPenetration * cos(IA_R);
-                    s.get_impact(i + j, impact::effectivePenetrationDeck) =
-                        rawPenetration * cos(IAD_R);
 
                     s.get_impact(
                         i + j,
-                        impact::effectivePenetrationHorizontalNormalized) =
+                        impact::impactIndices::effectivePenetrationHorizontal) =
+                        rawPenetration * cos(IA_R);
+                    s.get_impact(
+                        i + j,
+                        impact::impactIndices::effectivePenetrationDeck) =
+                        rawPenetration * cos(IAD_R);
+
+                    s.get_impact(i + j,
+                                 impact::impactIndices::
+                                     effectivePenetrationHorizontalNormalized) =
                         rawPenetration *
                         cos(calcNormalizationR(IA_R, normalizationR));
                     s.get_impact(i + j,
-                                 impact::effectivePenetrationDeckNormalized) =
+                                 impact::impactIndices::
+                                     effectivePenetrationDeckNormalized) =
                         rawPenetration *
                         cos(calcNormalizationR(IAD_R, normalizationR));
                 }
@@ -649,11 +666,17 @@ class shellCalc {
         // to compilers this will autovectorize
         for (unsigned int j = 0; j < vSize; j++) {
             double fallAngleAdjusted =
-                s.impactData[i + j +
-                             impact::impactAngleHorizontalRadians * ISA] +
+                s.impactData
+                    [i + j +
+                     static_cast<impact::indexT>(
+                         impact::impactIndices::impactAngleHorizontalRadians) *
+                         ISA] +
                 inclination_R;
             double rawPenetration =
-                s.impactData[i + j + impact::rawPenetration * ISA];
+                s.impactData[i + j +
+                             static_cast<impact::indexT>(
+                                 impact::impactIndices::rawPenetration) *
+                                 ISA];
 
             double penetrationCriticalAngle;
             if constexpr (nonAP) {
@@ -688,7 +711,9 @@ class shellCalc {
             }
 
             {
-                int k = angle::armorRadians / 2;
+                int k = static_cast<angle::indexT>(
+                            angle::angleIndices::armorRadians) /
+                        2;
 
                 out[k] = acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
                 out[k] = std::isnan(out[k]) ? 0 : out[k];
@@ -697,7 +722,9 @@ class shellCalc {
                 // is not equal to if(cond) v1 else v2 - creates jumps
             }
             {
-                int k = angle::fuseRadians / 2;
+                int k = static_cast<angle::indexT>(
+                            angle::angleIndices::fuseRadians) /
+                        2;
                 if constexpr (fusing == fuseStatus::never) {
                     out[k] = M_PI_2;
                 } else if (fusing == fuseStatus::check) {
@@ -709,23 +736,23 @@ class shellCalc {
                 }
             }
 
-            s.get_angle(i + j, angle::angleDataIndex::ricochetAngle0Radians) =
+            s.get_angle(i + j, angle::angleIndices::ricochetAngle0Radians) =
                 out[0];
-            s.get_angle(i + j, angle::angleDataIndex::ricochetAngle1Radians) =
+            s.get_angle(i + j, angle::angleIndices::ricochetAngle1Radians) =
                 out[1];
-            s.get_angle(i + j, angle::angleDataIndex::armorRadians) = out[2];
-            s.get_angle(i + j, angle::angleDataIndex::fuseRadians) = out[3];
+            s.get_angle(i + j, angle::angleIndices::armorRadians) = out[2];
+            s.get_angle(i + j, angle::angleIndices::fuseRadians) = out[3];
 
             for (unsigned int k = 0; k < angle::maxColumns / 2; k++) {
                 out[k] *= 180 / M_PI;
             }
 
-            s.get_angle(i + j, angle::angleDataIndex::ricochetAngle0Degrees) =
+            s.get_angle(i + j, angle::angleIndices::ricochetAngle0Degrees) =
                 out[0];
-            s.get_angle(i + j, angle::angleDataIndex::ricochetAngle1Degrees) =
+            s.get_angle(i + j, angle::angleIndices::ricochetAngle1Degrees) =
                 out[1];
-            s.get_angle(i + j, angle::angleDataIndex::armorDegrees) = out[2];
-            s.get_angle(i + j, angle::angleDataIndex::fuseDegrees) = out[3];
+            s.get_angle(i + j, angle::angleIndices::armorDegrees) = out[2];
+            s.get_angle(i + j, angle::angleIndices::fuseDegrees) = out[3];
         }
     }
 
@@ -765,8 +792,9 @@ class shellCalc {
         checkRunImpact(s);
 
         s.angleData.resize(angle::maxColumns * s.impactSizeAligned);
-        std::copy_n(s.get_impactPtr(0, impact::distance), s.impactSize,
-                    s.get_anglePtr(0, angle::distance));
+        std::copy_n(s.get_impactPtr(0, impact::impactIndices::distance),
+                    s.impactSize,
+                    s.get_anglePtr(0, angle::angleIndices::distance));
 
         unsigned int length = (unsigned int)ceil((double)s.impactSize / vSize);
         unsigned int assigned = assignThreadNum(length, nThreads);
@@ -813,12 +841,15 @@ class shellCalc {
         if constexpr (fast) {
             bool positive = v_x > 0;
             double x = v_x * s.fuseTime * positive;
-            s.get_postPen(i, post::x, 0) = x;
-            s.get_postPen(i, post::y, 0) = v_y * s.fuseTime * positive;
-            s.get_postPen(i, post::z, 0) = v_z * s.fuseTime * positive;
+            s.get_postPen(i, post::postPenIndices::x, 0) = x;
+            s.get_postPen(i, post::postPenIndices::y, 0) =
+                v_y * s.fuseTime * positive;
+            s.get_postPen(i, post::postPenIndices::z, 0) =
+                v_z * s.fuseTime * positive;
 
             bool fuse = thickness >= s.threshold;
-            s.get_postPen(i, post::xwf, 0) = (fuse)*x + !(fuse)*notFusedCode;
+            s.get_postPen(i, post::postPenIndices::xwf, 0) =
+                (fuse)*x + !(fuse)*notFusedCode;
         } else {
             const double k = s.get_k();
             const double cw_2 = s.get_cw_2();
@@ -875,17 +906,17 @@ class shellCalc {
                     // velocities -= dtf * dragIntermediary
                     t += dtf;
                 }
-                s.get_postPen(i, post::x, 0) = pos[0];
-                s.get_postPen(i, post::y, 0) = pos[1];
-                s.get_postPen(i, post::z, 0) = pos[2];
-                s.get_postPen(i, post::xwf, 0) =
+                s.get_postPen(i, post::postPenIndices::x, 0) = pos[0];
+                s.get_postPen(i, post::postPenIndices::y, 0) = pos[1];
+                s.get_postPen(i, post::postPenIndices::z, 0) = pos[2];
+                s.get_postPen(i, post::postPenIndices::xwf, 0) =
                     (thickness >= s.threshold) * pos[0] +
                     !(thickness >= s.threshold) * notFusedCode;
             } else {
-                s.get_postPen(i, post::x, 0) = 0;
-                s.get_postPen(i, post::y, 0) = 0;
-                s.get_postPen(i, post::z, 0) = 0;
-                s.get_postPen(i, post::xwf, 0) = 0;
+                s.get_postPen(i, post::postPenIndices::x, 0) = 0;
+                s.get_postPen(i, post::postPenIndices::y, 0) = 0;
+                s.get_postPen(i, post::postPenIndices::z, 0) = 0;
+                s.get_postPen(i, post::postPenIndices::xwf, 0) = 0;
             }
         }
     }
@@ -899,15 +930,18 @@ class shellCalc {
         double v_x[vSize], v_y[vSize], v_z[vSize];
         unsigned int distIndex = (i < s.impactSize) ? i : i % s.impactSize;
 
-        std::copy_n(s.get_postPenPtr(i, post::angle, 0),
+        std::copy_n(s.get_postPenPtr(i, post::postPenIndices::angle, 0),
                     std::min<unsigned int>(vSize, s.postPenSize - i), hAngleV);
         std::copy_n(
-            s.get_impactPtr(distIndex, impact::impactAngleHorizontalRadians),
+            s.get_impactPtr(
+                distIndex, impact::impactIndices::impactAngleHorizontalRadians),
             vSize, vAngleV);
-        std::copy_n(s.get_impactPtr(distIndex, impact::rawPenetration), vSize,
-                    penetrationV);
-        std::copy_n(s.get_impactPtr(distIndex, impact::impactVelocity), vSize,
-                    v0V);
+        std::copy_n(
+            s.get_impactPtr(distIndex, impact::impactIndices::rawPenetration),
+            vSize, penetrationV);
+        std::copy_n(
+            s.get_impactPtr(distIndex, impact::impactIndices::impactVelocity),
+            vSize, v0V);
 
         for (unsigned int l = 0; l < vSize; l++) {
             double HA_R = hAngleV[l] * M_PI / 180;     // lateral  angle radians
@@ -951,10 +985,11 @@ class shellCalc {
                   std::vector<double> *angles) {
         for (unsigned int i = angles->size() * id / assigned;
              i < angles->size() * (id + 1) / assigned; i++) {
-            std::fill_n(s->get_postPenPtr(0, post::angle, i), s->impactSize,
-                        (double)(*angles)[i]);
+            std::fill_n(s->get_postPenPtr(0, post::postPenIndices::angle, i),
+                        s->impactSize, (double)(*angles)[i]);
             std::copy_n(
-                s->get_impactPtr(0, impact::distance), s->impactSize,
+                s->get_impactPtr(0, impact::impactIndices::distance),
+                s->impactSize,
                 s->postPenData.begin() + s->postPenSize + i * s->impactSize);
         }
         counter.fetch_add(1, std::memory_order_relaxed);
@@ -1022,14 +1057,20 @@ class shellCalc {
 
         parallelFillCopy(&s, &angles, nThreads);
         // copies vSize - 1 from front - to avoid branching in hot loop
-        std::copy_n(s.get_impactPtr(0, impact::impactAngleHorizontalRadians),
+        std::copy_n(s.get_impactPtr(
+                        0, impact::impactIndices::impactAngleHorizontalRadians),
+                    vSize - 1,
+                    s.get_impactPtr(
+                        s.impactSize,
+                        impact::impactIndices::impactAngleHorizontalRadians));
+        std::copy_n(s.get_impactPtr(0, impact::impactIndices::impactVelocity),
                     vSize - 1,
                     s.get_impactPtr(s.impactSize,
-                                    impact::impactAngleHorizontalRadians));
-        std::copy_n(s.get_impactPtr(0, impact::impactVelocity), vSize - 1,
-                    s.get_impactPtr(s.impactSize, impact::impactVelocity));
-        std::copy_n(s.get_impactPtr(0, impact::rawPenetration), vSize - 1,
-                    s.get_impactPtr(s.impactSize, impact::rawPenetration));
+                                    impact::impactIndices::impactVelocity));
+        std::copy_n(s.get_impactPtr(0, impact::impactIndices::rawPenetration),
+                    vSize - 1,
+                    s.get_impactPtr(s.impactSize,
+                                    impact::impactIndices::rawPenetration));
         /*std::cout<<vSize<<"\n";
         for(int i=0; i<s.impactSizeAligned; i++){
             for(int j=0; j<impact::maxColumns; j++){

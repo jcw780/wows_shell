@@ -1,4 +1,4 @@
-from pythonwrapper import shell, impactDataIndex, angleDataIndex, postPenDataIndex
+from pythonwrapper import shell, impactIndices, angleIndices, postPenIndices
 import numpy as np
 s = shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, 'Yamato')
 s.calcImpactForwardEuler()
@@ -40,6 +40,6 @@ for y in range(n2.shape[1]):
         pS = F'{pS} {n2r[x, y]}'
     print(pS)
 
-print(s.interpolateDistanceImpact(10000, impactDataIndex.impactVelocity))
+print(s.interpolateDistanceImpact(10000, impactIndices.impactVelocity))
 
 print('done')
