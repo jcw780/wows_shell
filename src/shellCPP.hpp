@@ -690,9 +690,8 @@ class shellCalc {
 
                     (acos(thickness / rawPenetration) + s.get_normalizationR());
 
-                penetrationCriticalAngle = std::isnan(penetrationCriticalAngle)
-                                               ? 0
-                                               : penetrationCriticalAngle;
+                penetrationCriticalAngle =
+                    thickness > rawPenetration ? 0 : penetrationCriticalAngle;
             }
 
             std::array<double, 4> criticalAngles;
@@ -706,15 +705,18 @@ class shellCalc {
             }
             std::array<double, 4> out;
             for (unsigned int k = 0; k < 2; k++) {
-                out[k] = acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
-                out[k] = std::isnan(out[k]) ? 0 : out[k];
+                double quotient =
+                    cos(criticalAngles[k]) / cos(fallAngleAdjusted);
+                out[k] = acos(quotient);
+                out[k] = fabs(quotient) > 1 ? 0 : out[k];
             }
 
             {
                 int k = toUnderlying(angle::angleIndices::armorRadians) / 2;
-
-                out[k] = acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
-                out[k] = std::isnan(out[k]) ? 0 : out[k];
+                double quotient =
+                    cos(criticalAngles[k]) / cos(fallAngleAdjusted);
+                out[k] = acos(quotient);
+                out[k] = fabs(quotient) > 1 ? 0 : out[k];
                 out[k] = criticalAngles[k] < M_PI_2 ? out[k] : M_PI_2;
                 // Can't use ifs because for some reason (cond) ? (v1) : (v2)
                 // is not equal to if(cond) v1 else v2 - creates jumps
@@ -724,9 +726,10 @@ class shellCalc {
                 if constexpr (fusing == fuseStatus::never) {
                     out[k] = M_PI_2;
                 } else if (fusing == fuseStatus::check) {
-                    out[k] =
-                        acos(cos(criticalAngles[k]) / cos(fallAngleAdjusted));
-                    out[k] = std::isnan(out[k]) ? 0 : out[k];
+                    double quotient =
+                        cos(criticalAngles[k]) / cos(fallAngleAdjusted);
+                    out[k] = acos(quotient);
+                    out[k] = fabs(quotient) > 1 ? 0 : out[k];
                 } else if (fusing == fuseStatus::always) {
                     out[k] = 0;
                 }
@@ -803,7 +806,7 @@ class shellCalc {
             fusingAngle =
                 acos(thickness / s.threshold) + s.get_normalizationR();
         }
-        if (std::isnan(fusingAngle)) {
+        if (thickness > s.threshold) {
             mtFunctionRunner(
                 assigned, length, s.impactSize, this,
                 &shellCalc::multiAngles<fuseStatus::always, nonAP,
