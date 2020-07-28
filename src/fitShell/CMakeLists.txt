@@ -4,10 +4,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # set the project name
-project(test)
+project(fitShellTest)
 
 # add the executable
-add_executable(test test.cpp)
+add_executable(fitShellTest fitShell.cpp)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   # using Clang
