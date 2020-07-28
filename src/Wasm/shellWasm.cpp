@@ -48,7 +48,7 @@ class shellCombined {
     // Impact Wrappers
     // Default: Adams Bashforth 5
 
-    template <unsigned short Numerical>
+    template <shell::numerical Numerical>
     void calcImpact() {
         for (auto &s : ships) {
             calc.calculateImpact<Numerical, false>(
