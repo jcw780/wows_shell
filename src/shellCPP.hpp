@@ -155,10 +155,8 @@ class shellCalc {
         }
     }
 
-    template <typename NumericalClass, NumericalClass Numerical>
+    template <numerical Numerical>
     static constexpr bool isMultistep() {
-        static_assert(std::is_same_v<NumericalClass, numerical>,
-                      "Incorrect Enum Type");
         if constexpr (Numerical == numerical::adamsBashforth5) {
             return true;
         } else {
@@ -167,11 +165,11 @@ class shellCalc {
     }
 
     // https://godbolt.org/z/4b1sn5
-    template <bool AddTraj, typename NumericalClass, NumericalClass Numerical>
+    template <bool AddTraj, numerical Numerical>
     void multiTraj(const unsigned int &start, shell &s,
                    std::array<double, 3 * vSize> &velocities) {
-        static_assert(std::is_same_v<NumericalClass, numerical>,
-                      "Incorrect Enum Type");
+        // static_assert(std::is_same_v<NumericalClass, numerical>,
+        //              "Incorrect Enum Type");
         const double k = s.get_k(), cw_2 = s.get_cw_2();
         if constexpr (AddTraj) {
             for (unsigned int i = 0, j = start; i < vSize; ++i, ++j) {
@@ -240,7 +238,7 @@ class shellCalc {
                    2;
         };
         // TODO: Add numerical orders
-        if constexpr (isMultistep<NumericalClass, Numerical>()) {
+        if constexpr (isMultistep<Numerical>()) {
             if constexpr (Numerical == numerical::adamsBashforth5) {
                 std::array<double, 5 * vSize> dx, dy, ddx, ddy;
                 // 0 -> vSize -> ... -> 5 * vSize
@@ -342,10 +340,9 @@ class shellCalc {
                     offset %= 5;
                 }
             } else {
-                static_assert(
-                    utility::falsy_v<
-                        std::integral_constant<unsigned int, Numerical>>,
-                    "Invalid multistep algorithm");
+                static_assert(utility::falsy_v<std::integral_constant<
+                                  unsigned int, toUnderlying(Numerical)>>,
+                              "Invalid multistep algorithm");
             }
         } else {
             while (checkContinue()) {
@@ -444,10 +441,9 @@ class shellCalc {
                         t += dt_update;
                     }
                 } else {
-                    static_assert(
-                        utility::falsy_v<
-                            std::integral_constant<unsigned int, Numerical>>,
-                        "Invalid single step algorithm");
+                    static_assert(utility::falsy_v<std::integral_constant<
+                                      unsigned int, toUnderlying(Numerical)>>,
+                                  "Invalid single step algorithm");
                 }
 
                 if constexpr (AddTraj) {
@@ -466,7 +462,8 @@ class shellCalc {
     }
 
     // Several trajectories done in one chunk to allow for vectorization
-    template <bool AddTraj, auto Numerical, bool Hybrid, bool Fit, bool nonAP>
+    template <bool AddTraj, numerical Numerical, bool Hybrid, bool Fit,
+              bool nonAP>
     void impactGroup(const unsigned int i, shell *const shellPointer) {
         shell &s = *shellPointer;
         const double pPPC = s.get_pPPC();
@@ -490,8 +487,7 @@ class shellCalc {
             velocitiesTime[j + vSize] = s.get_v0() * sin(radianLaunch);
         }
         // std::cout<<"Calculating\n";
-        multiTraj<AddTraj, decltype(Numerical), Numerical>(i, s,
-                                                           velocitiesTime);
+        multiTraj<AddTraj, Numerical>(i, s, velocitiesTime);
         // std::cout<<"Processing\n";
         for (unsigned int j = 0; j < vSize; j++) {
             const double &v_x = velocitiesTime[j],
@@ -650,13 +646,14 @@ class shellCalc {
     // computational time in some cases.
 
     // Possible Values: 0 - Never Fusing 1 - Check 2 - Always Fusing
-    enum fuseStatus { never, check, always };
-    template <short fusing, bool nonAP, bool nonAPPerforated,
+    enum class fuseStatus { never, check, always };
+    template <fuseStatus fusing, bool nonAP, bool nonAPPerforated,
               bool disableRicochet>
     void multiAngles(const unsigned int i, const double thickness,
                      const double inclination_R, const double fusingAngle,
                      shell *const shellPointer) {
-        static_assert(fusing <= 2 && fusing >= 0, "Invalid fusing parameter");
+        static_assert(toUnderlying(fusing) <= 2 && toUnderlying(fusing) >= 0,
+                      "Invalid fusing parameter");
         shell &s = *shellPointer;
         const unsigned int ISA = s.impactSizeAligned;
         // ^^^

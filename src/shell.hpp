@@ -204,8 +204,7 @@ class shell {
 
     double interpolateDistanceImpact(double distance,
                                      impact::impactIndices data) {
-        return interpolateDistanceImpact(distance,
-                                         static_cast<impact::indexT>(data));
+        return interpolateDistanceImpact(distance, toUnderlying(data));
     }
     double interpolateDistanceImpact(double distance, unsigned int impact) {
         std::size_t maxIndex = maxDist(),
