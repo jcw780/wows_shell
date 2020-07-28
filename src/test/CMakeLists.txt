@@ -37,4 +37,4 @@ if (CMAKE_BUILD_TYPE STREQUAL "RELEASE")
     # change architecture settings depending target
     target_compile_options(test PRIVATE /Ot)
   endif()
-#endif()
+endif()
