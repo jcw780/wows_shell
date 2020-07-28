@@ -1,5 +1,4 @@
-#ifndef _CONTROL_INDICES_
-#define _CONTROL_INDICES_
+#pragma once
 
 namespace shell {
 
@@ -66,5 +65,3 @@ enum class numerical {
     adamsBashforth5
 };
 }  // namespace shell
-
-#endif

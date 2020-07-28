@@ -1,9 +1,6 @@
-#ifndef _SHELL_WOWS_HPP_
-#define _SHELL_WOWS_HPP_
+#pragma once
 
-#ifndef _USE_MATH_DEFINES
 #define _USE_MATH_DEFINES
-#endif
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
@@ -300,4 +297,3 @@ class shell {
     }
 };
 }  // namespace shell
-#endif

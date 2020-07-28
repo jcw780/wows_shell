@@ -1,4 +1,4 @@
-#include "shellCPP.hpp"
+#include "../shellCPP.hpp"
 
 namespace shell {
 enum sampleIndices { launchA, distance };
