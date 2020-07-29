@@ -1,5 +1,4 @@
-#ifndef _CONTROL_INDICES_
-#define _CONTROL_INDICES_
+#pragma once
 
 namespace shell {
 
@@ -65,6 +64,13 @@ enum class numerical {
     rungeKutta4,
     adamsBashforth5
 };
-}  // namespace shell
 
-#endif
+template <numerical Numerical>
+static constexpr bool isMultistep() {
+    if constexpr (Numerical == numerical::adamsBashforth5) {
+        return true;
+    } else {
+        return false;
+    }
+}
+}  // namespace shell

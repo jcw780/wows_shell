@@ -1,4 +1,4 @@
-#include "shellCPP.hpp"
+#include "../shellCPP.hpp"
 
 namespace shell {
 enum sampleIndices { launchA, distance };
@@ -7,7 +7,7 @@ enum index { distance, penetration };
 }
 inline int signum(double x) { return ((0.0) < x) - (x < (0.0)); }
 
-template <unsigned int Numerical>
+template <auto Numerical>
 void fitDrag(shell &toFit, std::vector<double> &sampleData,
              unsigned int length) {
     shellCalc calculator;
@@ -46,7 +46,7 @@ void fitDrag(shell &toFit, std::vector<double> &sampleData,
     toFit.cD = currentCD;
     toFit.preProcess();
 }
-template <unsigned int Numerical>
+template <auto Numerical>
 double calculateGradient(shell &toFit, std::vector<double> &sampleData,
                          unsigned int length, shellCalc &calculator,
                          double currentCD) {

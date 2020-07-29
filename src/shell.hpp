@@ -1,9 +1,6 @@
-#ifndef _SHELL_WOWS_HPP_
-#define _SHELL_WOWS_HPP_
+#pragma once
 
-#ifndef _USE_MATH_DEFINES
 #define _USE_MATH_DEFINES
-#endif
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
@@ -207,8 +204,7 @@ class shell {
 
     double interpolateDistanceImpact(double distance,
                                      impact::impactIndices data) {
-        return interpolateDistanceImpact(distance,
-                                         static_cast<impact::indexT>(data));
+        return interpolateDistanceImpact(distance, toUnderlying(data));
     }
     double interpolateDistanceImpact(double distance, unsigned int impact) {
         std::size_t maxIndex = maxDist(),
@@ -300,4 +296,3 @@ class shell {
     }
 };
 }  // namespace shell
-#endif
