@@ -168,8 +168,6 @@ class shellCalc {
     template <bool AddTraj, numerical Numerical>
     void multiTraj(const unsigned int &start, shell &s,
                    std::array<double, 3 * vSize> &velocities) {
-        // static_assert(std::is_same_v<NumericalClass, numerical>,
-        //              "Incorrect Enum Type");
         const double k = s.get_k(), cw_2 = s.get_cw_2();
         if constexpr (AddTraj) {
             for (unsigned int i = 0, j = start; i < vSize; ++i, ++j) {
@@ -641,7 +639,7 @@ class shellCalc {
     }
 
     // Check Angles Section
-    // template <short fusing> explanation:
+    // template <fuseStatus fusing> explanation:
     // Fusing is done using templates to reduce in loop branching and
     // computational time in some cases.
 

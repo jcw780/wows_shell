@@ -55,9 +55,6 @@ impacts['Forward Euler .01'] = s.getImpact()
 s.calcImpactRungeKutta4()
 impacts['RungeKutta4 .01'] = s.getImpact()
 
-#s.calcImpactRungeKutta4Hybrid()
-#impacts['RungeKutta4Hybrid .1/.01'] = s.getImpact()
-
 s.setDtMin(.001)
 s.calcImpactRungeKutta4()
 impacts['RungeKutta4 .001'] = s.getImpact()
