@@ -19,7 +19,7 @@
 namespace shell {
 class shellCalc {
    private:
-    // Physical Constants       Description                  | Units
+    // Physical Constants     Description                  | Units
     double g = 9.81;       // Gravitational Constant       | m/(s^2)
     double t0 = 288;       // Temperature at Sea Level     | K
     double L = 0.0065;     // Atmospheric Lapse Rate       | C/m
@@ -28,7 +28,7 @@ class shellCalc {
     double M = 0.0289644;  // Molarity of Air at Sea Level | kg/mol
     double cw_1 = 1;
 
-    double gMRL = (g * M / (R * L));
+    double gMRL = (g * M) / (R * L);
     // Calculation Parameters
     double max = 25;        // Max Angle                    | degrees
     double min = 0;         // Min Angle                    | degrees
@@ -57,9 +57,10 @@ class shellCalc {
 
    public:
     double calcNormalizationR(
-        const double &angle,
-        const double &normalizationR) {  // Input in radians
-        return (fabs(angle) > normalizationR) * (fabs(angle) - normalizationR);
+        const double angle,
+        const double normalizationR) {  // Input in radians
+        return fabs(angle) > normalizationR ? fabs(angle) - normalizationR : 0;
+        // Don't worry this branch goes away
     }
 
     inline int signum(double x) { return ((0.0) < x) - (x < (0.0)); }
@@ -155,15 +156,6 @@ class shellCalc {
         }
     }
 
-    template <numerical Numerical>
-    static constexpr bool isMultistep() {
-        if constexpr (Numerical == numerical::adamsBashforth5) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
     // https://godbolt.org/z/4b1sn5
     template <bool AddTraj, numerical Numerical>
     void multiTraj(const unsigned int &start, shell &s,
@@ -194,8 +186,8 @@ class shellCalc {
         };
 
         // Helpers
-        auto delta = [&](const double &x, double &dx, double y, double &dy,
-                         const double &v_x, double &ddx, const double &v_y,
+        auto delta = [&](const double x, double &dx, double y, double &dy,
+                         const double v_x, double &ddx, const double v_y,
                          double &ddy, bool update = false) {
             update |= (y >= 0);
             double T, p, rho, dt_update = update * dt_min;
