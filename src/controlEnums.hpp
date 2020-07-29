@@ -64,4 +64,13 @@ enum class numerical {
     rungeKutta4,
     adamsBashforth5
 };
+
+template <numerical Numerical>
+static constexpr bool isMultistep() {
+    if constexpr (Numerical == numerical::adamsBashforth5) {
+        return true;
+    } else {
+        return false;
+    }
+}
 }  // namespace shell
