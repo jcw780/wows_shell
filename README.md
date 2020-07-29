@@ -38,8 +38,7 @@ Shell detonation distance after penetration at various ranges, ship angling, and
 - Could use threading - though has not been tested since browsers do not natively support wasm multithreading due to Spectre/Meltdown 
 - Used in https://github.com/jcw780/wows_ballistics
 ## Future Goals:
-- Makefiles
-- Examples / Test Code Reorganization
+- Wiki / Tutorial
 
 
 
