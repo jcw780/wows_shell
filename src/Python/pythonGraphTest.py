@@ -2,7 +2,7 @@ from pythonwrapper import shell
 from pythonwrapper import impactIndices, angleIndices, postPenIndices
 import numpy as np
 import matplotlib
-matplotlib.use('TkAgg',warn=False, force=True)
+#matplotlib.use('TkAgg',warn=False, force=True)
 import matplotlib.pyplot as plt
 import os
 #os.environ['KMP_DUPLICATE_LIB_OK']='True'
@@ -21,21 +21,30 @@ print(postPen.shape)
 s.printAngles()
 print(angle)
 
-plt.subplot(311)
-plt.plot(impact[int(impactIndices.distance),:], impact[int(impactIndices.rawPenetration),:])
-plt.plot(impact[int(impactIndices.distance),:], impact[int(impactIndices.effectivePenetrationHorizontal),:])
-plt.plot(impact[int(impactIndices.distance),:], impact[int(impactIndices.effectivePenetrationHorizontalNormalized),:])
+ax1 = plt.subplot(311)
+#ax1.plot(impact[int(impactIndices.distance),:], impact[int(impactIndices.rawPenetration),:])
+#ax1.plot(impact[int(impactIndices.distance),:], impact[int(impactIndices.effectivePenetrationHorizontal),:])
+ax1.plot(impact[int(impactIndices.distance),:], impact[int(impactIndices.effectivePenetrationHorizontalNormalized),:])
 
-plt.subplot(312)
-plt.plot(angle[int(angleIndices.distance), :], angle[int(angleIndices.fuseDegrees), :])
-plt.plot(angle[int(angleIndices.distance), :], angle[int(angleIndices.armorDegrees), :])
-plt.plot(angle[int(angleIndices.distance), :], angle[int(angleIndices.ricochetAngle0Degrees), :])
-plt.plot(angle[int(angleIndices.distance), :], angle[int(angleIndices.ricochetAngle1Degrees), :])
+ax1.grid(b=True)
 
-plt.subplot(313)
+ax2 = ax1.twinx()
+ax2.plot(impact[int(impactIndices.distance),:], impact[int(impactIndices.impactAngleHorizontalDegrees),:])
+
+ax2.grid(b=True)
+
+ax1 = plt.subplot(312)
+ax1.plot(angle[int(angleIndices.distance), :], angle[int(angleIndices.fuseDegrees), :])
+ax1.plot(angle[int(angleIndices.distance), :], angle[int(angleIndices.armorDegrees), :])
+ax1.plot(angle[int(angleIndices.distance), :], angle[int(angleIndices.ricochetAngle0Degrees), :])
+ax1.plot(angle[int(angleIndices.distance), :], angle[int(angleIndices.ricochetAngle1Degrees), :])
+plt.grid(b=True)
+
+ax1 = plt.subplot(313)
 for i in range(len(angles)):
-    plt.plot(postPen[int(postPenIndices.distance),i,:], postPen[int(postPenIndices.xwf),i,:])
-    plt.plot(postPen[int(postPenIndices.distance),i,:], postPen[int(postPenIndices.x),i,:])
+    ax1.plot(postPen[int(postPenIndices.distance),i,:], postPen[int(postPenIndices.xwf),i,:])
+    ax1.plot(postPen[int(postPenIndices.distance),i,:], postPen[int(postPenIndices.x),i,:])
 
+plt.grid(b=True)
 plt.show()
 

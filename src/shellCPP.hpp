@@ -20,8 +20,8 @@ namespace shell {
 class shellCalc {
    private:
     // Physical Constants     Description                  | Units
-    double g = 9.81;       // Gravitational Constant       | m/(s^2)
-    double t0 = 288;       // Temperature at Sea Level     | K
+    double g = 9.8;        // Gravitational Constant       | m/(s^2)
+    double t0 = 288.15;    // Temperature at Sea Level     | K
     double L = 0.0065;     // Atmospheric Lapse Rate       | C/m
     double p0 = 101325;    // Pressure at Sea Level        | Pa
     double R = 8.31447;    // Ideal Gas Constant           | J/(mol K)
@@ -524,7 +524,10 @@ class shellCalc {
                                      effectivePenetrationDeckNormalized) =
                         s.nonAP;
                 } else {
-                    double rawPenetration = pPPC * pow(IV, 1.1001);
+                    // double rawPenetration = pPPC * pow(IV, 1.1001);
+                    // double rawPenetration = pPPC * pow(IV, 1.38);
+                    // double rawPenetration = pPPC * pow(IV, 1.53803192);
+                    double rawPenetration = pPPC * pow(IV, 1.54562941);
                     s.get_impact(i + j, impact::impactIndices::rawPenetration) =
                         rawPenetration;
 
