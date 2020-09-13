@@ -152,7 +152,7 @@ class shellCalc {
         if (length > nThreads * minTasksPerThread) {
             return nThreads;
         } else {
-            return ceil((double)length / minTasksPerThread);
+            return ceil(static_cast<double>(length) / minTasksPerThread);
         }
     }
 
@@ -602,7 +602,7 @@ class shellCalc {
         if (nThreads > std::thread::hardware_concurrency()) {
             nThreads = std::thread::hardware_concurrency();
         }
-        unsigned int length = ceil((double)s.impactSize / vSize);
+        unsigned int length = ceil(static_cast<double>(s.impactSize) / vSize);
         unsigned int assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(
             assigned, length, s.impactSize, this,
@@ -618,7 +618,7 @@ class shellCalc {
         if (nThreads > std::thread::hardware_concurrency()) {
             nThreads = std::thread::hardware_concurrency();
         }
-        unsigned int length = ceil((double)s.impactSize / vSize);
+        unsigned int length = ceil(static_cast<double>(s.impactSize) / vSize);
         unsigned int assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(
             assigned, length, s.impactSize, this,
@@ -785,7 +785,8 @@ class shellCalc {
                     s.impactSize,
                     s.get_anglePtr(0, angle::angleIndices::distance));
 
-        unsigned int length = (unsigned int)ceil((double)s.impactSize / vSize);
+        unsigned int length = static_cast<unsigned int>(
+            ceil(static_cast<double>(s.impactSize) / vSize));
         unsigned int assigned = assignThreadNum(length, nThreads);
 
         double inclination_R = inclination / 180 * M_PI;
@@ -975,7 +976,7 @@ class shellCalc {
         for (unsigned int i = angles->size() * id / assigned;
              i < angles->size() * (id + 1) / assigned; i++) {
             std::fill_n(s->get_postPenPtr(0, post::postPenIndices::angle, i),
-                        s->impactSize, (double)(*angles)[i]);
+                        s->impactSize, static_cast<double>((*angles)[i]));
             std::copy_n(
                 s->get_impactPtr(0, impact::impactIndices::distance),
                 s->impactSize,
@@ -1068,7 +1069,7 @@ class shellCalc {
             std::cout<<"\n";
         }*/
         double inclination_R = M_PI / 180 * inclination;
-        unsigned int length = ceil((double)s.postPenSize / vSize);
+        unsigned int length = ceil(static_cast<double>(s.postPenSize) / vSize);
         unsigned int assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(assigned, length, s.postPenSize, this,
                          &shellCalc::multiPostPen<changeDirection, fast>,
