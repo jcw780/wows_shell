@@ -20,8 +20,8 @@ namespace shell {
 class shellCalc {
    private:
     // Physical Constants     Description                  | Units
-    double g = 9.81;       // Gravitational Constant       | m/(s^2)
-    double t0 = 288;       // Temperature at Sea Level     | K
+    double g = 9.8;        // Gravitational Constant       | m/(s^2)
+    double t0 = 288.15;    // Temperature at Sea Level     | K
     double L = 0.0065;     // Atmospheric Lapse Rate       | C/m
     double p0 = 101325;    // Pressure at Sea Level        | Pa
     double R = 8.31447;    // Ideal Gas Constant           | J/(mol K)
@@ -35,6 +35,8 @@ class shellCalc {
     double precision = .1;  // Angle Step                   | degrees
     double x0 = 0, y0 = 0;  // Starting x0, y0              | m
     double dt_min = .02;    // Time step                    | s
+
+    static constexpr double timeMultiplier = 2.69;
 
     // delta t (dtf) for fusing needs to be smaller than the delta t (dt) used
     // for trajectories due to the shorter distances. Otherwise results become
@@ -152,7 +154,7 @@ class shellCalc {
         if (length > nThreads * minTasksPerThread) {
             return nThreads;
         } else {
-            return ceil((double)length / minTasksPerThread);
+            return ceil(static_cast<double>(length) / minTasksPerThread);
         }
     }
 
@@ -501,7 +503,7 @@ class shellCalc {
             double time = velocitiesTime[j + 2 * vSize];
             s.get_impact(i + j, impact::impactIndices::timeToTarget) = time;
             s.get_impact(i + j, impact::impactIndices::timeToTargetAdjusted) =
-                time / 3.1;
+                time / timeMultiplier;
 
             if constexpr (!Fit) {
                 if constexpr (nonAP) {
@@ -524,7 +526,11 @@ class shellCalc {
                                      effectivePenetrationDeckNormalized) =
                         s.nonAP;
                 } else {
-                    double rawPenetration = pPPC * pow(IV, 1.1001);
+                    // double rawPenetration = pPPC * pow(IV, 1.1001);
+                    // double rawPenetration = pPPC * pow(IV, 1.38);
+                    // double rawPenetration = pPPC * pow(IV, 1.53803192);
+                    // double rawPenetration = pPPC * pow(IV, 1.54562941);
+                    double rawPenetration = pPPC * pow(IV, 1.5308026931424483);
                     s.get_impact(i + j, impact::impactIndices::rawPenetration) =
                         rawPenetration;
 
@@ -599,7 +605,7 @@ class shellCalc {
         if (nThreads > std::thread::hardware_concurrency()) {
             nThreads = std::thread::hardware_concurrency();
         }
-        unsigned int length = ceil((double)s.impactSize / vSize);
+        unsigned int length = ceil(static_cast<double>(s.impactSize) / vSize);
         unsigned int assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(
             assigned, length, s.impactSize, this,
@@ -615,7 +621,7 @@ class shellCalc {
         if (nThreads > std::thread::hardware_concurrency()) {
             nThreads = std::thread::hardware_concurrency();
         }
-        unsigned int length = ceil((double)s.impactSize / vSize);
+        unsigned int length = ceil(static_cast<double>(s.impactSize) / vSize);
         unsigned int assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(
             assigned, length, s.impactSize, this,
@@ -782,7 +788,8 @@ class shellCalc {
                     s.impactSize,
                     s.get_anglePtr(0, angle::angleIndices::distance));
 
-        unsigned int length = (unsigned int)ceil((double)s.impactSize / vSize);
+        unsigned int length = static_cast<unsigned int>(
+            ceil(static_cast<double>(s.impactSize) / vSize));
         unsigned int assigned = assignThreadNum(length, nThreads);
 
         double inclination_R = inclination / 180 * M_PI;
@@ -972,7 +979,7 @@ class shellCalc {
         for (unsigned int i = angles->size() * id / assigned;
              i < angles->size() * (id + 1) / assigned; i++) {
             std::fill_n(s->get_postPenPtr(0, post::postPenIndices::angle, i),
-                        s->impactSize, (double)(*angles)[i]);
+                        s->impactSize, static_cast<double>((*angles)[i]));
             std::copy_n(
                 s->get_impactPtr(0, impact::impactIndices::distance),
                 s->impactSize,
@@ -1065,7 +1072,7 @@ class shellCalc {
             std::cout<<"\n";
         }*/
         double inclination_R = M_PI / 180 * inclination;
-        unsigned int length = ceil((double)s.postPenSize / vSize);
+        unsigned int length = ceil(static_cast<double>(s.postPenSize) / vSize);
         unsigned int assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(assigned, length, s.postPenSize, this,
                          &shellCalc::multiPostPen<changeDirection, fast>,

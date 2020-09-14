@@ -36,10 +36,16 @@ class shell {
     void preProcess() {
         k = 0.5 * cD * pow((caliber / 2), 2) * M_PI / mass;
         // condensed drag coefficient
-        cw_2 = 100 + 1000 / 3 * caliber;
-        // quadratic drag coefficient
-        pPPC = 0.5561613 * krupp / 2400 * pow(mass, 0.5506) /
-               pow((caliber * 1000), 0.6521);
+        // cw_2 = 100 + 1000 / 3 * caliber;
+        cw_2 = 0;
+        // linear drag coefficient
+        // pPPC = 0.5561613 * krupp / 2400 * pow(mass, 0.5506) /
+        //       pow((caliber * 1000), 0.6521);
+        // pPPC = 0.081525 * krupp / 2400 * pow(mass, 0.5506) /
+        //       pow((caliber * 1000), 0.6521);
+        pPPC = 0.0003420507973940556 * krupp / 2400 * pow(mass, 0.5506) *
+               pow(caliber, -0.6521);
+
         // condensed penetration coefficient
         normalizationR = normalization / 180 * M_PI;
         // normalization (radians)

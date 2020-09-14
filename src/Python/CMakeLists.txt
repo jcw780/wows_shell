@@ -11,30 +11,30 @@ pybind11_add_module(pythonwrapper pythonwrapper.cpp)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   # using Clang
-  target_compile_options(fitShellTest PRIVATE -march=native PRIVATE -Wall PRIVATE -Wextra PRIVATE -flto)
+  target_compile_options(pythonwrapper PRIVATE -march=native PRIVATE -Wall PRIVATE -Wextra PRIVATE -flto)
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   # using GCC
-  target_compile_options(fitShellTest PRIVATE -march=native PRIVATE -Wall PRIVATE -Wextra PRIVATE -flto)
+  target_compile_options(pythonwrapper PRIVATE -march=native PRIVATE -Wall PRIVATE -Wextra PRIVATE -flto)
 # elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
   # using Intel C++
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   # using Visual Studio C++
   # change architecture settings depending target
-  target_compile_options(fitShellTest PRIVATE /arch:AVX2 PRIVATE /W4 PRIVATE /GL)
+  target_compile_options(pythonwrapper PRIVATE /arch:AVX2 PRIVATE /W4 PRIVATE /GL)
 endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "RELEASE")
   if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     # using Clang
-    target_compile_options(fitShellTest PRIVATE -Ofast)
+    target_compile_options(pythonwrapper PRIVATE -Ofast)
   elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # using GCC
-    target_compile_options(fitShellTest PRIVATE -Ofast)
+    target_compile_options(pythonwrapper PRIVATE -Ofast)
   # elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     # using Intel C++ 
   elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     # using Visual Studio C++
     # change architecture settings depending target
-    target_compile_options(fitShellTest PRIVATE /Ot)
+    target_compile_options(pythonwrapper PRIVATE /Ot)
   endif()
 endif()
