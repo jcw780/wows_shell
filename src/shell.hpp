@@ -43,7 +43,7 @@ class shell {
         //       pow((caliber * 1000), 0.6521);
         // pPPC = 0.081525 * krupp / 2400 * pow(mass, 0.5506) /
         //       pow((caliber * 1000), 0.6521);
-        pPPC = 0.0003420507973940556 * krupp / 2400 * pow(mass, 0.5506) *
+        pPPC = 0.00046905491615181766 * krupp / 2400 * pow(mass, 0.5506) *
                pow(caliber, -0.6521);
 
         // condensed penetration coefficient

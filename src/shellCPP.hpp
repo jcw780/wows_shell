@@ -37,7 +37,7 @@ class shellCalc {
     double dt_min = .02;    // Time step                    | s
 
     static constexpr double timeMultiplier = 2.61;
-    static constexpr double velocityPower = 1.5308026931424483;
+    static constexpr double velocityPower = 1.4822064892953855;
 
     // delta t (dtf) for fusing needs to be smaller than the delta t (dt) used
     // for trajectories due to the shorter distances. Otherwise results become
