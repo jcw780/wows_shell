@@ -36,6 +36,8 @@ class shellCalc {
     double x0 = 0, y0 = 0;  // Starting x0, y0              | m
     double dt_min = .02;    // Time step                    | s
 
+    static constexpr double timeMultiplier = 2.69;
+
     // delta t (dtf) for fusing needs to be smaller than the delta t (dt) used
     // for trajectories due to the shorter distances. Otherwise results become
     // jagged - precision suffers.
@@ -501,7 +503,7 @@ class shellCalc {
             double time = velocitiesTime[j + 2 * vSize];
             s.get_impact(i + j, impact::impactIndices::timeToTarget) = time;
             s.get_impact(i + j, impact::impactIndices::timeToTargetAdjusted) =
-                time / 3.1;
+                time / timeMultiplier;
 
             if constexpr (!Fit) {
                 if constexpr (nonAP) {
@@ -527,7 +529,8 @@ class shellCalc {
                     // double rawPenetration = pPPC * pow(IV, 1.1001);
                     // double rawPenetration = pPPC * pow(IV, 1.38);
                     // double rawPenetration = pPPC * pow(IV, 1.53803192);
-                    double rawPenetration = pPPC * pow(IV, 1.54562941);
+                    // double rawPenetration = pPPC * pow(IV, 1.54562941);
+                    double rawPenetration = pPPC * pow(IV, 1.5308026931424483);
                     s.get_impact(i + j, impact::impactIndices::rawPenetration) =
                         rawPenetration;
 
