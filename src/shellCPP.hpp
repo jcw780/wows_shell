@@ -531,11 +531,7 @@ class shellCalc {
                     // double rawPenetration = pPPC * pow(IV, 1.38);
                     // double rawPenetration = pPPC * pow(IV, 1.53803192);
                     // double rawPenetration = pPPC * pow(IV, 1.54562941);
-<<<<<<< HEAD
-                    double rawPenetration = pPPC * pow(IV, 1.5308026931424483);
-                    == == == = double rawPenetration =
-                                 pPPC * pow(IV, velocityPower);
->>>>>>> master
+                    double rawPenetration = pPPC * pow(IV, velocityPower);
                     s.get_impact(i + j, impact::impactIndices::rawPenetration) =
                         rawPenetration;
 
