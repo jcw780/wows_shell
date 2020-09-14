@@ -203,10 +203,12 @@ class shellCalc {
             rho = p * M / (R * T);
             double kRho = k * rho;
             // Calculate Drag Components
-            ddx = -1 * dt_update * kRho * (cw_1 * v_x * v_x + cw_2 * v_x);
+            double velocityMagnitude = sqrt(v_x * v_x + v_y * v_y);
+            ddx = -1 * dt_update * kRho *
+                  (cw_1 * v_x * velocityMagnitude + cw_2 * v_x);
             ddy = -1 * dt_update *
-                  (g +
-                   kRho * (cw_1 * v_y * v_y + cw_2 * fabs(v_y) * signum(v_y)));
+                  (g + kRho * (cw_1 * v_y * velocityMagnitude +
+                               cw_2 * fabs(v_y) * signum(v_y)));
         };
 
         auto getIntermediate = [](unsigned int index, unsigned int stage) {
