@@ -1,12 +1,16 @@
 # ShellCPP
 [![License](https://img.shields.io/github/license/jcw780/ShellCPP)](./LICENSE)
 - C++ header only library for calculating shell performance in World of Warships
+- Experimentally verified to be nearly identical to the World of Warships ballistics model
 ## Legal
 - All copyrighted material provided by Wargaming.net are owned by Wargaming.net.
 - All other material is available under the MIT License.
 ## Original Information & Source Code:
+Original Inspiration:
 - Code: https://pastebin.com/1NEwkf7R
 - Formulas: https://www.reddit.com/r/WorldOfWarships/comments/560yg2/wows_ballistic_model_penetration/
+Revisions:
+- Code: https://pastebin.com/GXUt7BMJ
 ## Current Functionality:
 ### Shell Flight
 Shell flight path
@@ -28,17 +32,19 @@ Shell detonation distance after penetration at various ranges, ship angling, and
 - Some limited capability to fit shells to real world data generating air drag and krupp values using gradient descent. 
 ## Compatibility:
 - Requires C++17 supporting compiler
-- Should be compatible with most platforms (though not extensively tested)
-- Takes advantage of multithreading and vectorization (hardware supporting these should perform better if enabled)
+- Should be compatible with most platforms 
+- Ability to utilize multithreading and vectorization for maximum performance
 ## Extensions:
 ### Python 
-- Written with Pybind11 - tested with Python 3.7.4 (Anaconda)
+- Written with Pybind11
+- Tested with Python 3.7.4 (Anaconda), 3.8.5
 ### WebAssembly 
 - Uses Embind from Emscripten
-- Could use threading - though has not been tested since browsers do not natively support wasm multithreading due to Spectre/Meltdown 
 - Used in https://github.com/jcw780/wows_ballistics
 ## Future Goals:
 - Wiki / Tutorial
+- Threading on WebAssembly module when brower support becomes commonplace
+- Updating penetration formula once more refined values are acquired
 
 
 
