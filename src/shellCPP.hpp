@@ -66,12 +66,12 @@ class shellCalc {
    public:
     double calcNormalizationR(
         const double angle,
-        const double normalizationR) {  // Input in radians
+        const double normalizationR) noexcept {  // Input in radians
         return fabs(angle) > normalizationR ? fabs(angle) - normalizationR : 0;
         // Don't worry this branch goes away
     }
 
-    inline int signum(double x) { return ((0.0) < x) - (x < (0.0)); }
+    inline int signum(double x) noexcept { return ((0.0) < x) - (x < (0.0)); }
 
     shellCalc() = default;
     // Replace with setter in the future
@@ -156,7 +156,7 @@ class shellCalc {
         }
     }
 
-    uint32_t assignThreadNum(uint32_t length, uint32_t nThreads) {
+    uint32_t assignThreadNum(uint32_t length, uint32_t nThreads) noexcept {
         if (length > nThreads * minTasksPerThread) {
             return nThreads;
         } else {
@@ -567,7 +567,7 @@ class shellCalc {
     }
 
    public:
-    uint32_t calculateAlignmentSize(uint32_t unalignedSize) {
+    uint32_t calculateAlignmentSize(uint32_t unalignedSize) noexcept {
         // leave extra space to allow for copies into the region
         // ex: | 0, 1, 2, 3, 4, 5 | -> | 0, 1, 2, 3, 4, 5 |, 0, 1, 2 + padding
         // allows for easier vectorization of code that uses this data
