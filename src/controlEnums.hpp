@@ -11,8 +11,8 @@ constexpr typename std::underlying_type<E>::type toUnderlying(E e) noexcept {
 }
 
 namespace impact {
-static constexpr uint32_t maxColumns = 13;
-static constexpr uint32_t maxColumnsFit = 7;
+static constexpr std::size_t maxColumns = 13;
+static constexpr std::size_t maxColumnsFit = 7;
 enum class impactIndices {
     distance,
     launchAngle,
@@ -35,7 +35,7 @@ static_assert(toUnderlying(impactIndices::effectivePenetrationDeckNormalized) ==
 }  // namespace impact
 
 namespace angle {
-static constexpr uint32_t maxColumns = 9;
+static constexpr std::size_t maxColumns = 9;
 enum class angleIndices {
     distance,
     ricochetAngle0Radians,
@@ -53,7 +53,7 @@ static_assert(toUnderlying(angleIndices::fuseDegrees) == (maxColumns - 1),
 }  // namespace angle
 
 namespace post {
-static constexpr uint32_t maxColumns = 6;
+static constexpr std::size_t maxColumns = 6;
 enum class postPenIndices { angle, distance, x, y, z, xwf };
 using indexT = typename std::underlying_type<postPenIndices>::type;
 static_assert(toUnderlying(postPenIndices::xwf) == (maxColumns - 1),
