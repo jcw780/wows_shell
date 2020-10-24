@@ -61,8 +61,8 @@ class shellCalc {
                   "Type is not IEE754 compliant");
     // For setting up vectorization lane widths
     // 128bit because compilers cannot seem to generate 256bit instructions
-    static constexpr uint32_t vSize = (128 / 8) / sizeof(double);
-    static constexpr uint32_t minTasksPerThread = vSize;
+    static constexpr std::size_t vSize = (128 / 8) / sizeof(double);
+    static constexpr std::size_t minTasksPerThread = vSize;
 
    public:
     double calcNormalizationR(
@@ -119,37 +119,37 @@ class shellCalc {
     }
 
     template <bool multiThreaded, typename O, typename F, typename... Args>
-    void mtFunctionRunnerSelected(uint32_t assigned, uint32_t length,
-                                  uint32_t size, O object, F function,
+    void mtFunctionRunnerSelected(std::size_t assigned, std::size_t length,
+                                  std::size_t size, O object, F function,
                                   Args... args) {
         if constexpr (multiThreaded) {
-            std::atomic<int> counter{0};
-            // moodycamel::ConcurrentQueue<int> workQueue;
-            std::vector<std::thread> threads(assigned - 1);
-            for (uint32_t i = 0; i < assigned - 1; i++) {
-                threads[i] = std::thread([&, i] {
+            std::atomic<std::size_t> counter{0};
+            std::vector<std::thread> threads;
+            for (std::size_t i = 0; i < assigned - 1; i++) {
+                threads.emplace_back([&, i] {
                     mtWorker(counter, length, i, object, function, args...);
                 });
             }
 
             mtWorker(counter, length, assigned - 1, object, function, args...);
 
-            for (uint32_t i = 0; i < assigned - 1; i++) {
+            for (std::size_t i = 0; i < assigned - 1; i++) {
                 threads[i].join();
             }
         } else {
-            for (uint32_t i = 0; i < size; i += vSize) {
+            for (std::size_t i = 0; i < size; i += vSize) {
                 (object->*function)(i, args...);
             }
         }
     }
 
     template <typename O, typename F, typename... Args>
-    void mtWorker(std::atomic<int> &counter, const int length,
-                  const int threadID, O object, F function, Args... args) {
+    void mtWorker(std::atomic<std::size_t> &counter, const std::size_t length,
+                  const std::size_t threadID, O object, F function,
+                  Args... args) {
         // threadID is largely there for debugging
         while (counter < length) {
-            int index = counter.fetch_add(1, std::memory_order_relaxed);
+            std::size_t index = counter.fetch_add(1, std::memory_order_relaxed);
             if (index < length) {
                 // std::cout<<index<<"\n";
                 (object->*function)(index * vSize, args...);
@@ -157,7 +157,8 @@ class shellCalc {
         }
     }
 
-    uint32_t assignThreadNum(uint32_t length, uint32_t nThreads) noexcept {
+    std::size_t assignThreadNum(std::size_t length,
+                                std::size_t nThreads) noexcept {
         if (length > nThreads * minTasksPerThread) {
             return nThreads;
         } else {
@@ -167,7 +168,7 @@ class shellCalc {
 
     // https://godbolt.org/z/4b1sn5
     template <bool AddTraj, numerical Numerical>
-    void multiTraj(const uint32_t &start, shell &s,
+    void multiTraj(const std::size_t start, shell &s,
                    std::array<double, 3 * vSize> &velocities) {
         const double k = s.get_k(), cw_2 = s.get_cw_2();
         if constexpr (AddTraj) {
@@ -465,7 +466,7 @@ class shellCalc {
     // Several trajectories done in one chunk to allow for vectorization
     template <bool AddTraj, numerical Numerical, bool Hybrid, bool Fit,
               bool nonAP>
-    void impactGroup(const uint32_t i, shell &s) {
+    void impactGroup(const std::size_t i, shell &s) {
         // shell &s = *shellPointer;
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_normalizationR();
@@ -583,7 +584,7 @@ class shellCalc {
     template <auto Numerical, bool Hybrid>
     void calculateImpact(
         shell &s, bool addTraj,
-        uint32_t nThreads = std::thread::hardware_concurrency()) {
+        std::size_t nThreads = std::thread::hardware_concurrency()) {
         if (addTraj) {
             calculateImpact<true, Numerical, Hybrid>(s, nThreads);
         } else {
@@ -593,7 +594,7 @@ class shellCalc {
 
     template <bool AddTraj, auto Numerical, bool Hybrid>
     void calculateImpact(
-        shell &s, uint32_t nThreads = std::thread::hardware_concurrency()) {
+        shell &s, std::size_t nThreads = std::thread::hardware_concurrency()) {
         if (s.enableNonAP) {
             calculateImpact<true, Numerical, Hybrid, true>(s, nThreads);
         } else {
@@ -603,7 +604,7 @@ class shellCalc {
 
     template <bool AddTraj, auto Numerical, bool Hybrid, bool nonAP>
     void calculateImpact(
-        shell &s, uint32_t nThreads = std::thread::hardware_concurrency()) {
+        shell &s, std::size_t nThreads = std::thread::hardware_concurrency()) {
         s.impactSize = ((max / precision - min / precision)) + 1;
         s.impactSizeAligned = calculateAlignmentSize(s.impactSize);
         if constexpr (AddTraj) {
@@ -614,8 +615,8 @@ class shellCalc {
         if (nThreads > std::thread::hardware_concurrency()) {
             nThreads = std::thread::hardware_concurrency();
         }
-        uint32_t length = ceil(static_cast<double>(s.impactSize) / vSize);
-        uint32_t assigned = assignThreadNum(length, nThreads);
+        std::size_t length = ceil(static_cast<double>(s.impactSize) / vSize);
+        std::size_t assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(
             assigned, length, s.impactSize, this,
             &shellCalc::impactGroup<AddTraj, Numerical, Hybrid, false, nonAP>,
@@ -625,13 +626,13 @@ class shellCalc {
     }
 
     template <auto Numerical>
-    void calculateFit(shell &s,
-                      uint32_t nThreads = std::thread::hardware_concurrency()) {
+    void calculateFit(
+        shell &s, std::size_t nThreads = std::thread::hardware_concurrency()) {
         if (nThreads > std::thread::hardware_concurrency()) {
             nThreads = std::thread::hardware_concurrency();
         }
-        uint32_t length = ceil(static_cast<double>(s.impactSize) / vSize);
-        uint32_t assigned = assignThreadNum(length, nThreads);
+        std::size_t length = ceil(static_cast<double>(s.impactSize) / vSize);
+        std::size_t assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(
             assigned, length, s.impactSize, this,
             &shellCalc::impactGroup<false, Numerical, false, true, false>, &s);
@@ -654,20 +655,20 @@ class shellCalc {
     enum class fuseStatus { never, check, always };
     template <fuseStatus fusing, bool nonAP, bool nonAPPerforated,
               bool disableRicochet>
-    void multiAngles(const uint32_t i, const double thickness,
+    void multiAngles(const std::size_t i, const double thickness,
                      const double inclination_R, const double fusingAngle,
                      shell &s) {
         static_assert(toUnderlying(fusing) <= 2 && toUnderlying(fusing) >= 0,
                       "Invalid fusing parameter");
         // shell &s = *shellPointer;
-        const uint32_t ISA = s.impactSizeAligned;
+        const std::size_t ISA = s.impactSizeAligned;
         // ^^^
         // Otherwise Clang would think that assigned values are
         // "value[s] that could not be identified as reduction is used outside
         // the loop" This doesn't vectorize anyways - because of the acos's -
         // but that's there so that when acos vectorization is added
         // to compilers this will autovectorize
-        for (uint32_t j = 0; j < vSize; j++) {
+        for (std::size_t j = 0; j < vSize; j++) {
             double fallAngleAdjusted =
                 s.impactData[i + j +
                              toUnderlying(impact::impactIndices::
@@ -760,7 +761,7 @@ class shellCalc {
    public:
     void calculateAngles(
         const double thickness, const double inclination, shell &s,
-        const uint32_t nThreads = std::thread::hardware_concurrency()) {
+        const std::size_t nThreads = std::thread::hardware_concurrency()) {
         if (s.enableNonAP) {
             if (s.nonAP >= thickness) {
                 calculateAngles<true, true>(thickness, inclination, s,
@@ -776,7 +777,7 @@ class shellCalc {
     template <bool nonAP, bool nonAPPerforated>
     void calculateAngles(
         const double thickness, const double inclination, shell &s,
-        const uint32_t nThreads = std::thread::hardware_concurrency()) {
+        const std::size_t nThreads = std::thread::hardware_concurrency()) {
         if (s.ricochet0 >= 90) {
             calculateAngles<nonAP, nonAPPerforated, true>(
                 thickness, inclination, s, nThreads);
@@ -789,7 +790,7 @@ class shellCalc {
     template <bool nonAP, bool nonAPPerforated, bool disableRicochet>
     void calculateAngles(
         const double thickness, const double inclination, shell &s,
-        const uint32_t nThreads = std::thread::hardware_concurrency()) {
+        const std::size_t nThreads = std::thread::hardware_concurrency()) {
         checkRunImpact(s);
 
         s.angleData.resize(angle::maxColumns * s.impactSizeAligned);
@@ -797,9 +798,9 @@ class shellCalc {
                     s.impactSize,
                     s.get_anglePtr(0, angle::angleIndices::distance));
 
-        uint32_t length = static_cast<uint32_t>(
+        std::size_t length = static_cast<std::size_t>(
             ceil(static_cast<double>(s.impactSize) / vSize));
-        uint32_t assigned = assignThreadNum(length, nThreads);
+        std::size_t assigned = assignThreadNum(length, nThreads);
 
         double inclination_R = inclination / 180 * M_PI;
         double fusingAngle;
@@ -837,7 +838,7 @@ class shellCalc {
 
    private:
     template <bool fast>
-    void postPenTraj(const uint32_t i, shell &s, double v_x, double v_y,
+    void postPenTraj(const std::size_t i, shell &s, double v_x, double v_y,
                      double v_z, double thickness) {
         const double notFusedCode = -1;
         if constexpr (fast) {
@@ -924,16 +925,16 @@ class shellCalc {
     }
 
     template <bool changeDirection, bool fast>
-    void multiPostPen(uint32_t i, const double thickness,
+    void multiPostPen(std::size_t i, const double thickness,
                       const double inclination_R, shell &s) {
         // shell &s = *shellPointer;
         double hAngleV[vSize], vAngleV[vSize];
         double v0V[vSize], penetrationV[vSize], eThicknessV[vSize];
         double v_x[vSize], v_y[vSize], v_z[vSize];
-        uint32_t distIndex = (i < s.impactSize) ? i : i % s.impactSize;
+        std::size_t distIndex = (i < s.impactSize) ? i : i % s.impactSize;
 
         std::copy_n(s.get_postPenPtr(i, post::postPenIndices::angle, 0),
-                    std::min<uint32_t>(vSize, s.postPenSize - i), hAngleV);
+                    std::min<std::size_t>(vSize, s.postPenSize - i), hAngleV);
         std::copy_n(
             s.get_impactPtr(
                 distIndex, impact::impactIndices::impactAngleHorizontalRadians),
@@ -973,17 +974,18 @@ class shellCalc {
         }
 
         //#pragma clang loop vectorize(enable)
-        const uint32_t loopSize = std::min<uint32_t>(vSize, s.postPenSize - i);
-        for (uint32_t j = 0; j < loopSize; j++) {
+        const std::size_t loopSize =
+            std::min<std::size_t>(vSize, s.postPenSize - i);
+        for (std::size_t j = 0; j < loopSize; j++) {
             postPenTraj<fast>(i + j, s, v_x[j], v_y[j], v_z[j], eThicknessV[j]);
         }
         // std::cout<<index<<" Completed\n";
     }
 
     // Probably unnecessary...
-    void fillCopy(std::atomic<int> &counter, uint32_t assigned, uint32_t id,
-                  shell &s, std::vector<double> &angles) {
-        for (uint32_t i = angles.size() * id / assigned;
+    void fillCopy(std::atomic<int> &counter, std::size_t assigned,
+                  std::size_t id, shell &s, std::vector<double> &angles) {
+        for (std::size_t i = angles.size() * id / assigned;
              i < angles.size() * (id + 1) / assigned; i++) {
             std::fill_n(s.get_postPenPtr(0, post::postPenIndices::angle, i),
                         s.impactSize, static_cast<double>(angles[i]));
@@ -996,18 +998,18 @@ class shellCalc {
     }
 
     void parallelFillCopy(shell &s, std::vector<double> &angles,
-                          uint32_t nThreads) {
+                          std::size_t nThreads) {
         std::vector<std::thread> threads;
         std::atomic<int> counter{0};
-        uint32_t length = angles.size();
-        uint32_t assigned = assignThreadNum(length, nThreads);
-        for (uint32_t i = 0; i < assigned - 1; i++) {
+        std::size_t length = angles.size();
+        std::size_t assigned = assignThreadNum(length, nThreads);
+        for (std::size_t i = 0; i < assigned - 1; i++) {
             threads.emplace_back([&, i] {
                 fillCopy(counter, assigned, i, std::ref(s), std::ref(angles));
             });
         }
         fillCopy(counter, assigned, assigned - 1, s, angles);
-        for (uint32_t i = 0; i < assigned - 1; i++) {
+        for (std::size_t i = 0; i < assigned - 1; i++) {
             threads[i].join();
         }
     }
@@ -1018,7 +1020,7 @@ class shellCalc {
         const double thickness, const double inclination, shell &s,
         std::vector<double> &angles, const bool changeDirection = true,
         const bool fast = false,
-        const uint32_t nThreads = std::thread::hardware_concurrency()) {
+        const std::size_t nThreads = std::thread::hardware_concurrency()) {
         // Specifies whether normalization alters the trajectory of the
         // shell Though effect is not too significant either way
         if (changeDirection) {
@@ -1034,7 +1036,7 @@ class shellCalc {
     void calculatePostPen(
         const double thickness, const double inclination, shell &s,
         std::vector<double> &angles, const bool fast = false,
-        const uint32_t nThreads = std::thread::hardware_concurrency()) {
+        const std::size_t nThreads = std::thread::hardware_concurrency()) {
         /* Specifies whether to perform ballistic calculations or just
            multiply velocity by fusetime.
            It is faster but post-penetration already runs really fast... */
@@ -1050,7 +1052,7 @@ class shellCalc {
     template <bool changeDirection, bool fast>
     void calculatePostPen(const double thickness, const double inclination,
                           shell &s, std::vector<double> &angles,
-                          const uint32_t nThreads) {
+                          const std::size_t nThreads) {
         checkRunImpact(s);
 
         s.postPenSize = s.impactSize * angles.size();
@@ -1080,8 +1082,8 @@ class shellCalc {
             std::cout<<"\n";
         }*/
         double inclination_R = M_PI / 180 * inclination;
-        uint32_t length = ceil(static_cast<double>(s.postPenSize) / vSize);
-        uint32_t assigned = assignThreadNum(length, nThreads);
+        std::size_t length = ceil(static_cast<double>(s.postPenSize) / vSize);
+        std::size_t assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(assigned, length, s.postPenSize, this,
                          &shellCalc::multiPostPen<changeDirection, fast>,
                          thickness, inclination_R, std::ref(s));
