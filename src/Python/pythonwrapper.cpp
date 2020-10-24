@@ -24,6 +24,165 @@ https://github.com/pybind/pybind11/issues/1212
 
 #include "../shellCPP.hpp"
 
+class shellPython {
+   public:
+    shell::shell s;
+    shellPython(const double caliber, const double v0, const double cD,
+                const double mass, const double krupp,
+                const double normalization, const double fuseTime,
+                const double threshold, const double ricochet0,
+                const double ricochet1, const double nonAP,
+                const std::string &name) {
+        s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
+                    threshold, ricochet0, ricochet1, nonAP, name);
+    }
+    void setValues(const double caliber, const double v0, const double cD,
+                   const double mass, const double krupp,
+                   const double normalization, const double fuseTime,
+                   const double threshold, const double ricochet0,
+                   const double ricochet1, const double nonAP,
+                   const std::string &name) {
+        s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
+                    threshold, ricochet0, ricochet1, nonAP, name);
+    }
+    void printImpact() {
+        if (s.completedImpact) {
+            s.printImpactData();
+        } else {
+            throw std::runtime_error("Impact data not generated");
+        }
+    }
+
+    void printAngles() {
+        if (s.completedAngles) {
+            s.printAngleData();
+        } else {
+            throw std::runtime_error("Angle data not generated");
+        }
+    }
+
+    void printPostPen() {
+        if (s.completedPostPen) {
+            s.printPostPenData();
+        } else {
+            throw std::runtime_error("PostPen data not generated");
+        }
+    }
+
+    double interpolateDistanceImpact(double distance, unsigned int impact) {
+        return s.interpolateDistanceImpact(distance, impact);
+    }
+
+    pybind11::array_t<double> getImpact() {
+        if (s.completedImpact) {
+            constexpr std::size_t sT = sizeof(double);
+            auto result = pybind11::array(pybind11::buffer_info(
+                s.get_impactPtr(0, 0), /* Pointer to data (nullptr -> ask NumPy
+                                         to allocate!) */
+                sT,                    /* Size of one item */
+                pybind11::format_descriptor<double>::value, /* Buffer format */
+                2, /* How many dimensions? */
+                std::vector<std::size_t>{
+                    shell::impact::maxColumns,
+                    s.impactSize}, /* Number of elements for each dimension */
+                std::vector<std::size_t>{s.impactSizeAligned * sT, sT}
+                /* Strides for each dimension */
+                ));
+            return result;
+        } else {
+            throw std::runtime_error("Impact data not generated");
+        }
+    }
+
+    pybind11::array_t<double> getAngles() {
+        if (s.completedImpact) {
+            constexpr std::size_t sT = sizeof(double);
+            auto result = pybind11::array(pybind11::buffer_info(
+                s.get_anglePtr(0, 0), /* Pointer to data (nullptr -> ask NumPy
+                                         to allocate!) */
+                sT,                   /* Size of one item */
+                pybind11::format_descriptor<double>::value, /* Buffer format */
+                2, /* How many dimensions? */
+                std::vector<std::size_t>{
+                    shell::angle::maxColumns,
+                    s.impactSize}, /* Number of elements for each dimension */
+                std::vector<std::size_t>{s.impactSizeAligned * sT, sT}
+                /* Strides for each dimension */
+                ));
+            return result;
+        } else {
+            throw std::runtime_error("Impact data not generated");
+        }
+    }
+
+    pybind11::array_t<double> getPostPen() {
+        if (s.completedPostPen) {
+            constexpr std::size_t sT = sizeof(double);
+            auto result = pybind11::array(pybind11::buffer_info(
+                s.get_postPenPtr(0, 0, 0), sT,
+                pybind11::format_descriptor<double>::value, 3,
+                std::vector<std::size_t>{shell::post::maxColumns,
+                                         (int)s.postPenSize / s.impactSize,
+                                         s.impactSize},
+                std::vector<std::size_t>{s.postPenSize * sT, s.impactSize * sT,
+                                         sT}));
+            return result;
+        } else {
+            throw std::runtime_error("PostPen data not generated");
+        }
+    }
+};
+
+class shellCalcPython {
+   private:
+    shell::shellCalc calc;
+
+   public:
+    shellCalcPython() = default;
+
+    void setMax(const double max) { calc.set_max(max); }
+    void setMin(const double min) { calc.set_min(min); }
+    void setPrecision(const double precision) { calc.set_precision(precision); }
+    void setX0(const double x0) { calc.set_x0(x0); }
+    void setY0(const double y0) { calc.set_y0(y0); }
+    void setDtMin(const double dt) { calc.set_dt_min(dt); }
+    void setXf0(const double xf0) { calc.set_xf0(xf0); }
+    void setYf0(const double yf0) { calc.set_yf0(yf0); }
+    void setDtf(const double dtf) { calc.set_dtf(dtf); }
+
+    void calcImpactForwardEuler(shellPython *sp) {
+        calc.calculateImpact<false, shell::numerical::forwardEuler, false>(
+            sp->s);
+    }
+
+    void calcImpactAdamsBashforth5(shellPython *sp) {
+        calc.calculateImpact<false, shell::numerical::adamsBashforth5, false>(
+            sp->s);
+    }
+
+    void calcImpactRungeKutta2(shellPython *sp) {
+        calc.calculateImpact<false, shell::numerical::rungeKutta2, false>(
+            sp->s);
+    }
+
+    void calcImpactRungeKutta4(shellPython *sp) {
+        calc.calculateImpact<false, shell::numerical::rungeKutta4, false>(
+            sp->s);
+    }
+
+    void calcAngles(shellPython *sp, const double thickness,
+                    const double inclination) {
+        calc.calculateAngles(thickness, inclination, sp->s);
+    }
+
+    void calcPostPen(shellPython *sp, const double thickness,
+                     const double inclination, std::vector<double> angles,
+                     const bool changeDirection, const bool fast) {
+        calc.calculatePostPen(thickness, inclination, sp->s, angles,
+                              changeDirection, fast);
+    }
+};
+
 class shellCombined {
    private:
     shell::shellCalc calc;
@@ -211,6 +370,41 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("printAngles", &shellCombined::printAngles)
         .def("printPostPen", &shellCombined::printPostPen);
 
+    pybind11::class_<shellPython>(m, "shellS", pybind11::buffer_protocol())
+        .def(pybind11::init<double, double, double, double, double, double,
+                            double, double, double, double, double,
+                            std::string &>())
+        .def("setValues", &shellPython::setValues)
+        .def("interpolateDistanceImpact",
+             &shellPython::interpolateDistanceImpact)
+        .def("getImpact", &shellPython::getImpact)
+        // pybind11::return_value_policy::reference)
+        .def("getAngles", &shellPython::getAngles)
+        .def("getPostPen", &shellPython::getPostPen)
+        // pybind11::return_value_policy::reference)
+        .def("printImpact", &shellPython::printImpact)
+        .def("printAngles", &shellPython::printAngles)
+        .def("printPostPen", &shellPython::printPostPen);
+
+    pybind11::class_<shellCalcPython>(m, "shellCalc",
+                                      pybind11::buffer_protocol())
+        .def(pybind11::init())
+        .def("setMax", &shellCalcPython::setMax)
+        .def("setMin", &shellCalcPython::setMin)
+        .def("setPrecision", &shellCalcPython::setPrecision)
+        .def("setX0", &shellCalcPython::setX0)
+        .def("setY0", &shellCalcPython::setY0)
+        .def("setDtMin", &shellCalcPython::setDtMin)
+        .def("setXf0", &shellCalcPython::setXf0)
+        .def("setYf0", &shellCalcPython::setYf0)
+        .def("setDtf", &shellCalcPython::setDtf)
+        .def("calcImpactForwardEuler", &shellCalcPython::calcImpactForwardEuler)
+        .def("calcImpactAdamsBashforth5",
+             &shellCalcPython::calcImpactAdamsBashforth5)
+        .def("calcImpactRungeKutta2", &shellCalcPython::calcImpactRungeKutta2)
+        .def("calcImpactRungeKutta4", &shellCalcPython::calcImpactRungeKutta4)
+        .def("calcAngles", &shellCalcPython::calcAngles)
+        .def("calcPostPen", &shellCalcPython::calcPostPen);
     // Enums
     pybind11::enum_<shell::impact::impactIndices>(m, "impactIndices",
                                                   pybind11::arithmetic())

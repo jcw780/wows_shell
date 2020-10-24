@@ -43,6 +43,7 @@ class shellCalc {
     // For some reason the game has a different shell multiplier than the
     // global speed multiplier of 2.61 used for everything else.
     static constexpr double velocityPower = 1.4822064892953855;
+    // Effect of impact velocity on penetration: P = K * v ^ velocity power
 
     // delta t (dtf) for fusing needs to be smaller than the delta t (dt) used
     // for trajectories due to the shorter distances. Otherwise results become
