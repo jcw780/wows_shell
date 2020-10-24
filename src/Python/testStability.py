@@ -1,78 +1,78 @@
-from pythonwrapper import shell
+from pythonwrapper import shell, shellCalc
 from pythonwrapper import impactIndices, angleIndices, postPenIndices
 import numpy as np
 import matplotlib
-matplotlib.use('TkAgg',warn=False, force=True)
+#matplotlib.use('TkAgg',warn=False, force=True)
 import matplotlib.pyplot as plt
 
+#Yes, this can be written more efficiently
 
-
-#s = shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, "Yamato")
 s = shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, 'Yamato')
 impacts = {}
 
-s.setDtMin(.1)
-#s.calcImpactForwardEuler()
-#impacts['Forward Euler .1'] = s.getImpact()
+c = shellCalc()
+c.setDtMin(.1)
+c.calcImpactForwardEuler(s)
+impacts['Forward Euler .1'] = s.getImpact()
 
-#s.calcImpactRungeKutta2()
-#impacts['RungeKutta2 .1'] = s.getImpact()
+c.calcImpactRungeKutta2(s)
+impacts['RungeKutta2 .1'] = s.getImpact()
 
-#s.calcImpactRungeKutta4()
-#impacts['RungeKutta4 .1'] = s.getImpact()
+c.calcImpactRungeKutta4(s)
+impacts['RungeKutta4 .1'] = s.getImpact()
 
 
-s.setDtMin(.04)
-#s.calcImpactForwardEuler()
-#impacts['Forward Euler .04'] = s.getImpact()
+c.setDtMin(.04)
+c.calcImpactForwardEuler(s)
+impacts['Forward Euler .04'] = s.getImpact()
 
-#s.calcImpactRungeKutta2()
-#impacts['RungeKutta2 .04'] = s.getImpact()
+c.calcImpactRungeKutta2(s)
+impacts['RungeKutta2 .04'] = s.getImpact()
 
-s.calcImpactRungeKutta4()
-#impacts['RungeKutta4 .04'] = s.getImpact()
+c.calcImpactRungeKutta4(s)
+impacts['RungeKutta4 .04'] = s.getImpact()
 
-s.setDtMin(.02)
-s.calcImpactAdamsBashforth5()
+c.setDtMin(.02)
+c.calcImpactAdamsBashforth5(s)
 impacts['AdamsBashforth 5 .02'] = s.getImpact()
 
-#s.calcImpactForwardEuler()
-#impacts['Forward Euler .02'] = s.getImpact()
+c.calcImpactForwardEuler(s)
+impacts['Forward Euler .02'] = s.getImpact()
 
-#s.calcImpactRungeKutta2()
-#impacts['RungeKutta2 .02'] = s.getImpact()
+c.calcImpactRungeKutta2(s)
+impacts['RungeKutta2 .02'] = s.getImpact()
 
-#s.calcImpactRungeKutta4()
-#impacts['RungeKutta4 .02'] = s.getImpact()
+c.calcImpactRungeKutta4(s)
+impacts['RungeKutta4 .02'] = s.getImpact()
 
-s.setDtMin(.01)
-s.calcImpactAdamsBashforth5()
+c.setDtMin(.01)
+c.calcImpactAdamsBashforth5(s)
 impacts['AdamsBashforth 5 .01'] = s.getImpact()
 
-s.calcImpactForwardEuler()
+c.calcImpactForwardEuler(s)
 impacts['Forward Euler .01'] = s.getImpact()
 
-s.calcImpactRungeKutta4()
+c.calcImpactRungeKutta4(s)
 impacts['RungeKutta4 .01'] = s.getImpact()
 
-s.setDtMin(.001)
-s.calcImpactRungeKutta4()
+c.setDtMin(.001)
+c.calcImpactRungeKutta4(s)
 impacts['RungeKutta4 .001'] = s.getImpact()
 
-s.calcImpactForwardEuler()
+c.calcImpactForwardEuler(s)
 impacts['Forward Euler .001'] = s.getImpact()
 
-s.calcImpactRungeKutta2()
+c.calcImpactRungeKutta2(s)
 impacts['RungeKutta2 .001'] = s.getImpact()
 
-s.setDtMin(.0001)
-s.calcImpactRungeKutta4()
+c.setDtMin(.0001)
+c.calcImpactRungeKutta4(s)
 reference = s.getImpact()
 
-s.calcImpactForwardEuler()
+c.calcImpactForwardEuler(s)
 impacts['Forward Euler .0001'] = s.getImpact()
 
-s.calcImpactRungeKutta2()
+c.calcImpactRungeKutta2(s)
 impacts['RungeKutta2 .0001'] = s.getImpact()
 
 ax1 = plt.subplot(211)

@@ -1,4 +1,4 @@
-from pythonwrapper import shell
+from pythonwrapper import shell, shellCalc
 from pythonwrapper import impactIndices, angleIndices, postPenIndices
 import numpy as np
 import matplotlib
@@ -9,10 +9,11 @@ import os
 
 
 s = shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, "Yamato")
-s.calcImpactRungeKutta4()
-s.calcAngles(70, 0)
+c = shellCalc()
+c.calcImpactRungeKutta4(s)
+c.calcAngles(s, 70, 0)
 angles = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60 ]
-s.calcPostPen(70, 0, angles, True, False)
+c.calcPostPen(s, 70, 0, angles, True, False)
 
 impact = s.getImpact()
 angle = s.getAngles()
