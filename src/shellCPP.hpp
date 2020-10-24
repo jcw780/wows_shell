@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <string>
@@ -125,7 +126,7 @@ class shellCalc {
             // moodycamel::ConcurrentQueue<int> workQueue;
             std::vector<std::thread> threads(assigned - 1);
             for (uint32_t i = 0; i < assigned - 1; i++) {
-                threads[i] = std::thread([&] {
+                threads[i] = std::thread([&, i] {
                     mtWorker(counter, length, i, object, function, args...);
                 });
             }
@@ -463,8 +464,8 @@ class shellCalc {
     // Several trajectories done in one chunk to allow for vectorization
     template <bool AddTraj, numerical Numerical, bool Hybrid, bool Fit,
               bool nonAP>
-    void impactGroup(const uint32_t i, shell *const shellPointer) {
-        shell &s = *shellPointer;
+    void impactGroup(const uint32_t i, shell &s) {
+        // shell &s = *shellPointer;
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_normalizationR();
         // std::cout<<"Entered\n";
@@ -617,7 +618,7 @@ class shellCalc {
         mtFunctionRunner(
             assigned, length, s.impactSize, this,
             &shellCalc::impactGroup<AddTraj, Numerical, Hybrid, false, nonAP>,
-            &s);
+            std::ref(s));
 
         s.completedImpact = true;
     }
@@ -654,10 +655,10 @@ class shellCalc {
               bool disableRicochet>
     void multiAngles(const uint32_t i, const double thickness,
                      const double inclination_R, const double fusingAngle,
-                     shell *const shellPointer) {
+                     shell &s) {
         static_assert(toUnderlying(fusing) <= 2 && toUnderlying(fusing) >= 0,
                       "Invalid fusing parameter");
-        shell &s = *shellPointer;
+        // shell &s = *shellPointer;
         const uint32_t ISA = s.impactSizeAligned;
         // ^^^
         // Otherwise Clang would think that assigned values are
@@ -812,20 +813,20 @@ class shellCalc {
                 assigned, length, s.impactSize, this,
                 &shellCalc::multiAngles<fuseStatus::always, nonAP,
                                         nonAPPerforated, disableRicochet>,
-                thickness, inclination_R, fusingAngle, &s);
+                thickness, inclination_R, fusingAngle, std::ref(s));
         } else {
             if (fusingAngle > M_PI_2) {
                 mtFunctionRunner(
                     assigned, length, s.impactSize, this,
                     &shellCalc::multiAngles<fuseStatus::never, nonAP,
                                             nonAPPerforated, disableRicochet>,
-                    thickness, inclination_R, fusingAngle, &s);
+                    thickness, inclination_R, fusingAngle, std::ref(s));
             } else {
                 mtFunctionRunner(
                     assigned, length, s.impactSize, this,
                     &shellCalc::multiAngles<fuseStatus::check, nonAP,
                                             nonAPPerforated, disableRicochet>,
-                    thickness, inclination_R, fusingAngle, &s);
+                    thickness, inclination_R, fusingAngle, std::ref(s));
             }
         }
         s.completedAngles = true;
@@ -923,8 +924,8 @@ class shellCalc {
 
     template <bool changeDirection, bool fast>
     void multiPostPen(uint32_t i, const double thickness,
-                      const double inclination_R, shell *const shellPointer) {
-        shell &s = *shellPointer;
+                      const double inclination_R, shell &s) {
+        // shell &s = *shellPointer;
         double hAngleV[vSize], vAngleV[vSize];
         double v0V[vSize], penetrationV[vSize], eThicknessV[vSize];
         double v_x[vSize], v_y[vSize], v_z[vSize];
@@ -1000,8 +1001,8 @@ class shellCalc {
         uint32_t length = angles->size();
         uint32_t assigned = assignThreadNum(length, nThreads);
         for (uint32_t i = 0; i < assigned - 1; i++) {
-            threads.push_back(std::thread(
-                [=, &counter] { fillCopy(counter, assigned, i, s, angles); }));
+            threads.emplace_back(
+                [&, i] { fillCopy(counter, assigned, i, s, angles); });
         }
         fillCopy(counter, assigned, assigned - 1, s, angles);
         for (uint32_t i = 0; i < assigned - 1; i++) {
@@ -1081,7 +1082,7 @@ class shellCalc {
         uint32_t assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(assigned, length, s.postPenSize, this,
                          &shellCalc::multiPostPen<changeDirection, fast>,
-                         thickness, inclination_R, &s);
+                         thickness, inclination_R, std::ref(s));
 
         s.completedPostPen = true;
     }
