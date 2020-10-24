@@ -336,7 +336,8 @@ class shellCombined {
 };
 
 PYBIND11_MODULE(pythonwrapper, m) {
-    pybind11::class_<shellCombined>(m, "shell", pybind11::buffer_protocol())
+    pybind11::class_<shellCombined>(m, "shellCombined",
+                                    pybind11::buffer_protocol())
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double, double,
                             std::string &>())
@@ -370,7 +371,7 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("printAngles", &shellCombined::printAngles)
         .def("printPostPen", &shellCombined::printPostPen);
 
-    pybind11::class_<shellPython>(m, "shellS", pybind11::buffer_protocol())
+    pybind11::class_<shellPython>(m, "shell", pybind11::buffer_protocol())
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double, double,
                             std::string &>())
