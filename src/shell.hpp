@@ -3,6 +3,7 @@
 #define _USE_MATH_DEFINES
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <iomanip>
 #include <iostream>
 #include <string>
@@ -125,50 +126,49 @@ class shell {
     }
 
     // Getter Functions
-    double &get_impact(const unsigned int row, impact::impactIndices impact) {
+    double &get_impact(const uint32_t row, impact::impactIndices impact) {
         return get_impact(row, toUnderlying(impact));
     }
-    double &get_impact(const unsigned int row, const unsigned int impact) {
+    double &get_impact(const uint32_t row, const uint32_t impact) {
         return impactData[row + impact * impactSizeAligned];
     }
 
-    double *get_impactPtr(const unsigned int row,
-                          impact::impactIndices impact) {
+    double *get_impactPtr(const uint32_t row, impact::impactIndices impact) {
         return get_impactPtr(row, toUnderlying(impact));
     }
-    double *get_impactPtr(const unsigned int row, const unsigned int impact) {
+    double *get_impactPtr(const uint32_t row, const uint32_t impact) {
         return impactData.data() + row + impact * impactSizeAligned;
     }
 
-    double &get_angle(const unsigned int row, angle::angleIndices data) {
+    double &get_angle(const uint32_t row, angle::angleIndices data) {
         return get_angle(row, toUnderlying(data));
     }
-    double &get_angle(const unsigned int row, const unsigned int impact) {
+    double &get_angle(const uint32_t row, const uint32_t impact) {
         return angleData[row + impact * impactSizeAligned];
     }
 
-    double *get_anglePtr(const unsigned int row, angle::angleIndices data) {
+    double *get_anglePtr(const uint32_t row, angle::angleIndices data) {
         return get_anglePtr(row, toUnderlying(data));
     }
-    double *get_anglePtr(const unsigned int row, const unsigned int impact) {
+    double *get_anglePtr(const uint32_t row, const uint32_t impact) {
         return angleData.data() + row + impact * impactSizeAligned;
     }
 
-    double &get_postPen(const unsigned int row, post::postPenIndices data,
-                        const unsigned int angle) {
+    double &get_postPen(const uint32_t row, post::postPenIndices data,
+                        const uint32_t angle) {
         return get_postPen(row, toUnderlying(data), angle);
     }
-    double &get_postPen(const unsigned int row, const unsigned int data,
-                        const unsigned int angle) {
+    double &get_postPen(const uint32_t row, const uint32_t data,
+                        const uint32_t angle) {
         return postPenData[row + data * postPenSize + angle * impactSize];
     }
 
-    double *get_postPenPtr(const unsigned int row, post::postPenIndices data,
-                           const unsigned int angle) {
+    double *get_postPenPtr(const uint32_t row, post::postPenIndices data,
+                           const uint32_t angle) {
         return get_postPenPtr(row, toUnderlying(data), angle);
     }
-    double *get_postPenPtr(const unsigned int row, const unsigned int angle,
-                           const unsigned int impact) {
+    double *get_postPenPtr(const uint32_t row, const uint32_t angle,
+                           const uint32_t impact) {
         return postPenData.data() + row + angle * postPenSize +
                impact * impactSize;
     }
@@ -212,7 +212,7 @@ class shell {
                                      impact::impactIndices data) {
         return interpolateDistanceImpact(distance, toUnderlying(data));
     }
-    double interpolateDistanceImpact(double distance, unsigned int impact) {
+    double interpolateDistanceImpact(double distance, uint32_t impact) {
         std::size_t maxIndex = maxDist(),
                     maxErrorCode = std::numeric_limits<std::size_t>::max();
         double errorCode = std::numeric_limits<double>::max();
@@ -227,7 +227,7 @@ class shell {
             get_impactPtr(0, impact::impactIndices::distance),
             get_impactPtr(maxIndex, impact::impactIndices::distance), distance);
         double upperDistance = *iter_max;
-        unsigned int upperIndex =
+        uint32_t upperIndex =
             iter_max - get_impactPtr(0, impact::impactIndices::distance);
         double upperTarget = get_impact(upperIndex, impact);
 
@@ -236,7 +236,7 @@ class shell {
 
         auto iter_min = iter_max - 1;
         double lowerDistance = *iter_min;
-        unsigned int lowerIndex =
+        uint32_t lowerIndex =
             iter_min - get_impactPtr(0, impact::impactIndices::distance);
         double lowerTarget = get_impact(lowerIndex, impact);
 
@@ -256,8 +256,8 @@ class shell {
     const double &get_normalizationR() { return normalizationR; }
 
     void printAngleData() {
-        for (unsigned int i = 0; i < impactSize; i++) {
-            for (unsigned int j = 0; j < angle::maxColumns; j++) {
+        for (uint32_t i = 0; i < impactSize; i++) {
+            for (uint32_t j = 0; j < angle::maxColumns; j++) {
                 std::cout << std::fixed << std::setprecision(4)
                           << get_angle(i, j) << " ";
             }
@@ -267,8 +267,8 @@ class shell {
     }
 
     void printPostPenData() {
-        for (unsigned int i = 0; i < postPenSize; i++) {
-            for (unsigned int j = 0; j < post::maxColumns; j++) {
+        for (uint32_t i = 0; i < postPenSize; i++) {
+            for (uint32_t j = 0; j < post::maxColumns; j++) {
                 std::cout << std::fixed << std::setprecision(4)
                           << get_postPen(i, j, 0) << " ";
             }
@@ -278,8 +278,8 @@ class shell {
     }
 
     void printImpactData() {
-        for (unsigned int i = 0; i < impactSize; i++) {
-            for (unsigned int j = 0; j < impact::maxColumns; j++) {
+        for (uint32_t i = 0; i < impactSize; i++) {
+            for (uint32_t j = 0; j < impact::maxColumns; j++) {
                 std::cout << std::fixed << std::setprecision(4)
                           << get_impact(i, j) << " ";
             }
@@ -287,7 +287,7 @@ class shell {
         }
         std::cout << "Completed Standard Data" << std::endl;
     }
-    void printTrajectory(unsigned int target) {
+    void printTrajectory(uint32_t target) {
         if (target >= impactSize) {
             std::cout << "Target Not Within Range of: " << impactSize
                       << std::endl;
