@@ -981,28 +981,29 @@ class shellCalc {
 
     // Probably unnecessary...
     void fillCopy(std::atomic<int> &counter, uint32_t assigned, uint32_t id,
-                  shell *const s, std::vector<double> *angles) {
-        for (uint32_t i = angles->size() * id / assigned;
-             i < angles->size() * (id + 1) / assigned; i++) {
-            std::fill_n(s->get_postPenPtr(0, post::postPenIndices::angle, i),
-                        s->impactSize, static_cast<double>((*angles)[i]));
+                  shell &s, std::vector<double> &angles) {
+        for (uint32_t i = angles.size() * id / assigned;
+             i < angles.size() * (id + 1) / assigned; i++) {
+            std::fill_n(s.get_postPenPtr(0, post::postPenIndices::angle, i),
+                        s.impactSize, static_cast<double>(angles[i]));
             std::copy_n(
-                s->get_impactPtr(0, impact::impactIndices::distance),
-                s->impactSize,
-                s->postPenData.begin() + s->postPenSize + i * s->impactSize);
+                s.get_impactPtr(0, impact::impactIndices::distance),
+                s.impactSize,
+                s.postPenData.begin() + s.postPenSize + i * s.impactSize);
         }
         counter.fetch_add(1, std::memory_order_relaxed);
     }
 
-    void parallelFillCopy(shell *const s, std::vector<double> *angles,
+    void parallelFillCopy(shell &s, std::vector<double> &angles,
                           uint32_t nThreads) {
         std::vector<std::thread> threads;
         std::atomic<int> counter{0};
-        uint32_t length = angles->size();
+        uint32_t length = angles.size();
         uint32_t assigned = assignThreadNum(length, nThreads);
         for (uint32_t i = 0; i < assigned - 1; i++) {
-            threads.emplace_back(
-                [&, i] { fillCopy(counter, assigned, i, s, angles); });
+            threads.emplace_back([&, i] {
+                fillCopy(counter, assigned, i, std::ref(s), std::ref(angles));
+            });
         }
         fillCopy(counter, assigned, assigned - 1, s, angles);
         for (uint32_t i = 0; i < assigned - 1; i++) {
@@ -1054,7 +1055,7 @@ class shellCalc {
         s.postPenSize = s.impactSize * angles.size();
         s.postPenData.resize(6 * s.postPenSize);
 
-        parallelFillCopy(&s, &angles, nThreads);
+        parallelFillCopy(s, angles, nThreads);
         // copies vSize - 1 from front - to avoid branching in hot loop
         std::copy_n(s.get_impactPtr(
                         0, impact::impactIndices::impactAngleHorizontalRadians),
