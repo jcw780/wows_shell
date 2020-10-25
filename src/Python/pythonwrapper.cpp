@@ -134,9 +134,6 @@ class shellPython {
 };
 
 class shellCalcPython : public shell::shellCalc {
-    // private:
-    // shell::shellCalc calc;
-
    public:
     shellCalcPython() = default;
 
@@ -151,36 +148,29 @@ class shellCalcPython : public shell::shellCalc {
     void setDtf(const double dtf) { calc.set_dtf(dtf); }*/
 
     void calcImpactForwardEuler(shellPython &sp) {
-        /*calc.calculateImpact<false, shell::numerical::forwardEuler, false>(
-            sp.s);*/
         calculateImpact<false, shell::numerical::forwardEuler, false>(sp.s);
     }
 
     void calcImpactAdamsBashforth5(shellPython &sp) {
-        // calc.
         calculateImpact<false, shell::numerical::adamsBashforth5, false>(sp.s);
     }
 
     void calcImpactRungeKutta2(shellPython &sp) {
-        // calc.
         calculateImpact<false, shell::numerical::rungeKutta2, false>(sp.s);
     }
 
     void calcImpactRungeKutta4(shellPython &sp) {
-        // calc.
         calculateImpact<false, shell::numerical::rungeKutta4, false>(sp.s);
     }
 
     void calcAngles(shellPython &sp, const double thickness,
                     const double inclination) {
-        // calc.
         calculateAngles(thickness, inclination, sp.s);
     }
 
     void calcPostPen(shellPython &sp, const double thickness,
                      const double inclination, std::vector<double> angles,
                      const bool changeDirection, const bool fast) {
-        // calc.
         calculatePostPen(thickness, inclination, sp.s, angles, changeDirection,
                          fast);
     }
