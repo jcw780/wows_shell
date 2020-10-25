@@ -1002,9 +1002,7 @@ class shellCalc {
         std::size_t length = angles.size();
         std::size_t assigned = assignThreadNum(length, nThreads);
         for (std::size_t i = 0; i < assigned - 1; i++) {
-            threads.emplace_back([&, i] {
-                fillCopy(assigned, i, std::ref(s), std::ref(angles));
-            });
+            threads.emplace_back([&, i] { fillCopy(assigned, i, s, angles); });
         }
         fillCopy(assigned, assigned - 1, s, angles);
         for (std::size_t i = 0; i < assigned - 1; i++) {
