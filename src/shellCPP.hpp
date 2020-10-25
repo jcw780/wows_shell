@@ -634,7 +634,7 @@ class shellCalc {
         std::size_t assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(assigned, length, s.impactSize, this,
                          &shellCalc::impactGroup<false, Numerical, true, false>,
-                         &s);
+                         s);
     }
 
    private:
