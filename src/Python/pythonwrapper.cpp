@@ -150,39 +150,38 @@ class shellCalcPython {
     void setYf0(const double yf0) { calc.set_yf0(yf0); }
     void setDtf(const double dtf) { calc.set_dtf(dtf); }
 
-    void calcImpactForwardEuler(shellPython *sp) {
+    void calcImpactForwardEuler(shellPython &sp) {
         calc.calculateImpact<false, shell::numerical::forwardEuler, false>(
-            sp->s);
+            sp.s);
     }
 
-    void calcImpactAdamsBashforth5(shellPython *sp) {
+    void calcImpactAdamsBashforth5(shellPython &sp) {
         calc.calculateImpact<false, shell::numerical::adamsBashforth5, false>(
-            sp->s);
+            sp.s);
     }
 
-    void calcImpactRungeKutta2(shellPython *sp) {
-        calc.calculateImpact<false, shell::numerical::rungeKutta2, false>(
-            sp->s);
+    void calcImpactRungeKutta2(shellPython &sp) {
+        calc.calculateImpact<false, shell::numerical::rungeKutta2, false>(sp.s);
     }
 
-    void calcImpactRungeKutta4(shellPython *sp) {
-        calc.calculateImpact<false, shell::numerical::rungeKutta4, false>(
-            sp->s);
+    void calcImpactRungeKutta4(shellPython &sp) {
+        calc.calculateImpact<false, shell::numerical::rungeKutta4, false>(sp.s);
     }
 
-    void calcAngles(shellPython *sp, const double thickness,
+    void calcAngles(shellPython &sp, const double thickness,
                     const double inclination) {
-        calc.calculateAngles(thickness, inclination, sp->s);
+        calc.calculateAngles(thickness, inclination, sp.s);
     }
 
-    void calcPostPen(shellPython *sp, const double thickness,
+    void calcPostPen(shellPython &sp, const double thickness,
                      const double inclination, std::vector<double> angles,
                      const bool changeDirection, const bool fast) {
-        calc.calculatePostPen(thickness, inclination, sp->s, angles,
+        calc.calculatePostPen(thickness, inclination, sp.s, angles,
                               changeDirection, fast);
     }
 };
 
+// DEPRECATED
 class shellCombined {
    private:
     shell::shellCalc calc;
