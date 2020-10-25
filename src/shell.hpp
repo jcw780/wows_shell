@@ -33,7 +33,6 @@ class shell {
 
     // Condenses initial values into values used by calculations
     //[Reduces repeated computations]
-   public:
     void preProcess() {
         k = 0.5 * cD * pow((caliber / 2), 2) * M_PI / mass;
         // condensed drag coefficient

@@ -133,14 +133,14 @@ class shellPython {
     }
 };
 
-class shellCalcPython {
-   private:
-    shell::shellCalc calc;
+class shellCalcPython : public shell::shellCalc {
+    // private:
+    // shell::shellCalc calc;
 
    public:
     shellCalcPython() = default;
 
-    void setMax(const double max) { calc.set_max(max); }
+    /*void setMax(const double max) { calc.set_max(max); }
     void setMin(const double min) { calc.set_min(min); }
     void setPrecision(const double precision) { calc.set_precision(precision); }
     void setX0(const double x0) { calc.set_x0(x0); }
@@ -148,36 +148,41 @@ class shellCalcPython {
     void setDtMin(const double dt) { calc.set_dt_min(dt); }
     void setXf0(const double xf0) { calc.set_xf0(xf0); }
     void setYf0(const double yf0) { calc.set_yf0(yf0); }
-    void setDtf(const double dtf) { calc.set_dtf(dtf); }
+    void setDtf(const double dtf) { calc.set_dtf(dtf); }*/
 
     void calcImpactForwardEuler(shellPython &sp) {
-        calc.calculateImpact<false, shell::numerical::forwardEuler, false>(
-            sp.s);
+        /*calc.calculateImpact<false, shell::numerical::forwardEuler, false>(
+            sp.s);*/
+        calculateImpact<false, shell::numerical::forwardEuler, false>(sp.s);
     }
 
     void calcImpactAdamsBashforth5(shellPython &sp) {
-        calc.calculateImpact<false, shell::numerical::adamsBashforth5, false>(
-            sp.s);
+        // calc.
+        calculateImpact<false, shell::numerical::adamsBashforth5, false>(sp.s);
     }
 
     void calcImpactRungeKutta2(shellPython &sp) {
-        calc.calculateImpact<false, shell::numerical::rungeKutta2, false>(sp.s);
+        // calc.
+        calculateImpact<false, shell::numerical::rungeKutta2, false>(sp.s);
     }
 
     void calcImpactRungeKutta4(shellPython &sp) {
-        calc.calculateImpact<false, shell::numerical::rungeKutta4, false>(sp.s);
+        // calc.
+        calculateImpact<false, shell::numerical::rungeKutta4, false>(sp.s);
     }
 
     void calcAngles(shellPython &sp, const double thickness,
                     const double inclination) {
-        calc.calculateAngles(thickness, inclination, sp.s);
+        // calc.
+        calculateAngles(thickness, inclination, sp.s);
     }
 
     void calcPostPen(shellPython &sp, const double thickness,
                      const double inclination, std::vector<double> angles,
                      const bool changeDirection, const bool fast) {
-        calc.calculatePostPen(thickness, inclination, sp.s, angles,
-                              changeDirection, fast);
+        // calc.
+        calculatePostPen(thickness, inclination, sp.s, angles, changeDirection,
+                         fast);
     }
 };
 
@@ -389,15 +394,15 @@ PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::class_<shellCalcPython>(m, "shellCalc",
                                       pybind11::buffer_protocol())
         .def(pybind11::init())
-        .def("setMax", &shellCalcPython::setMax)
-        .def("setMin", &shellCalcPython::setMin)
-        .def("setPrecision", &shellCalcPython::setPrecision)
-        .def("setX0", &shellCalcPython::setX0)
-        .def("setY0", &shellCalcPython::setY0)
-        .def("setDtMin", &shellCalcPython::setDtMin)
-        .def("setXf0", &shellCalcPython::setXf0)
-        .def("setYf0", &shellCalcPython::setYf0)
-        .def("setDtf", &shellCalcPython::setDtf)
+        .def("setMax", &shellCalcPython::set_max)
+        .def("setMin", &shellCalcPython::set_min)
+        .def("setPrecision", &shellCalcPython::set_precision)
+        .def("setX0", &shellCalcPython::set_x0)
+        .def("setY0", &shellCalcPython::set_y0)
+        .def("setDtMin", &shellCalcPython::set_dt_min)
+        .def("setXf0", &shellCalcPython::set_xf0)
+        .def("setYf0", &shellCalcPython::set_yf0)
+        .def("setDtf", &shellCalcPython::set_dtf)
         .def("calcImpactForwardEuler", &shellCalcPython::calcImpactForwardEuler)
         .def("calcImpactAdamsBashforth5",
              &shellCalcPython::calcImpactAdamsBashforth5)
