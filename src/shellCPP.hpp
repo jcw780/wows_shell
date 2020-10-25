@@ -464,8 +464,7 @@ class shellCalc {
     }
 
     // Several trajectories done in one chunk to allow for vectorization
-    template <bool AddTraj, numerical Numerical, bool Hybrid, bool Fit,
-              bool nonAP>
+    template <bool AddTraj, numerical Numerical, bool Fit, bool nonAP>
     void impactGroup(const std::size_t i, shell &s) {
         // shell &s = *shellPointer;
         const double pPPC = s.get_pPPC();
@@ -619,7 +618,7 @@ class shellCalc {
         std::size_t assigned = assignThreadNum(length, nThreads);
         mtFunctionRunner(
             assigned, length, s.impactSize, this,
-            &shellCalc::impactGroup<AddTraj, Numerical, Hybrid, false, nonAP>,
+            &shellCalc::impactGroup<AddTraj, Numerical, false, nonAP>,
             std::ref(s));
 
         s.completedImpact = true;
@@ -633,9 +632,9 @@ class shellCalc {
         }
         std::size_t length = ceil(static_cast<double>(s.impactSize) / vSize);
         std::size_t assigned = assignThreadNum(length, nThreads);
-        mtFunctionRunner(
-            assigned, length, s.impactSize, this,
-            &shellCalc::impactGroup<false, Numerical, false, true, false>, &s);
+        mtFunctionRunner(assigned, length, s.impactSize, this,
+                         &shellCalc::impactGroup<false, Numerical, true, false>,
+                         &s);
     }
 
    private:
