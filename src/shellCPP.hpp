@@ -983,8 +983,8 @@ class shellCalc {
     }
 
     // Probably unnecessary...
-    void fillCopy(std::atomic<int> &counter, std::size_t assigned,
-                  std::size_t id, shell &s, std::vector<double> &angles) {
+    void fillCopy(std::size_t assigned, std::size_t id, shell &s,
+                  std::vector<double> &angles) {
         for (std::size_t i = angles.size() * id / assigned;
              i < angles.size() * (id + 1) / assigned; i++) {
             std::fill_n(s.get_postPenPtr(0, post::postPenIndices::angle, i),
@@ -994,21 +994,19 @@ class shellCalc {
                 s.impactSize,
                 s.postPenData.begin() + s.postPenSize + i * s.impactSize);
         }
-        counter.fetch_add(1, std::memory_order_relaxed);
     }
 
     void parallelFillCopy(shell &s, std::vector<double> &angles,
                           std::size_t nThreads) {
         std::vector<std::thread> threads;
-        std::atomic<int> counter{0};
         std::size_t length = angles.size();
         std::size_t assigned = assignThreadNum(length, nThreads);
         for (std::size_t i = 0; i < assigned - 1; i++) {
             threads.emplace_back([&, i] {
-                fillCopy(counter, assigned, i, std::ref(s), std::ref(angles));
+                fillCopy(assigned, i, std::ref(s), std::ref(angles));
             });
         }
-        fillCopy(counter, assigned, assigned - 1, s, angles);
+        fillCopy(assigned, assigned - 1, s, angles);
         for (std::size_t i = 0; i < assigned - 1; i++) {
             threads[i].join();
         }
