@@ -17,7 +17,7 @@
             ShellWasmV().then(function (M) {
                 console.log('Ready', M);
                 Module = M;
-                instance = new Module.shell(2);
+                instance = new Module.shellCombined(2);
                 console.log('Instance', instance);
                 runFunc();
             })
@@ -26,7 +26,7 @@
             ShellWasm().then(function (M) {
                 console.log('Ready', M);
                 Module = M;
-                instance = new Module.shell(2);
+                instance = new Module.shellCombined(2);
                 console.log('Instance', instance);
                 runFunc();
             })
