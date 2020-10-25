@@ -173,7 +173,7 @@ class shellCombined {
 
 // Testline: s = shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76.0, .033 )
 EMSCRIPTEN_BINDINGS(shellWasm) {
-    emscripten::class_<shellCombined>("shell")
+    emscripten::class_<shellCombined>("shellCombined")
         .constructor<int>()
         .function("resize", &shellCombined::resize)
         .function("setValues", &shellCombined::setValues)
