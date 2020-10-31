@@ -146,21 +146,10 @@ class shellCalcPython : public shell::shellCalc {
     void setXf0(const double xf0) { calc.set_xf0(xf0); }
     void setYf0(const double yf0) { calc.set_yf0(yf0); }
     void setDtf(const double dtf) { calc.set_dtf(dtf); }*/
-
-    void calcImpactForwardEuler(shellPython &sp) {
-        calculateImpact<false, shell::numerical::forwardEuler, false>(sp.s);
-    }
-
-    void calcImpactAdamsBashforth5(shellPython &sp) {
-        calculateImpact<false, shell::numerical::adamsBashforth5, false>(sp.s);
-    }
-
-    void calcImpactRungeKutta2(shellPython &sp) {
-        calculateImpact<false, shell::numerical::rungeKutta2, false>(sp.s);
-    }
-
-    void calcImpactRungeKutta4(shellPython &sp) {
-        calculateImpact<false, shell::numerical::rungeKutta4, false>(sp.s);
+    
+    template <shell::numerical Numerical>
+    void calcImpact(shellPython &sp){
+        calculateImpact<false, Numerical, false>(sp.s);
     }
 
     void calcAngles(shellPython &sp, const double thickness,
@@ -393,11 +382,11 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("setXf0", &shellCalcPython::set_xf0)
         .def("setYf0", &shellCalcPython::set_yf0)
         .def("setDtf", &shellCalcPython::set_dtf)
-        .def("calcImpactForwardEuler", &shellCalcPython::calcImpactForwardEuler)
+        .def("calcImpactForwardEuler", &shellCalcPython::calcImpact<shell::numerical::forwardEuler>)
         .def("calcImpactAdamsBashforth5",
-             &shellCalcPython::calcImpactAdamsBashforth5)
-        .def("calcImpactRungeKutta2", &shellCalcPython::calcImpactRungeKutta2)
-        .def("calcImpactRungeKutta4", &shellCalcPython::calcImpactRungeKutta4)
+             &shellCalcPython::calcImpact<shell::numerical::adamsBashforth5>)
+        .def("calcImpactRungeKutta2", &shellCalcPython::calcImpact<shell::numerical::rungeKutta2>)
+        .def("calcImpactRungeKutta4", &shellCalcPython::calcImpact<shell::numerical::rungeKutta4>)
         .def("calcAngles", &shellCalcPython::calcAngles)
         .def("calcPostPen", &shellCalcPython::calcPostPen);
     // Enums

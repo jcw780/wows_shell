@@ -19,7 +19,8 @@
                 Module = M;
                 instance = new Module.shellCombined(2);
                 console.log('Instance', instance);
-                runFunc();
+                //runFunc();
+                runFuncSplit();
             })
         } else {
             console.log('unvectorized');
@@ -28,7 +29,8 @@
                 Module = M;
                 instance = new Module.shellCombined(2);
                 console.log('Instance', instance);
-                runFunc();
+                //runFunc();
+                runFuncSplit();
             })
         }
     });
@@ -101,6 +103,39 @@
                 );
             }
         }
+    }
+
+    const runFuncSplit = () => {
+        const shell1 = new Module.shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, '');
+        const calc = new Module.shellCalc();
+
+        let angles = [10];
+
+        calc.calcImpact(shell1);
+        calc.calcAngles(shell1, 70, -20);
+        calc.calcPostPen(shell1, 70, -20, angles, true, false);
+        console.log('done');
+
+        let impactSize = shell1.getImpactSize();
+        let postpenSize = shell1.getPostPenSize();
+        for (let i = 0; i < impactSize; i++) {
+            console.log(shell1.getImpactPoint(i, Module.impactIndices.distance.value),
+                shell1.getImpactPoint(i, Module.impactIndices.rawPen.value));
+        }
+        console.log('done');
+
+        for (let i = 0; i < impactSize; i++) {
+            console.log(shell1.getAnglePoint(i, Module.angleIndices.distance.value),
+                shell1.getAnglePoint(i, Module.angleIndices.ra0D.value));
+        }
+        console.log('done');
+
+        for (let i = 0; i < postpenSize; i++) {
+            console.log(shell1.getPostPenPoint(i, Module.postPenIndices.distance.value, 0),
+                shell1.getPostPenPoint(i, Module.postPenIndices.x.value, 0),
+                shell1.getPostPenPoint(i, Module.postPenIndices.xwf.value, 0));
+        }
+        console.log('done');
     }
     if (safe) {
         //runFunc();

@@ -6,6 +6,121 @@
 
 #include "../shellCPP.hpp"
 
+class shellWasm {
+    public:
+    shell::shell s;
+    shellWasm(const double caliber, const double v0, const double cD,
+                const double mass, const double krupp,
+                const double normalization, const double fuseTime,
+                const double threshold, const double ricochet0,
+                const double ricochet1, const double nonAP,
+                const std::string &name) {
+        s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
+                    threshold, ricochet0, ricochet1, nonAP, name);
+    }
+    void setValues(const double caliber, const double v0, const double cD,
+                   const double mass, const double krupp,
+                   const double normalization, const double fuseTime,
+                   const double threshold, const double ricochet0,
+                   const double ricochet1, const double nonAP,
+                   const std::string &name) {
+        s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
+                    threshold, ricochet0, ricochet1, nonAP, name);
+    }
+    std::size_t impactSize(){return s.impactSize;}
+    std::size_t impactSizeAligned(){return s.impactSizeAligned;}
+
+    std::vector<double> impactData() {
+        if (s.completedImpact) {
+            return s.impactData;
+        } else {
+            throw std::runtime_error("Impact data not generated");
+        }
+    }
+
+    double getImpactPoint(std::size_t i, std::size_t j) {
+        // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
+        return s.get_impact(i, j);
+    }
+
+    std::vector<double> angleData() {
+        if (s.completedAngles) {
+            return s.angleData;
+        } else {
+            throw std::runtime_error("Angle data not generated");
+        }
+    }
+
+    double getAnglePoint(std::size_t row, std::size_t impact) {
+        // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
+        return s.get_angle(row, impact);
+    }
+
+    std::size_t postPenSize() { return s.postPenSize; }
+
+    std::vector<double> postPenData() {
+        if (s.completedPostPen) {
+            return s.postPenData;
+        } else {
+            throw std::runtime_error("Impact data not generated");
+        }
+    }
+
+    double getPostPenPoint(const int i, const int j, const int k) {
+        // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
+        return s.get_postPen(i, j, k);
+    }
+
+    void printImpact() {
+        if (s.completedImpact) {
+            s.printImpactData();
+        } else {
+            throw std::runtime_error("Impact data not generated");
+        }
+    }
+
+    void printAngles() {
+        if (s.completedAngles) {
+            s.printAngleData();
+        } else {
+            throw std::runtime_error("Angle data not generated");
+        }
+    }
+
+    void printPostPen() {
+        if (s.completedPostPen) {
+            s.printPostPenData();
+        } else {
+            throw std::runtime_error("PostPen data not generated");
+        }
+    }
+};
+
+class shellCalcWasm : public shell::shellCalc {
+    public:
+    shellCalcWasm() = default;
+
+    template <shell::numerical Numerical>
+    void calcImpact(shellWasm &sp){
+        calculateImpact<false, Numerical, false>(sp.s, 1);
+    }
+
+    void calcAngles(shellWasm &sp, const double thickness,
+                    const double inclination) {
+        calculateAngles(thickness, inclination, sp.s, 1);
+    }
+
+    void calcPostPen(shellWasm &sp, const double thickness,
+                     const double inclination, emscripten::val anglesVal,
+                     const bool changeDirection, const bool fast) {
+        std::vector<double> input =
+            std::move(emscripten::vecFromJSArray<double>(anglesVal));
+        calculatePostPen(thickness, inclination, sp.s, input, changeDirection,
+                         fast, 1);
+    }
+};
+
+//Should start deprecating
 class shellCombined {
    private:
     shell::shellCalc calc;
@@ -173,6 +288,46 @@ class shellCombined {
 
 // Testline: s = shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76.0, .033 )
 EMSCRIPTEN_BINDINGS(shellWasm) {
+    emscripten::class_<shellWasm>("shell")
+        .constructor<double, double, double, double, double, double, double, double, double, double, double, std::string>()
+        .function("setValues", &shellWasm::setValues)
+        .function("getImpactPoint", &shellWasm::getImpactPoint)
+        .function("impactData", &shellWasm::impactData)
+        .function("getImpactSize", &shellWasm::impactSize)
+        .function("getImpactSizeAligned", &shellWasm::impactSizeAligned)
+        .function("angleData", &shellWasm::angleData)
+        .function("getAnglePoint", &shellWasm::getAnglePoint)
+        .function("getPostPenPoint", &shellWasm::getPostPenPoint)
+        .function("postPenData", &shellWasm::postPenData)
+        .function("getPostPenSize", &shellWasm::postPenSize)
+        .function("printImpact", &shellWasm::printImpact)
+        .function("printAngles", &shellWasm::printAngles)
+        .function("printPostPen", &shellWasm::printPostPen);
+    
+    emscripten::class_<shellCalcWasm>("shellCalc")
+        .constructor()
+        .function("setMax", &shellCalcWasm::set_max)
+        .function("setMin", &shellCalcWasm::set_min)
+        .function("setPrecision", &shellCalcWasm::set_precision)
+        .function("setX0", &shellCalcWasm::set_x0)
+        .function("setY0", &shellCalcWasm::set_y0)
+        .function("setDtMin", &shellCalcWasm::set_dt_min)
+        .function("setXf0", &shellCalcWasm::set_xf0)
+        .function("setYf0", &shellCalcWasm::set_yf0)
+        .function("setDtf", &shellCalcWasm::set_dtf)
+        .function("calcImpact",
+                  &shellCalcWasm::calcImpact<shell::numerical::forwardEuler>)
+        .function("calcImpactAdamsBashforth5",
+                  &shellCalcWasm::calcImpact<shell::numerical::adamsBashforth5>)
+        .function("calcImpactForwardEuler",
+                  &shellCalcWasm::calcImpact<shell::numerical::forwardEuler>)
+        .function("calcImpactRungeKutta2",
+                  &shellCalcWasm::calcImpact<shell::numerical::rungeKutta2>)
+        .function("calcImpactRungeKutta4",
+                  &shellCalcWasm::calcImpact<shell::numerical::rungeKutta4>)
+        .function("calcAngles", &shellCalcWasm::calcAngles)
+        .function("calcPostPen", &shellCalcWasm::calcPostPen);
+
     emscripten::class_<shellCombined>("shellCombined")
         .constructor<int>()
         .function("resize", &shellCombined::resize)
