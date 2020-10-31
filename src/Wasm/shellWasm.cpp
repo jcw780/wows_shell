@@ -114,7 +114,7 @@ class shellCalcWasm : public shell::shellCalc {
                      const double inclination, emscripten::val anglesVal,
                      const bool changeDirection, const bool fast) {
         std::vector<double> input =
-            std::move(emscripten::vecFromJSArray<double>(anglesVal));
+            std::move(emscripten::convertJSArrayToNumberVector<double>(anglesVal));
         calculatePostPen(thickness, inclination, sp.s, input, changeDirection,
                          fast, 1);
     }
@@ -216,7 +216,7 @@ class shellCombined {
                      emscripten::val v, const bool changeDirection,
                      const bool fast) {
         std::vector<double> input =
-            std::move(emscripten::vecFromJSArray<double>(v));
+            std::move(emscripten::convertJSArrayToNumberVector<double>(v));
         for (auto &s : ships) {
             calc.calculatePostPen(thickness, inclination, s, input,
                                   changeDirection, fast,

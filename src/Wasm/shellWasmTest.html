@@ -7,34 +7,41 @@
 <script type="text/javascript" src="shellWasm.wasm.js"></script>
 <script>
     console.log('Started');
-    var safe = false;
-    var Module;
-    var instance;
+    let safe = false;
+    let Module, instance;
 
-    wasmFeatureDetect.simd().then(simdSupported => {
-        if (false) {
-            console.log('vectorized');
-            ShellWasmV().then(function (M) {
-                console.log('Ready', M);
-                Module = M;
-                instance = new Module.shellCombined(2);
-                console.log('Instance', instance);
-                //runFunc();
-                runFuncSplit();
-            })
-        } else {
-            console.log('unvectorized');
-            ShellWasm().then(function (M) {
-                console.log('Ready', M);
-                Module = M;
-                instance = new Module.shellCombined(2);
-                console.log('Instance', instance);
-                //runFunc();
-                runFuncSplit();
-            })
-        }
-    });
+    function instantiateVectorized(M) {
+        console.log('Ready', M);
+        Module = M;
+        instance = new Module.shellCombined(2);
+        console.log('Instance', instance);
+        runFunc();
+        runFuncSplit();
+    }
 
+    function instantiateStandard(M) {
+        console.log('Ready', M);
+        Module = M;
+        instance = new Module.shellCombined(2);
+        console.log('Instance', instance);
+        runFunc();
+        runFuncSplit();
+    }
+
+    if (typeof wasmFeatureDetect !== 'undefined') {
+        wasmFeatureDetect.simd().then(simdSupported => {
+            if (false) {
+                console.log('vectorized');
+                ShellWasmV().then(instantiateVectorized);
+            } else {
+                console.log('unvectorized');
+                ShellWasm().then(instantiateStandard)
+            }
+        });
+    } else {
+        console.log('unvectorized');
+        ShellWasm().then(instantiateStandard)
+    }
 
     /*var Module = {
         onRuntimeInitialized: function () {
