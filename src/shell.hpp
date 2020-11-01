@@ -125,49 +125,49 @@ class shell {
     }
 
     // Getter Functions
-    double &get_impact(const uint32_t row, impact::impactIndices impact) {
+    double &get_impact(const std::size_t row, impact::impactIndices impact) {
         return get_impact(row, toUnderlying(impact));
     }
-    double &get_impact(const uint32_t row, const uint32_t impact) {
+    double &get_impact(const std::size_t row, const std::size_t impact) {
         return impactData[row + impact * impactSizeAligned];
     }
 
-    double *get_impactPtr(const uint32_t row, impact::impactIndices impact) {
+    double *get_impactPtr(const std::size_t row, impact::impactIndices impact) {
         return get_impactPtr(row, toUnderlying(impact));
     }
-    double *get_impactPtr(const uint32_t row, const uint32_t impact) {
+    double *get_impactPtr(const std::size_t row, const std::size_t impact) {
         return impactData.data() + row + impact * impactSizeAligned;
     }
 
-    double &get_angle(const uint32_t row, angle::angleIndices data) {
+    double &get_angle(const std::size_t row, angle::angleIndices data) {
         return get_angle(row, toUnderlying(data));
     }
-    double &get_angle(const uint32_t row, const uint32_t impact) {
+    double &get_angle(const std::size_t row, const std::size_t impact) {
         return angleData[row + impact * impactSizeAligned];
     }
 
-    double *get_anglePtr(const uint32_t row, angle::angleIndices data) {
+    double *get_anglePtr(const std::size_t row, angle::angleIndices data) {
         return get_anglePtr(row, toUnderlying(data));
     }
-    double *get_anglePtr(const uint32_t row, const uint32_t impact) {
+    double *get_anglePtr(const std::size_t row, const std::size_t impact) {
         return angleData.data() + row + impact * impactSizeAligned;
     }
 
-    double &get_postPen(const uint32_t row, post::postPenIndices data,
-                        const uint32_t angle) {
+    double &get_postPen(const std::size_t row, post::postPenIndices data,
+                        const std::size_t angle) {
         return get_postPen(row, toUnderlying(data), angle);
     }
-    double &get_postPen(const uint32_t row, const uint32_t data,
-                        const uint32_t angle) {
+    double &get_postPen(const std::size_t row, const std::size_t data,
+                        const std::size_t angle) {
         return postPenData[row + data * postPenSize + angle * impactSize];
     }
 
-    double *get_postPenPtr(const uint32_t row, post::postPenIndices data,
-                           const uint32_t angle) {
+    double *get_postPenPtr(const std::size_t row, post::postPenIndices data,
+                           const std::size_t angle) {
         return get_postPenPtr(row, toUnderlying(data), angle);
     }
-    double *get_postPenPtr(const uint32_t row, const uint32_t angle,
-                           const uint32_t impact) {
+    double *get_postPenPtr(const std::size_t row, const std::size_t angle,
+                           const std::size_t impact) {
         return postPenData.data() + row + angle * postPenSize +
                impact * impactSize;
     }
@@ -255,8 +255,8 @@ class shell {
     const double &get_normalizationR() { return normalizationR; }
 
     void printAngleData() {
-        for (uint32_t i = 0; i < impactSize; i++) {
-            for (uint32_t j = 0; j < angle::maxColumns; j++) {
+        for (std::size_t i = 0; i < impactSize; i++) {
+            for (std::size_t j = 0; j < angle::maxColumns; j++) {
                 std::cout << std::fixed << std::setprecision(4)
                           << get_angle(i, j) << " ";
             }
@@ -266,8 +266,8 @@ class shell {
     }
 
     void printPostPenData() {
-        for (uint32_t i = 0; i < postPenSize; i++) {
-            for (uint32_t j = 0; j < post::maxColumns; j++) {
+        for (std::size_t i = 0; i < postPenSize; i++) {
+            for (std::size_t j = 0; j < post::maxColumns; j++) {
                 std::cout << std::fixed << std::setprecision(4)
                           << get_postPen(i, j, 0) << " ";
             }
@@ -277,8 +277,8 @@ class shell {
     }
 
     void printImpactData() {
-        for (uint32_t i = 0; i < impactSize; i++) {
-            for (uint32_t j = 0; j < impact::maxColumns; j++) {
+        for (std::size_t i = 0; i < impactSize; i++) {
+            for (std::size_t j = 0; j < impact::maxColumns; j++) {
                 std::cout << std::fixed << std::setprecision(4)
                           << get_impact(i, j) << " ";
             }
@@ -286,12 +286,12 @@ class shell {
         }
         std::cout << "Completed Standard Data" << std::endl;
     }
-    void printTrajectory(uint32_t target) {
+    void printTrajectory(std::size_t target) {
         if (target >= impactSize) {
             std::cout << "Target Not Within Range of: " << impactSize
                       << std::endl;
         } else {
-            printf("Index:[%d] X Y\n", target);
+            std::cout << "Index:[" << target << "] X Y\n";
             for (std::vector<double>::size_type i = 0;
                  i < trajectories[target * 2].size(); i++) {
                 std::cout << trajectories[target * 2][i] << " "

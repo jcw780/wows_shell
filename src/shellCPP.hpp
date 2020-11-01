@@ -107,7 +107,7 @@ class shellCalc {
     // mini 'threadpool' used to kick off multithreaded functions
 
     template <typename O, typename F, typename... Args>
-    void mtFunctionRunner(int assigned, int length, int size, O object,
+    void mtFunctionRunner(const std::size_t assigned, const std::size_t length, const std::size_t size, O object,
                           F function, Args... args) {
         if (assigned > 1) {
             mtFunctionRunnerSelected<true>(assigned, length, size, object,
@@ -119,8 +119,8 @@ class shellCalc {
     }
 
     template <bool multiThreaded, typename O, typename F, typename... Args>
-    void mtFunctionRunnerSelected(std::size_t assigned, std::size_t length,
-                                  std::size_t size, O object, F function,
+    void mtFunctionRunnerSelected(const std::size_t assigned, const std::size_t length,
+                                  const std::size_t size, O object, F function,
                                   Args... args) {
         if constexpr (multiThreaded) {
             std::atomic<std::size_t> counter{0};
