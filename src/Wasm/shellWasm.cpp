@@ -39,7 +39,7 @@ class shellWasm {
     }
 
     //These functions are for producing arrays suitable for chart.js scatter plots
-    emscripten::val getImpactPointArray(std::size_t xIndex, std::size_t yIndex){
+    emscripten::val getImpactPointArray(const std::size_t xIndex, const std::size_t yIndex){
         if (s.completedImpact) {
             emscripten::val points = emscripten::val::array();
             for(std::size_t i=0; i<s.impactSize; i++){
@@ -54,7 +54,7 @@ class shellWasm {
         }
     }
 
-    double getImpactPoint(std::size_t i, std::size_t j) {
+    double getImpactPoint(const std::size_t i, const std::size_t j) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return s.get_impact(i, j);
     }
@@ -67,13 +67,13 @@ class shellWasm {
         }
     }
 
-    double getAnglePoint(std::size_t row, std::size_t impact) {
+    double getAnglePoint(const std::size_t row, const std::size_t impact) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return s.get_angle(row, impact);
     }
 
     //These functions are for producing arrays suitable for chart.js scatter plots
-    emscripten::val getAnglePointArray(std::size_t xIndex, std::size_t yIndex){
+    emscripten::val getAnglePointArray(const std::size_t xIndex, const std::size_t yIndex){
         if (s.completedImpact) {
             emscripten::val points = emscripten::val::array();
             for(std::size_t i=0; i<s.impactSize; i++){
@@ -98,13 +98,13 @@ class shellWasm {
         }
     }
 
-    double getPostPenPoint(const int i, const int j, const int k) {
+    double getPostPenPoint(const std::size_t i, const std::size_t j, const std::size_t k) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return s.get_postPen(i, j, k);
     }
 
     //These functions are for producing arrays suitable for chart.js scatter plots
-    emscripten::val getPostPenPointArray(std::size_t angle, std::size_t xIndex, std::size_t yIndex){
+    emscripten::val getPostPenPointArray(const std::size_t angle, const std::size_t xIndex, const std::size_t yIndex){
         if (s.completedImpact) {
             emscripten::val points = emscripten::val::array();
             for(std::size_t i=0; i<s.impactSize; i++){
@@ -120,7 +120,7 @@ class shellWasm {
     }
 
     //These functions are for producing arrays suitable for chart.js scatter plots
-    emscripten::val getPostPenPointArrayFuseStatus(bool addCondition, std::size_t angle, std::size_t xIndex, std::size_t yIndex){
+    emscripten::val getPostPenPointArrayFuseStatus(const bool addCondition, const std::size_t angle, const std::size_t xIndex, const std::size_t yIndex){
         if (s.completedImpact) {
             emscripten::val points = emscripten::val::array();
             if(addCondition){
@@ -197,7 +197,6 @@ class shellCalcWasm : public shell::shellCalc {
     }
 };
 
-//Should start deprecating
 class shellCombined {
    private:
     shell::shellCalc calc;
@@ -253,7 +252,7 @@ class shellCombined {
     int impactSize() { return ships[0].impactSize; }
     int impactSizeAligned() { return ships[0].impactSizeAligned; }
 
-    std::vector<double> impactData(const int shipIndex) {
+    std::vector<double> impactData(const std::size_t shipIndex) {
         if (ships[shipIndex].completedImpact) {
             return ships[shipIndex].impactData;
         } else {
@@ -261,7 +260,7 @@ class shellCombined {
         }
     }
 
-    double getImpactPoint(const int i, const int j, const int shipIndex) {
+    double getImpactPoint(const std::size_t i, const std::size_t j, const std::size_t shipIndex) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return ships[shipIndex].get_impact(i, j);
     }
@@ -274,7 +273,7 @@ class shellCombined {
         }
     }
 
-    std::vector<double> angleData(const int shipIndex) {
+    std::vector<double> angleData(const std::size_t shipIndex) {
         if (ships[shipIndex].completedAngles) {
             return ships[shipIndex].angleData;
         } else {
@@ -282,7 +281,7 @@ class shellCombined {
         }
     }
 
-    double getAnglePoint(const int row, const int impact, const int shipIndex) {
+    double getAnglePoint(const std::size_t row, const std::size_t impact, const std::size_t shipIndex) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return ships[shipIndex].get_angle(row, impact);
     }
@@ -304,7 +303,7 @@ class shellCombined {
     // Sizes are the same for both ships
     int postPenSize() { return ships[0].postPenSize; }
 
-    std::vector<double> postPenData(const int shipIndex) {
+    std::vector<double> postPenData(const std::size_t shipIndex) {
         if (ships[shipIndex].completedPostPen) {
             return ships[shipIndex].postPenData;
         } else {
@@ -312,15 +311,15 @@ class shellCombined {
         }
     }
 
-    double getPostPenPoint(const int i, const int j, const int k,
-                           const int shipIndex) {
+    double getPostPenPoint(const std::size_t i, const std::size_t j, const std::size_t k,
+                           const std::size_t shipIndex) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return ships[shipIndex].get_postPen(i, j, k);
     }
 
     // Print Functions
 
-    void printImpact(const int shipIndex) {
+    void printImpact(const std::size_t shipIndex) {
         if (ships[shipIndex].completedImpact) {
             ships[shipIndex].printImpactData();
         } else {
@@ -328,7 +327,7 @@ class shellCombined {
         }
     }
 
-    void printAngles(const int shipIndex) {
+    void printAngles(const std::size_t shipIndex) {
         if (ships[shipIndex].completedAngles) {
             ships[shipIndex].printAngleData();
         } else {
@@ -336,7 +335,7 @@ class shellCombined {
         }
     }
 
-    void printPostPen(const int shipIndex) {
+    void printPostPen(const std::size_t shipIndex) {
         if (ships[shipIndex].completedPostPen) {
             ships[shipIndex].printPostPenData();
         } else {
