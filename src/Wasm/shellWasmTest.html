@@ -10,13 +10,17 @@
     let safe = false;
     let Module, instance;
 
+    function testFull() {
+        runFunc();
+        runFuncSplit();
+    }
+
     function instantiateVectorized(M) {
         console.log('Ready', M);
         Module = M;
         instance = new Module.shellCombined(2);
         console.log('Instance', instance);
-        runFunc();
-        runFuncSplit();
+        testFull();
     }
 
     function instantiateStandard(M) {
@@ -24,7 +28,7 @@
         Module = M;
         instance = new Module.shellCombined(2);
         console.log('Instance', instance);
-        runFunc();
+        //testFull();
         runFuncSplit();
     }
 
@@ -111,39 +115,83 @@
             }
         }
     }
-
     const runFuncSplit = () => {
-        const shell1 = new Module.shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, '');
+        const shellData = [
+            [.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, ''],
+            [.220, 995, .2549, 207, 2574, 7, .022, 37, 55, 65, 0, '']
+        ];
+        const angles = [10];
+        const shells = [];
         const calc = new Module.shellCalc();
+        for (const data of shellData) {
+            shells.push(new Module.shell(...data));
+        }
 
-        let angles = [10];
+        for (const shell of shells) {
+            calc.calcImpact(shell);
+            calc.calcAngles(shell, 70, -20);
+            calc.calcPostPen(shell, 70, -20, angles, true, false);
+        }
 
-        calc.calcImpact(shell1);
-        calc.calcAngles(shell1, 70, -20);
-        calc.calcPostPen(shell1, 70, -20, angles, true, false);
-        console.log('done');
+        for (const shell of shells) {
+            //testPoints(shell);
+            testPointArrays(shell);
+        }
+    }
 
-        let impactSize = shell1.getImpactSize();
-        let postpenSize = shell1.getPostPenSize();
+    const testPoints = (shell) => {
+        let impactSize = shell.getImpactSize();
+        let postpenSize = shell.getPostPenSize();
         for (let i = 0; i < impactSize; i++) {
-            console.log(shell1.getImpactPoint(i, Module.impactIndices.distance.value),
-                shell1.getImpactPoint(i, Module.impactIndices.rawPen.value));
+            console.log(shell.getImpactPoint(i, Module.impactIndices.distance.value),
+                shell.getImpactPoint(i, Module.impactIndices.rawPen.value));
         }
         console.log('done');
 
         for (let i = 0; i < impactSize; i++) {
-            console.log(shell1.getAnglePoint(i, Module.angleIndices.distance.value),
-                shell1.getAnglePoint(i, Module.angleIndices.ra0D.value));
+            console.log(shell.getAnglePoint(i, Module.angleIndices.distance.value),
+                shell.getAnglePoint(i, Module.angleIndices.ra0D.value));
         }
         console.log('done');
 
         for (let i = 0; i < postpenSize; i++) {
-            console.log(shell1.getPostPenPoint(i, Module.postPenIndices.distance.value, 0),
-                shell1.getPostPenPoint(i, Module.postPenIndices.x.value, 0),
-                shell1.getPostPenPoint(i, Module.postPenIndices.xwf.value, 0));
+            console.log(shell.getPostPenPoint(i, Module.postPenIndices.distance.value, 0),
+                shell.getPostPenPoint(i, Module.postPenIndices.x.value, 0),
+                shell.getPostPenPoint(i, Module.postPenIndices.xwf.value, 0));
         }
         console.log('done');
     }
+
+    const testPointArrays = (shell) => {
+        console.log(shell.getimpactPointArray(
+            Module.impactIndices.distance.value,
+            Module.impactIndices.rawPen.value
+        ));
+
+        console.log(shell.getAnglePointArray(
+            Module.angleIndices.distance.value,
+            Module.angleIndices.ra0D.value
+        ));
+
+        console.log(shell.getPostPenPointArray(
+            0,
+            Module.postPenIndices.distance.value,
+            Module.postPenIndices.x.value
+        ));
+
+        console.log(shell.getPostPenPointArrayFuseStatus(
+            true, 0,
+            Module.postPenIndices.distance.value,
+            Module.postPenIndices.x.value
+        ));
+
+        console.log(shell.getPostPenPointArrayFuseStatus(
+            false, 0,
+            Module.postPenIndices.distance.value,
+            Module.postPenIndices.x.value
+        ));
+    }
+
     if (safe) {
         //runFunc();
     }
