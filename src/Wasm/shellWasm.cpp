@@ -219,6 +219,8 @@ class shellCalcWasm : public shell::shellCalc {
 };
 #endif
 
+#define ENABLE_SHELL_COMBINED
+#ifdef ENABLE_SHELL_COMBINED
 class shellCombined {
    private:
     shell::shellCalc calc;
@@ -381,6 +383,7 @@ class shellCombined {
         }
     }
 };
+#endif
 
 // Compile option
 // emcc --bind -o shellWasm.wasm.js shellWasm.cpp --std=c++17 -O3 -s
@@ -448,7 +451,7 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("calcAngles", &shellCalcWasm::calcAngles)
         .function("calcPostPen", &shellCalcWasm::calcPostPen);
 #endif
-
+#ifdef ENABLE_SHELL_COMBINED
     emscripten::class_<shellCombined>("shellCombined")
         .constructor<int>()
         .function("resize", &shellCombined::resize)
@@ -539,4 +542,5 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .value("y", shell::post::postPenIndices::y)
         .value("z", shell::post::postPenIndices::z)
         .value("xwf", shell::post::postPenIndices::xwf);
+#endif
 };
