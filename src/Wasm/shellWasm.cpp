@@ -523,7 +523,7 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("printImpact", &shellCombined::printImpact)
         .function("printAngles", &shellCombined::printAngles)
         .function("printPostPen", &shellCombined::printPostPen);
-
+#endif
     emscripten::register_vector<double>("vector<double>");
 
     // Enums
@@ -567,5 +567,4 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .value("y", shell::post::postPenIndices::y)
         .value("z", shell::post::postPenIndices::z)
         .value("xwf", shell::post::postPenIndices::xwf);
-#endif
 };
