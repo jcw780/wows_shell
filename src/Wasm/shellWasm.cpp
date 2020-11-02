@@ -282,7 +282,7 @@ class shellCombined {
         }
     }
 
-    double getImpactPoint(const std::size_t i, const std::size_t j, const std::size_t shipIndex) {
+    double getImpactPoint(const std::size_t shipIndex, const std::size_t i, const std::size_t j) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return ships[shipIndex].get_impact(i, j);
     }
@@ -308,7 +308,7 @@ class shellCombined {
         }
     }
 
-    double getAnglePoint(const std::size_t row, const std::size_t impact, const std::size_t shipIndex) {
+    double getAnglePoint(const std::size_t shipIndex, const std::size_t row, const std::size_t impact) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return ships[shipIndex].get_angle(row, impact);
     }
@@ -342,8 +342,7 @@ class shellCombined {
         }
     }
 
-    double getPostPenPoint(const std::size_t i, const std::size_t j, const std::size_t k,
-                           const std::size_t shipIndex) {
+    double getPostPenPoint(const std::size_t shipIndex, const std::size_t i, const std::size_t j, const std::size_t k) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return ships[shipIndex].get_postPen(i, j, k);
     }
