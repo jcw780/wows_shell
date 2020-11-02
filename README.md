@@ -10,7 +10,7 @@
 ## Original Information & Source Code:
 Original Inspiration:
 - Code: https://pastebin.com/1NEwkf7R
-- Formulas: https://www.reddit.com/r/WorldOfWarships/comments/560yg2/wows_ballistic_model_penetration/
+- Formulas: https://www.reddit.com/r/WorldOfWarships/comments/560yg2/wows_ballistic_model_penetration
 Revisions:
 - Code: https://pastebin.com/GXUt7BMJ
 ## Current Functionality:
