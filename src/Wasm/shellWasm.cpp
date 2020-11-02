@@ -200,12 +200,20 @@ class shellCalcWasm : public shell::shellCalc {
 
     template <shell::numerical Numerical>
     void calcImpact(shellWasm &sp){
+        #ifdef __EMSCRIPTEN_PTHREADS__
+        calculateImpact<false, Numerical, false>(sp.s);
+        #else
         calculateImpact<false, Numerical, false>(sp.s, 1);
-    }
+        #endif
+    }   
 
     void calcAngles(shellWasm &sp, const double thickness,
                     const double inclination) {
+        #ifdef __EMSCRIPTEN_PTHREADS__
+        calculateAngles(thickness, inclination, sp.s);
+        #else
         calculateAngles(thickness, inclination, sp.s, 1);
+        #endif
     }
 
     void calcPostPen(shellWasm &sp, const double thickness,
@@ -213,8 +221,13 @@ class shellCalcWasm : public shell::shellCalc {
                      const bool changeDirection, const bool fast) {
         std::vector<double> input =
             std::move(emscripten::convertJSArrayToNumberVector<double>(anglesVal));
+        #ifdef __EMSCRIPTEN_PTHREADS__
+        calculatePostPen(thickness, inclination, sp.s, input, changeDirection,
+                         fast);
+        #else
         calculatePostPen(thickness, inclination, sp.s, input, changeDirection,
                          fast, 1);
+        #endif
     }
 };
 #endif
@@ -266,9 +279,13 @@ class shellCombined {
     template <shell::numerical Numerical>
     void calcImpact() {
         for (auto &s : ships) {
+            #ifdef __EMSCRIPTEN_PTHREADS__
             calc.calculateImpact<Numerical, false>(
-                s, false,
-                1);  // atomics don't work yet
+                s, false);
+            #else
+            calc.calculateImpact<Numerical, false>(
+                s, false, 1);
+            #endif
         }
     }
 
@@ -298,7 +315,11 @@ class shellCombined {
 
     void calcAngles(const double thickness, const double inclination) {
         for (auto &s : ships) {
+            #ifdef __EMSCRIPTEN_PTHREADS__
+            calc.calculateAngles(thickness, inclination, s);
+            #else
             calc.calculateAngles(thickness, inclination, s, 1);
+            #endif
         }
     }
 
@@ -327,9 +348,13 @@ class shellCombined {
         std::vector<double> input =
             std::move(emscripten::convertJSArrayToNumberVector<double>(v));
         for (auto &s : ships) {
+            #ifdef __EMSCRIPTEN_PTHREADS__
             calc.calculatePostPen(thickness, inclination, s, input,
-                                  changeDirection, fast,
-                                  1);  // atomics don't work yet
+                                  changeDirection, fast);
+            #else
+            calc.calculatePostPen(thickness, inclination, s, input,
+                                  changeDirection, fast, 1);
+            #endif
         }
     }
 
