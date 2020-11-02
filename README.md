@@ -1,5 +1,7 @@
 # ShellCPP
 [![License](https://img.shields.io/github/license/jcw780/ShellCPP)](./LICENSE)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/y/jcw780/ShellCPP?style=plastic)
+[![Discord](https://discordapp.com/api/guilds/731224331136532531/widget.png)](https://discord.gg/fpDB9y5)
 - C++ header only library for calculating shell performance in World of Warships
 - Experimentally verified to be nearly identical to the World of Warships ballistics model
 ## Legal
