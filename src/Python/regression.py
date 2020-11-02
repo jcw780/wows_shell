@@ -1,4 +1,4 @@
-from pythonwrapper import shell
+from pythonwrapper import shell, shellCalc
 from pythonwrapper import impactIndices, angleIndices, postPenIndices
 
 import numpy as np
@@ -64,12 +64,12 @@ referenceData = []
 def normalization(angle, normalization):
     return max(angle - normalization, 0)
 
-
+c = shellCalc()
+c.setDtMin(.01)
 for i, ship in enumerate(ships):
     print(ship[-1])
     s = shell(*ship)
-    s.setDtMin(.01)
-    s.calcImpactForwardEuler()
+    c.calcImpactForwardEuler(s)
     normal = ship[5]
     shipRef = referenceDistancePenetration[ship[-1]]
     for dist, penetration in shipRef.items():
