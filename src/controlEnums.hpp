@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <type_traits>
 
-namespace shell {
+namespace wows_shell {
 
 // https://stackoverflow.com/questions/8357240/how-to-automatically-convert-strongly-typed-enum-into-int
 template <typename E>
@@ -75,4 +75,4 @@ static constexpr bool isMultistep() {
         return false;
     }
 }
-}  // namespace shell
+}  // namespace wows_shell

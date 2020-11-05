@@ -18,7 +18,7 @@
 #include "shell.hpp"
 #include "utility.hpp"
 
-namespace shell {
+namespace wows_shell {
 class shellCalc {
    private:
     // TODO: Static Constexpr these
@@ -1087,4 +1087,4 @@ class shellCalc {
     }
 };
 
-}  // namespace shell
+}  // namespace wows_shell

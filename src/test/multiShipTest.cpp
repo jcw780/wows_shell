@@ -4,7 +4,7 @@
 #include "../shellCPP.hpp"
 
 int main() {
-    std::vector<shell::shell> ships;
+    std::vector<wows_shell::shell> ships;
     // ships.emplace_back(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0,
     //                   "Yamato");
     ships.emplace_back(.130, 870, .2857, 33.50, 1700, 10., .010, 22, 45, 60.0,
@@ -44,24 +44,24 @@ int main() {
     ships.emplace_back(.32, 830, .4098, 525, 2600, 6, 0.033, 53, 45, 60.0, 0,
                        "Giulio Cesare");
 
-    shell::shellCalc calculator;
+    wows_shell::shellCalc calculator;
     // calculator.set_dt_min(.1);
     // calculator.set_precision(.01);
     std::array<double, 3> dists = {5000, 10000, 15000};
-    for (shell::shell &s : ships) {
+    for (wows_shell::shell &s : ships) {
         calculator
-            .calculateImpact<false, shell::numerical::forwardEuler, false>(s);
+            .calculateImpact<false, wows_shell::numerical::forwardEuler, false>(s);
         std::cout << s.name << "\n";
         for (double dist : dists) {
             /*std::cout << s.interpolateDistanceImpact(
-                             dist, shell::impact::impactIndices::impactVelocity)
+                             dist, wows_shell::impact::impactIndices::impactVelocity)
                       << " ";
             std::cout << s.interpolateDistanceImpact(
-                             dist, shell::impact::impactIndices::
+                             dist, wows_shell::impact::impactIndices::
                                        impactAngleHorizontalRadians)
                       << "; ";*/
             std::cout << s.interpolateDistanceImpact(
-                             dist, shell::impact::impactIndices::
+                             dist, wows_shell::impact::impactIndices::
                                        effectivePenetrationHorizontalNormalized)
                       << " ";
         }

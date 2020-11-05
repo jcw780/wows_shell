@@ -8,7 +8,7 @@
 
 namespace pointArray{
 //These functions are for producing arrays suitable for chart.js scatter plots
-emscripten::val getImpactPointArray(shell::shell& s, const std::size_t xIndex, const std::size_t yIndex){
+emscripten::val getImpactPointArray(wows_shell::shell& s, const std::size_t xIndex, const std::size_t yIndex){
     if (s.completedImpact) {
         emscripten::val points = emscripten::val::array();
         for(std::size_t i=0; i<s.impactSize; i++){
@@ -23,7 +23,7 @@ emscripten::val getImpactPointArray(shell::shell& s, const std::size_t xIndex, c
     }
 }
 
-emscripten::val getAnglePointArray(shell::shell& s, const std::size_t xIndex, const std::size_t yIndex){
+emscripten::val getAnglePointArray(wows_shell::shell& s, const std::size_t xIndex, const std::size_t yIndex){
     if (s.completedImpact) {
         emscripten::val points = emscripten::val::array();
         for(std::size_t i=0; i<s.impactSize; i++){
@@ -38,7 +38,7 @@ emscripten::val getAnglePointArray(shell::shell& s, const std::size_t xIndex, co
     }
 }
 
-emscripten::val getPostPenPointArray(shell::shell& s, const std::size_t angle, const std::size_t xIndex, const std::size_t yIndex){
+emscripten::val getPostPenPointArray(wows_shell::shell& s, const std::size_t angle, const std::size_t xIndex, const std::size_t yIndex){
     if (s.completedImpact) {
         emscripten::val points = emscripten::val::array();
         for(std::size_t i=0; i<s.impactSize; i++){
@@ -53,12 +53,12 @@ emscripten::val getPostPenPointArray(shell::shell& s, const std::size_t angle, c
     }
 }
 
-emscripten::val getPostPenPointArrayFuseStatus(shell::shell& s, const bool addCondition, const std::size_t angle, const std::size_t xIndex, const std::size_t yIndex){
+emscripten::val getPostPenPointArrayFuseStatus(wows_shell::shell& s, const bool addCondition, const std::size_t angle, const std::size_t xIndex, const std::size_t yIndex){
     if (s.completedImpact) {
         emscripten::val points = emscripten::val::array();
         if(addCondition){
             for(std::size_t i=0; i<s.impactSize; i++){
-                if(s.get_postPen(i, shell::post::postPenIndices::xwf, angle) >= 0){
+                if(s.get_postPen(i, wows_shell::post::postPenIndices::xwf, angle) >= 0){
                     emscripten::val point = emscripten::val::object();
                     point.set("x", s.get_postPen(i, xIndex, angle));
                     point.set("y",s.get_postPen(i, yIndex, angle));
@@ -67,7 +67,7 @@ emscripten::val getPostPenPointArrayFuseStatus(shell::shell& s, const bool addCo
             }
         }else{
             for(std::size_t i=0; i<s.impactSize; i++){
-                if(s.get_postPen(i, shell::post::postPenIndices::xwf, angle) < 0){
+                if(s.get_postPen(i, wows_shell::post::postPenIndices::xwf, angle) < 0){
                     emscripten::val point = emscripten::val::object();
                     point.set("x", s.get_postPen(i, xIndex, angle));
                     point.set("y",s.get_postPen(i, yIndex, angle));
@@ -86,7 +86,7 @@ emscripten::val getPostPenPointArrayFuseStatus(shell::shell& s, const bool addCo
 #ifdef ENABLE_SPLIT_SHELL
 class shellWasm {
     public:
-    shell::shell s;
+    wows_shell::shell s;
     shellWasm(const double caliber, const double v0, const double cD,
                 const double mass, const double krupp,
                 const double normalization, const double fuseTime,
@@ -194,11 +194,11 @@ class shellWasm {
     }
 };
 
-class shellCalcWasm : public shell::shellCalc {
+class shellCalcWasm : public wows_shell::shellCalc {
     public:
     shellCalcWasm() = default;
 
-    template <shell::numerical Numerical>
+    template <wows_shell::numerical Numerical>
     void calcImpact(shellWasm &sp){
         #ifdef __EMSCRIPTEN_PTHREADS__
         calculateImpact<false, Numerical, false>(sp.s);
@@ -236,9 +236,9 @@ class shellCalcWasm : public shell::shellCalc {
 #ifdef ENABLE_SHELL_COMBINED
 class shellCombined {
    private:
-    shell::shellCalc calc;
-    // shell::shell s;
-    std::vector<shell::shell> ships;
+    wows_shell::shellCalc calc;
+    // wows_shell::shell s;
+    std::vector<wows_shell::shell> ships;
 
    public:
     /*shellCombined(const double caliber, const double v0, const double cD,
@@ -276,7 +276,7 @@ class shellCombined {
     // Impact Wrappers
     // Default: Adams Bashforth 5
 
-    template <shell::numerical Numerical>
+    template <wows_shell::numerical Numerical>
     void calcImpact() {
         for (auto &s : ships) {
             #ifdef __EMSCRIPTEN_PTHREADS__
@@ -464,15 +464,15 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("setYf0", &shellCalcWasm::set_yf0)
         .function("setDtf", &shellCalcWasm::set_dtf)
         .function("calcImpact",
-                  &shellCalcWasm::calcImpact<shell::numerical::forwardEuler>)
+                  &shellCalcWasm::calcImpact<wows_shell::numerical::forwardEuler>)
         .function("calcImpactAdamsBashforth5",
-                  &shellCalcWasm::calcImpact<shell::numerical::adamsBashforth5>)
+                  &shellCalcWasm::calcImpact<wows_shell::numerical::adamsBashforth5>)
         .function("calcImpactForwardEuler",
-                  &shellCalcWasm::calcImpact<shell::numerical::forwardEuler>)
+                  &shellCalcWasm::calcImpact<wows_shell::numerical::forwardEuler>)
         .function("calcImpactRungeKutta2",
-                  &shellCalcWasm::calcImpact<shell::numerical::rungeKutta2>)
+                  &shellCalcWasm::calcImpact<wows_shell::numerical::rungeKutta2>)
         .function("calcImpactRungeKutta4",
-                  &shellCalcWasm::calcImpact<shell::numerical::rungeKutta4>)
+                  &shellCalcWasm::calcImpact<wows_shell::numerical::rungeKutta4>)
         .function("calcAngles", &shellCalcWasm::calcAngles)
         .function("calcPostPen", &shellCalcWasm::calcPostPen);
 #endif
@@ -492,15 +492,15 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("setDtf", &shellCombined::setDtf)
 
         .function("calcImpact",
-                  &shellCombined::calcImpact<shell::numerical::adamsBashforth5>)
+                  &shellCombined::calcImpact<wows_shell::numerical::adamsBashforth5>)
         .function("calcImpactAdamsBashforth5",
-                  &shellCombined::calcImpact<shell::numerical::adamsBashforth5>)
+                  &shellCombined::calcImpact<wows_shell::numerical::adamsBashforth5>)
         .function("calcImpactForwardEuler",
-                  &shellCombined::calcImpact<shell::numerical::forwardEuler>)
+                  &shellCombined::calcImpact<wows_shell::numerical::forwardEuler>)
         .function("calcImpactRungeKutta2",
-                  &shellCombined::calcImpact<shell::numerical::rungeKutta2>)
+                  &shellCombined::calcImpact<wows_shell::numerical::rungeKutta2>)
         .function("calcImpactRungeKutta4",
-                  &shellCombined::calcImpact<shell::numerical::rungeKutta4>)
+                  &shellCombined::calcImpact<wows_shell::numerical::rungeKutta4>)
 
         .function("getImpactPoint", &shellCombined::getImpactPoint)
         .function("impactData", &shellCombined::impactData)
@@ -527,44 +527,44 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
     emscripten::register_vector<double>("vector<double>");
 
     // Enums
-    emscripten::enum_<shell::impact::impactIndices>("impactIndices")
-        .value("distance", shell::impact::impactIndices::distance)
-        .value("launchA", shell::impact::impactIndices::launchAngle)
+    emscripten::enum_<wows_shell::impact::impactIndices>("impactIndices")
+        .value("distance", wows_shell::impact::impactIndices::distance)
+        .value("launchA", wows_shell::impact::impactIndices::launchAngle)
         .value("impactAHR",
-               shell::impact::impactIndices::impactAngleHorizontalRadians)
+               wows_shell::impact::impactIndices::impactAngleHorizontalRadians)
         .value("impactAHD",
-               shell::impact::impactIndices::impactAngleHorizontalDegrees)
-        .value("impactV", shell::impact::impactIndices::impactVelocity)
-        .value("rawPen", shell::impact::impactIndices::rawPenetration)
+               wows_shell::impact::impactIndices::impactAngleHorizontalDegrees)
+        .value("impactV", wows_shell::impact::impactIndices::impactVelocity)
+        .value("rawPen", wows_shell::impact::impactIndices::rawPenetration)
         .value("ePenH",
-               shell::impact::impactIndices::effectivePenetrationHorizontal)
-        .value("ePenHN", shell::impact::impactIndices::
+               wows_shell::impact::impactIndices::effectivePenetrationHorizontal)
+        .value("ePenHN", wows_shell::impact::impactIndices::
                              effectivePenetrationHorizontalNormalized)
         .value("impactADD",
-               shell::impact::impactIndices::impactAngleDeckDegrees)
-        .value("ePenD", shell::impact::impactIndices::effectivePenetrationDeck)
+               wows_shell::impact::impactIndices::impactAngleDeckDegrees)
+        .value("ePenD", wows_shell::impact::impactIndices::effectivePenetrationDeck)
         .value("ePenDN",
-               shell::impact::impactIndices::effectivePenetrationDeckNormalized)
-        .value("tToTarget", shell::impact::impactIndices::timeToTarget)
+               wows_shell::impact::impactIndices::effectivePenetrationDeckNormalized)
+        .value("tToTarget", wows_shell::impact::impactIndices::timeToTarget)
         .value("tToTargetA",
-               shell::impact::impactIndices::timeToTargetAdjusted);
+               wows_shell::impact::impactIndices::timeToTargetAdjusted);
 
-    emscripten::enum_<shell::angle::angleIndices>("angleIndices")
-        .value("distance", shell::angle::angleIndices::distance)
-        .value("ra0", shell::angle::angleIndices::ricochetAngle0Radians)
-        .value("ra0D", shell::angle::angleIndices::ricochetAngle0Degrees)
-        .value("ra1", shell::angle::angleIndices::ricochetAngle1Radians)
-        .value("ra1D", shell::angle::angleIndices::ricochetAngle1Degrees)
-        .value("armor", shell::angle::angleIndices::armorRadians)
-        .value("armorD", shell::angle::angleIndices::armorDegrees)
-        .value("fuse", shell::angle::angleIndices::fuseRadians)
-        .value("fuseD", shell::angle::angleIndices::fuseDegrees);
+    emscripten::enum_<wows_shell::angle::angleIndices>("angleIndices")
+        .value("distance", wows_shell::angle::angleIndices::distance)
+        .value("ra0", wows_shell::angle::angleIndices::ricochetAngle0Radians)
+        .value("ra0D", wows_shell::angle::angleIndices::ricochetAngle0Degrees)
+        .value("ra1", wows_shell::angle::angleIndices::ricochetAngle1Radians)
+        .value("ra1D", wows_shell::angle::angleIndices::ricochetAngle1Degrees)
+        .value("armor", wows_shell::angle::angleIndices::armorRadians)
+        .value("armorD", wows_shell::angle::angleIndices::armorDegrees)
+        .value("fuse", wows_shell::angle::angleIndices::fuseRadians)
+        .value("fuseD", wows_shell::angle::angleIndices::fuseDegrees);
 
-    emscripten::enum_<shell::post::postPenIndices>("postPenIndices")
-        .value("angle", shell::post::postPenIndices::angle)
-        .value("distance", shell::post::postPenIndices::distance)
-        .value("x", shell::post::postPenIndices::x)
-        .value("y", shell::post::postPenIndices::y)
-        .value("z", shell::post::postPenIndices::z)
-        .value("xwf", shell::post::postPenIndices::xwf);
+    emscripten::enum_<wows_shell::post::postPenIndices>("postPenIndices")
+        .value("angle", wows_shell::post::postPenIndices::angle)
+        .value("distance", wows_shell::post::postPenIndices::distance)
+        .value("x", wows_shell::post::postPenIndices::x)
+        .value("y", wows_shell::post::postPenIndices::y)
+        .value("z", wows_shell::post::postPenIndices::z)
+        .value("xwf", wows_shell::post::postPenIndices::xwf);
 };

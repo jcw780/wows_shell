@@ -12,7 +12,7 @@
 
 #include "controlEnums.hpp"
 
-namespace shell {
+namespace wows_shell {
 class shell {
    public:                 // Description                units
     double v0;             // muzzle velocity            m/s
@@ -300,4 +300,4 @@ class shell {
         }
     }
 };
-}  // namespace shell
+}  // namespace wows_shell
