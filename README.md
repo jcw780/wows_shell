@@ -1,4 +1,4 @@
-# ShellCPP
+# wows_shell
 [![License](https://img.shields.io/github/license/jcw780/ShellCPP)](./LICENSE)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/y/jcw780/ShellCPP?style=plastic)
 [![Discord](https://discordapp.com/api/guilds/731224331136532531/widget.png)](https://discord.gg/fpDB9y5)
