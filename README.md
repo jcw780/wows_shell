@@ -7,46 +7,62 @@
 ## Legal
 - All copyrighted material provided by Wargaming.net are owned by Wargaming.net.
 - All other material is available under the MIT License.
-## Original Information & Source Code:
-Original Inspiration:
-- Code: https://pastebin.com/1NEwkf7R
-- Formulas: https://www.reddit.com/r/WorldOfWarships/comments/560yg2/wows_ballistic_model_penetration <br/>
+## Original Model Information & Source Code:
+Original Model:
+- [Code](https://pastebin.com/1NEwkf7R)
+- [Post-Penetration Formulas](https://www.reddit.com/r/WorldOfWarships/comments/560yg2/wows_ballistic_model_penetration) <br/>
 
-Revisions:
-- Code: https://pastebin.com/GXUt7BMJ
-## Current Functionality:
+Revised Model:
+- [Code](https://pastebin.com/GXUt7BMJ)
+## Features:
 ### Shell Flight
-Shell flight path
+Computes shell flight path.
 ### At Impact:
-Angle of Impact, Impact Velocity, Raw Belt/Deck Penetration, Penetration Adjusted for Angle of Impact and Normalization
-Shell flight time (Real / In-game)
-- Added ability to change trajectory computation method 
-- Choices: - Forward Euler (original) - Runge-Kutta 2 and 4 - Adams-Bashforth 5
+Outputs:
+  - Angle of Impact
+  - Impact Velocity 
+  - Raw, Belt/Deck, Normalization Adjusted Penetration 
+  - Shell flight time (Real / In-game) <br/>
+
+Ability to change trajectory computation method
+  - Forward Euler (default - also in-game method) 
+  - Runge-Kutta 2 and 4 
+  - Adams-Bashforth 5
 ### Lateral Angles: 
-- Definition: Angles where that represent the horizontal angling of a ship:
-  + Bow-in: 90 degrees Full-broadside: 0 degrees
-- Maximum Lateral Angle for Penetration - Minimum Lateral Angle for Fusing - Ricochet Lateral Angles
-- Adjusts for angle of fall and vertical armor inclination
+Computes lateral angles where penetration, AP fuzing, and ricochets occur while adjusting for impact angle and vertical armor inclination. <br/>
+
+Definition: Angles where that represent the horizontal angling of a ship:
+  - Bow-in: 90 degrees 
+  - Full-broadside: 0 degrees <br/>
+
+Outputs:
+  - Maximum Lateral Angle for Penetration 
+  - Minimum Lateral Angle for Fusing 
+  - Ricochet Lateral Angles <br/>
+
 ### Post-Penetration:
-Shell detonation distance after penetration at various ranges, ship angling, and armor vertical inclinations
-- Some assumptiongs were made with regards to normalization changing shell direction - testing is needed
-- Added ability to modify the way the calculations are done 
+Shell detonation distance after penetration while adjusting for ship angling, and vertical armor inclinations. <br/>
+
+Ability to modify the way the calculations are done 
+- Enable or Disable Normalization changing direction
+- Linear estimation or full air drag modeling
 ### Fitting:
-- Some limited capability to fit shells to real world data generating air drag and krupp values using gradient descent. 
+Capability to fit shells to real world data using gradient descent. 
+- Air Drag Coefficient
+- Krupp
 ## Compatibility:
 - Requires C++17 supporting compiler
-- Should be compatible with most platforms 
-- Ability to utilize multithreading and vectorization for maximum performance
+- Supports multithreading and vectorization for improved performance
 ## Extensions:
 ### Python 
-- Written with Pybind11
+- Requires Pybind11
 - Tested with Python 3.7.4 (Anaconda), 3.8.5
 ### WebAssembly 
-- Uses Embind from Emscripten
+- Requires Emscripten
 - Used in https://github.com/jcw780/wows_ballistics
 ## Future Goals:
 - Wiki / Tutorial
-- Threading on WebAssembly module when brower support becomes commonplace
+- Python package
 - Updating penetration formula once more refined values are acquired
 
 
