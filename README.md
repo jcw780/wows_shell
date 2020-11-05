@@ -62,8 +62,8 @@ Capability to fit shells to real world data using gradient descent.
 - Used in https://github.com/jcw780/wows_ballistics
 ## Future Goals:
 - Wiki / Tutorial
-- Python package
-- Updating penetration formula once more refined values are acquired
+- Packages, more refined build tools
+- Will continue to update the model when new information is acquired
 
 
 
