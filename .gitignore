@@ -31,15 +31,6 @@
 *.out
 *.app
 
-# WASM outputs
-*.js
-*.wasm
-
-# WASM Testing
-_site/
-.jekyll-cache/
-.jekyll-metadata
-
 # Assembler View
 *.s
 
