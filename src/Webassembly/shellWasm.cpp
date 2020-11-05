@@ -436,7 +436,7 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .constructor<double, double, double, double, double, double, double, double, double, double, double, std::string>()
         .function("setValues", &shellWasm::setValues)
         .function("getImpactPoint", &shellWasm::getImpactPoint)
-        .function("getimpactPointArray", &shellWasm::getImpactPointArray)
+        .function("getImpactPointArray", &shellWasm::getImpactPointArray)
         .function("impactData", &shellWasm::impactData)
         .function("getImpactSize", &shellWasm::impactSize)
         .function("getImpactSizeAligned", &shellWasm::impactSizeAligned)
