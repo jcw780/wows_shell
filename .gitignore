@@ -16,14 +16,6 @@
 *.dylib
 *.dll
 
-# Compiled Python libraries
-*.pyd
-*.exp
-
-# Cppimport Files
-*.cppimporthash
-.rendered.*.cpp
-
 # Fortran module files
 *.mod
 *.smod
@@ -38,15 +30,6 @@
 *.exe
 *.out
 *.app
-
-# WASM outputs
-*.js
-*.wasm
-
-# WASM Testing
-_site/
-.jekyll-cache/
-.jekyll-metadata
 
 # Assembler View
 *.s

@@ -3,7 +3,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <iterator>
-namespace shell {
+namespace wows_shell {
 namespace utility {
 template <typename>
 struct falsy {
@@ -12,4 +12,4 @@ struct falsy {
 template <typename T>
 constexpr inline auto falsy_v = falsy<T>::value;
 }  // namespace utility
-}  // namespace shell
+}  // namespace wows_shell

@@ -1,6 +1,6 @@
 #include "../shellCPP.hpp"
 
-namespace shell {
+namespace wows_shell {
 enum sampleIndices { launchA, distance };
 namespace fitPenetration {
 enum index { distance, penetration };
@@ -195,27 +195,27 @@ void fitKruppNormal(shell &toFit, std::vector<double> &sampleData,
     toFit.preProcess();
 }
 
-}  // namespace shell
+}  // namespace wows_shell
 
 int main() {
-    shell::shell test(.406, 762, 0.2988329237, 1225, 2520, 6, .033, 76, 45, 60,
+    wows_shell::shell test(.406, 762, 0.2988329237, 1225, 2520, 6, .033, 76, 45, 60,
                       0, "Montana");
     std::vector<double> sample = {10,    15,    20,    25,    30,    35,
                                   40,    45,    16139, 21854, 26518, 30450,
                                   33558, 36119, 37884, 38720};
-    shell::fitDrag<shell::numerical::adamsBashforth5>(test, sample, 8);
+    wows_shell::fitDrag<wows_shell::numerical::adamsBashforth5>(test, sample, 8);
     std::cout << "cD: " << std::setprecision(10) << test.cD << "\n";
 
     /*std::vector<double> penetrationData = {
         4572, 9144, 13716, 18288, 22860, 27432, 32004, 36576, 38720,
         747,  664,  585,   509,   441,   380,   329,   280,   241};
 
-    shell::fitKruppNormal(test, penetrationData, 9, 50);*/
+    wows_shell::fitKruppNormal(test, penetrationData, 9, 50);*/
 
-    shell::shellCalc scV;
+    wows_shell::shellCalc scV;
     scV.set_precision(5);
     scV.set_max(45.0);
-    scV.calculateImpact<false, shell::numerical::rungeKutta2, false>(test);
+    scV.calculateImpact<false, wows_shell::numerical::rungeKutta2, false>(test);
     test.printImpactData();
     return 0;
 }

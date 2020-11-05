@@ -1,0 +1,8 @@
+# WASM outputs
+*.js
+*.wasm
+
+# WASM Testing
+_site/
+.jekyll-cache/
+.jekyll-metadata

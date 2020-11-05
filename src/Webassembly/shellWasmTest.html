@@ -2,20 +2,17 @@
 <html>
 
 <meta charset="UTF-8">
-<script src="https://unpkg.com/wasm-feature-detect/dist/umd/index.js"></script>
-<script type="text/javascript" src="shellWasmV.js"></script>
+<script>
+    !function (e, a) { "object" == typeof exports && "undefined" != typeof module ? module.exports = a() : "function" == typeof define && define.amd ? define(a) : (e = e || self).wasmFeatureDetect = a() }(this, (function () { "use strict"; return { bigInt: () => (async e => { try { return (await WebAssembly.instantiate(e)).instance.exports.b(BigInt(0)) === BigInt(0) } catch (e) { return !1 } })(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 6, 1, 96, 1, 126, 1, 126, 3, 2, 1, 0, 7, 5, 1, 1, 98, 0, 0, 10, 6, 1, 4, 0, 32, 0, 11])), bulkMemory: async () => WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 5, 3, 1, 0, 1, 10, 14, 1, 12, 0, 65, 0, 65, 0, 65, 0, 252, 10, 0, 0, 11])), exceptions: async () => WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 10, 9, 1, 7, 0, 6, 64, 7, 26, 11, 11])), multiValue: async () => WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 6, 1, 96, 0, 2, 127, 127, 3, 2, 1, 0, 10, 8, 1, 6, 0, 65, 0, 65, 0, 11])), mutableGlobals: async () => WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 2, 8, 1, 1, 97, 1, 98, 3, 127, 1, 6, 6, 1, 127, 1, 65, 0, 11, 7, 5, 1, 1, 97, 3, 1])), referenceTypes: async () => WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 10, 7, 1, 5, 0, 208, 112, 26, 11])), saturatedFloatToInt: async () => WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 10, 12, 1, 10, 0, 67, 0, 0, 0, 0, 252, 0, 26, 11])), signExtensions: async () => WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 10, 8, 1, 6, 0, 65, 0, 192, 26, 11])), simd: async () => WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 10, 9, 1, 7, 0, 65, 0, 253, 15, 26, 11])), tailCall: async () => WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 10, 6, 1, 4, 0, 18, 0, 11])), threads: () => (async e => { try { return (new ("undefined" != typeof MessageChannel ? MessageChannel : await import("worker_threads").then(e => e.MessageChannel))).port1.postMessage(new SharedArrayBuffer(1)), WebAssembly.validate(e) } catch (e) { return !1 } })(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 5, 4, 1, 3, 1, 1, 10, 11, 1, 9, 0, 65, 0, 254, 16, 2, 0, 26, 11])) } }));
+</script>
+<script type="text/javascript" src="shellWasmTV.wasm.js"></script>
+<script type="text/javascript" src="shellWasmT.wasm.js"></script>
 <script type="text/javascript" src="shellWasm.wasm.js"></script>
 <script>
     console.log('Started');
-    let safe = false;
     let Module;
 
-    function testFull() {
-        runFunc();
-        runFuncSplit();
-    }
-
-    function instantiateVectorized(M) {
+    function instantiateModule(M) {
         console.log('Ready', M);
         Module = M;
         //testFull();
@@ -23,37 +20,31 @@
         runFuncSplit();
     }
 
-    function instantiateStandard(M) {
-        console.log('Ready', M);
-        Module = M;
-        //testFull();
-        runFunc();
-        //runFuncSplit();
-    }
-
     if (typeof wasmFeatureDetect !== 'undefined') {
-        wasmFeatureDetect.simd().then(simdSupported => {
-            if (false) {
-                console.log('vectorized');
-                ShellWasmV().then(instantiateVectorized);
-            } else {
-                console.log('unvectorized');
-                ShellWasm().then(instantiateStandard)
-            }
+        console.log('wasmFeatureDetect Working');
+        wasmFeatureDetect.threads().then(threadsSupported => {
+            wasmFeatureDetect.simd().then(simdSupported => {
+                if (threadsSupported) {
+                    console.log('threaded');
+                    if (simdSupported) {
+                        console.log('vectorized');
+                        ShellWasmTV().then(instantiateModule);
+                    } else {
+                        console.log('unvectorized');
+                        ShellWasmT().then(instantiateModule)
+                    }
+                } else {
+                    console.log('unthreaded');
+                    ShellWasm().then(instantiateModule);
+                }
+            });
         });
     } else {
+        console.log('wasFeatureDetect Not Working');
         console.log('unvectorized');
-        ShellWasm().then(instantiateStandard)
+        ShellWasm().then(instantiateModule)
     }
 
-    /*var Module = {
-        onRuntimeInitialized: function () {
-
-            runFunc();
-            safe = true;
-        }
-    };*/
-    //console.log(safe);
     const shellData = [
         [.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0],
         [.220, 995, .2549, 207, 2574, 7, .022, 37, 55, 65, 0]
@@ -78,7 +69,6 @@
 
         console.log("ran");
         //instance.printPostPen();
-        //instance.delete();
 
         const testPoints = (instance, num) => {
             for (let i = 0; i < instance.getImpactSize(); i++) {
@@ -205,16 +195,6 @@
             testPointArrays(shell);
         }
     }
-
-
-
-    if (safe) {
-        //runFunc();
-    }
-    //}
-
-
-
 </script>
 
 <body>
