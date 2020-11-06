@@ -198,6 +198,16 @@ class shellCalcWasm : public wows_shell::shellCalc {
     public:
     shellCalcWasm() = default;
 
+    void setMax(const double max){set_max(max);}
+    void setMin(const double min) { set_min(min); }
+    void setPrecision(const double precision) { set_precision(precision); }
+    void setX0(const double x0) { set_x0(x0); }
+    void setY0(const double y0) { set_y0(y0); }
+    void setDtMin(const double dt) { set_dt_min(dt); }
+    void setXf0(const double xf0) { set_xf0(xf0); }
+    void setYf0(const double yf0) { set_yf0(yf0); }
+    void setDtf(const double dtf) { set_dtf(dtf); }
+
     template <wows_shell::numerical Numerical>
     void calcImpact(shellWasm &sp){
         #ifdef __EMSCRIPTEN_PTHREADS__
@@ -220,7 +230,7 @@ class shellCalcWasm : public wows_shell::shellCalc {
                      const double inclination, emscripten::val anglesVal,
                      const bool changeDirection, const bool fast) {
         std::vector<double> input =
-            std::move(emscripten::convertJSArrayToNumberVector<double>(anglesVal));
+            emscripten::convertJSArrayToNumberVector<double>(anglesVal);
         #ifdef __EMSCRIPTEN_PTHREADS__
         calculatePostPen(thickness, inclination, sp.s, input, changeDirection,
                          fast);
@@ -346,7 +356,7 @@ class shellCombined {
                      emscripten::val v, const bool changeDirection,
                      const bool fast) {
         std::vector<double> input =
-            std::move(emscripten::convertJSArrayToNumberVector<double>(v));
+            emscripten::convertJSArrayToNumberVector<double>(v);
         for (auto &s : ships) {
             #ifdef __EMSCRIPTEN_PTHREADS__
             calc.calculatePostPen(thickness, inclination, s, input,
@@ -454,15 +464,15 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
     
     emscripten::class_<shellCalcWasm>("shellCalc")
         .constructor()
-        .function("setMax", &shellCalcWasm::set_max)
-        .function("setMin", &shellCalcWasm::set_min)
-        .function("setPrecision", &shellCalcWasm::set_precision)
-        .function("setX0", &shellCalcWasm::set_x0)
-        .function("setY0", &shellCalcWasm::set_y0)
-        .function("setDtMin", &shellCalcWasm::set_dt_min)
-        .function("setXf0", &shellCalcWasm::set_xf0)
-        .function("setYf0", &shellCalcWasm::set_yf0)
-        .function("setDtf", &shellCalcWasm::set_dtf)
+        .function("setMax", &shellCalcWasm::setMax)
+        .function("setMin", &shellCalcWasm::setMin)
+        .function("setPrecision", &shellCalcWasm::setPrecision)
+        .function("setX0", &shellCalcWasm::setX0)
+        .function("setY0", &shellCalcWasm::setY0)
+        .function("setDtMin", &shellCalcWasm::setDtMin)
+        .function("setXf0", &shellCalcWasm::setXf0)
+        .function("setYf0", &shellCalcWasm::setYf0)
+        .function("setDtf", &shellCalcWasm::setDtf)
         .function("calcImpact",
                   &shellCalcWasm::calcImpact<wows_shell::numerical::forwardEuler>)
         .function("calcImpactAdamsBashforth5",
