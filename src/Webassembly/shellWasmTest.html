@@ -21,8 +21,8 @@
         runFuncSplit();
     }
 
-    if (false) {
-        //if (typeof wasmFeatureDetect !== 'undefined') {
+    //if (false) {
+    if (typeof wasmFeatureDetect !== 'undefined') {
         console.log('wasmFeatureDetect Working');
         wasmFeatureDetect.threads().then(threadsSupported => {
             wasmFeatureDetect.simd().then(simdSupported => {
@@ -37,7 +37,13 @@
                     }
                 } else {
                     console.log('unthreaded');
-                    ShellWasm().then(instantiateModule);
+                    if (simdSupported) {
+                        console.log('vectorized');
+                        ShellWasmV().then(instantiateModule);
+                    } else {
+                        console.log('unvectorized');
+                        ShellWasm().then(instantiateModule)
+                    }
                 }
             });
         });
