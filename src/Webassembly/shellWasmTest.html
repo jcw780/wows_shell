@@ -13,12 +13,16 @@
     console.log('Started');
     let Module;
 
-    function instantiateModule(M) {
-        console.log('Ready', M);
-        Module = M;
+    function testFunction() {
         //testFull();
         //runFunc();
         runFuncSplit();
+    }
+
+    function instantiateModule(M) {
+        console.log('Ready', M);
+        Module = M;
+        testFunction();
     }
 
     //if (false) {
@@ -215,7 +219,7 @@
 </script>
 
 <body>
-    <button type="button" onclick="runFunc()">Test</button>
+    <button type="button" onclick="testFunction()">Test</button>
 </body>
 
 </html>
