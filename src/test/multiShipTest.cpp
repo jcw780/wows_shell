@@ -49,6 +49,7 @@ int main() {
     // calculator.set_precision(.01);
     std::array<double, 3> dists = {5000, 10000, 15000};
     for (wows_shell::shell &s : ships) {
+        std::cout << "Ship Hash String: " << wows_shell::generateHash(s) << "\n";
         calculator
             .calculateImpact<false, wows_shell::numerical::forwardEuler, false>(s);
         std::cout << s.name << "\n";
@@ -66,6 +67,7 @@ int main() {
                       << " ";
         }
         std::cout << "\n";
+        
     }
 
     // ships.emplace_back(, , , , , , , , 45, 60.0,

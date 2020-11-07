@@ -11,8 +11,18 @@
 #include <vector>
 
 #include "controlEnums.hpp"
+#include "utility.hpp"
 
 namespace wows_shell {
+double combinedAirDrag(double cD, double caliber, double mass){
+    return 0.5 * cD * pow((caliber / 2), 2) * M_PI / mass;
+}
+
+double combinedPenetration(double krupp, double mass, double caliber){
+    return 0.00046905491615181766 * krupp / 2400 * pow(mass, 0.5506) *
+               pow(caliber, -0.6521);
+}
+
 class shell {
    public:                 // Description                units
     double v0;             // muzzle velocity            m/s
@@ -34,7 +44,8 @@ class shell {
     // Condenses initial values into values used by calculations
     //[Reduces repeated computations]
     void preProcess() {
-        k = 0.5 * cD * pow((caliber / 2), 2) * M_PI / mass;
+        k = combinedAirDrag(cD, caliber, mass);
+        //k = 0.5 * cD * pow((caliber / 2), 2) * M_PI / mass;
         // condensed drag coefficient
         // cw_2 = 100 + 1000 / 3 * caliber;
         cw_2 = 0;
@@ -43,8 +54,9 @@ class shell {
         //       pow((caliber * 1000), 0.6521);
         // pPPC = 0.081525 * krupp / 2400 * pow(mass, 0.5506) /
         //       pow((caliber * 1000), 0.6521);
-        pPPC = 0.00046905491615181766 * krupp / 2400 * pow(mass, 0.5506) *
-               pow(caliber, -0.6521);
+        //pPPC = 0.00046905491615181766 * krupp / 2400 * pow(mass, 0.5506) *
+        //       pow(caliber, -0.6521);
+        pPPC = combinedAirDrag(krupp, caliber, mass);
 
         // condensed penetration coefficient
         normalizationR = normalization / 180 * M_PI;
@@ -300,4 +312,39 @@ class shell {
         }
     }
 };
+
+std::string generateHash(const double k, const double p, const double v0, const double normalization,
+          const double fuseTime, const double threshold, const double ricochet0,
+          const double ricochet1, const double nonAP){
+    std::vector<char> hashString(8 * sizeof(double) + sizeof(bool), 0);
+    memcpy(&hashString[0*sizeof(double)], &k, sizeof(double));
+    memcpy(&hashString[1*sizeof(double)], &p, sizeof(double));
+    memcpy(&hashString[2*sizeof(double)], &v0, sizeof(double));
+    memcpy(&hashString[3*sizeof(double)], &normalization, sizeof(double));
+    memcpy(&hashString[4*sizeof(double)], &threshold, sizeof(double));
+    memcpy(&hashString[5*sizeof(double)], &fuseTime, sizeof(double));
+    memcpy(&hashString[6*sizeof(double)], &ricochet0, sizeof(double));
+    memcpy(&hashString[7*sizeof(double)], &ricochet1, sizeof(double));
+    memcpy(&hashString[8*sizeof(double)], &nonAP, sizeof(bool));
+    
+    return utility::base64_encode(hashString);
+}
+
+std::string generateHash(const double caliber, const double v0, const double cD,
+          const double mass, const double krupp, const double normalization,
+          const double fuseTime, const double threshold, const double ricochet0,
+          const double ricochet1, const double nonAP){
+    double k = combinedAirDrag(cD, caliber, mass);
+    double p = combinedPenetration(krupp, mass, caliber);
+    return generateHash(k, p, v0, normalization, threshold, fuseTime, ricochet0, ricochet1, nonAP);
+}
+
+std::string generateHash(const shell& s){
+    return generateHash(
+        s.caliber, s.v0, s.cD, 
+        s.mass, s.krupp, s.normalization, 
+        s.fuseTime, s.threshold, s.ricochet0, 
+        s.ricochet1, s.nonAP);
+}
+
 }  // namespace wows_shell
