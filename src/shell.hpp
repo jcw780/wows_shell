@@ -56,7 +56,7 @@ class shell {
         //       pow((caliber * 1000), 0.6521);
         //pPPC = 0.00046905491615181766 * krupp / 2400 * pow(mass, 0.5506) *
         //       pow(caliber, -0.6521);
-        pPPC = combinedAirDrag(krupp, caliber, mass);
+        pPPC = combinedPenetration(krupp, mass, caliber);
 
         // condensed penetration coefficient
         normalizationR = normalization / 180 * M_PI;
