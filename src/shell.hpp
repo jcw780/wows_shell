@@ -339,7 +339,22 @@ std::string generateHash(const double caliber, const double v0, const double cD,
     return generateHash(k, p, v0, normalization, threshold, fuseTime, ricochet0, ricochet1, nonAP);
 }
 
+std::string generateShellParamHash(const double caliber, const double v0, const double cD,
+          const double mass, const double krupp, const double normalization,
+          const double fuseTime, const double threshold, const double ricochet0,
+          const double ricochet1, const double nonAP){
+    return generateHash(caliber, v0, cD, mass, krupp, normalization, fuseTime, threshold, ricochet0, ricochet1, nonAP);
+}
+
 std::string generateHash(const shell& s){
+    return generateHash(
+        s.caliber, s.v0, s.cD, 
+        s.mass, s.krupp, s.normalization, 
+        s.fuseTime, s.threshold, s.ricochet0, 
+        s.ricochet1, s.nonAP);
+}
+
+std::string generateShellHash(const shell& s){
     return generateHash(
         s.caliber, s.v0, s.cD, 
         s.mass, s.krupp, s.normalization, 

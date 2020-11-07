@@ -142,12 +142,16 @@
 
         for (const data of shellData) {
             shells.push(new Module.shell(...data, ''));
+            console.log(Module.generateHash(...data));
         }
 
         for (const shell of shells) {
             calc.calcImpact(shell);
             calc.calcAngles(shell, 70, -20);
             calc.calcPostPen(shell, 70, -20, angles, true, false);
+
+            const hash = Module.generateShellHash(shell)
+            console.log(hash, typeof hash);
         }
 
         const testPoints = (shell) => {
