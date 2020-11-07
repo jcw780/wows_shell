@@ -316,16 +316,14 @@ class shell {
 std::string generateHash(const double k, const double p, const double v0, const double normalization,
           const double fuseTime, const double threshold, const double ricochet0,
           const double ricochet1, const double nonAP){
-    std::array<char, 8 * sizeof(double) + sizeof(bool)> hashString;
-    memcpy(&hashString[0*sizeof(double)], &k, sizeof(double));
-    memcpy(&hashString[1*sizeof(double)], &p, sizeof(double));
-    memcpy(&hashString[2*sizeof(double)], &v0, sizeof(double));
-    memcpy(&hashString[3*sizeof(double)], &normalization, sizeof(double));
-    memcpy(&hashString[4*sizeof(double)], &threshold, sizeof(double));
-    memcpy(&hashString[5*sizeof(double)], &fuseTime, sizeof(double));
-    memcpy(&hashString[6*sizeof(double)], &ricochet0, sizeof(double));
-    memcpy(&hashString[7*sizeof(double)], &ricochet1, sizeof(double));
-    memcpy(&hashString[8*sizeof(double)], &nonAP, sizeof(bool));
+    std::array<char, 9 * sizeof(double)> hashString;
+    std::array<double, 9> parameters = {
+        k, p, v0, normalization, fuseTime, threshold, ricochet0, ricochet1, nonAP
+    };
+
+    for(std::size_t i=0; i<parameters.size(); ++i){
+        std::copy_n(reinterpret_cast<char*>(&parameters[i]), sizeof(double), &hashString[i*sizeof(double)]);
+    }
     
     return utility::base64_encode(hashString);
 }
