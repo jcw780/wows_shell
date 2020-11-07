@@ -16,7 +16,7 @@ void runtime() {
     test = std::make_unique<wows_shell::shell>(.460, 780, .292, 1460, 2574, 6, .033,
                                           76, 45, 60, 0, "Yamato");
     
-    //std::cout << wows_shell::generateHash(*test) << "\n";
+    std::cout << wows_shell::generateHash(*test) << "\n";
     for (unsigned int i = 0; i < runs; i++) {
         // test = new wows_shell::shell(.460, 780, .292, 1460, 2574, 6, .001, 2, 91,
         // 60,
