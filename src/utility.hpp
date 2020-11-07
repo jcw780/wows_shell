@@ -14,7 +14,8 @@ struct falsy {
 template <typename T>
 constexpr inline auto falsy_v = falsy<T>::value;
 
-std::string base64_encode(const std::vector<char> &in) {
+template <typename T>
+std::string base64_encode(const T& in) {
     const std::string b = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     std::string out;
 

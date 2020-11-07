@@ -316,7 +316,7 @@ class shell {
 std::string generateHash(const double k, const double p, const double v0, const double normalization,
           const double fuseTime, const double threshold, const double ricochet0,
           const double ricochet1, const double nonAP){
-    std::vector<char> hashString(8 * sizeof(double) + sizeof(bool), 0);
+    std::array<char, 8 * sizeof(double) + sizeof(bool)> hashString;
     memcpy(&hashString[0*sizeof(double)], &k, sizeof(double));
     memcpy(&hashString[1*sizeof(double)], &p, sizeof(double));
     memcpy(&hashString[2*sizeof(double)], &v0, sizeof(double));
@@ -355,11 +355,7 @@ std::string generateHash(const shell& s){
 }
 
 std::string generateShellHash(const shell& s){
-    return generateHash(
-        s.caliber, s.v0, s.cD, 
-        s.mass, s.krupp, s.normalization, 
-        s.fuseTime, s.threshold, s.ricochet0, 
-        s.ricochet1, s.nonAP);
+    return generateHash(s);
 }
 
 }  // namespace wows_shell
