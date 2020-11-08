@@ -1,4 +1,4 @@
-from pythonwrapper import shell, shellCalc
+from pythonwrapper import shell, shellCalc, generateShellHash
 from pythonwrapper import impactIndices, angleIndices, postPenIndices
 
 shellList = [
@@ -18,3 +18,4 @@ for s in shellList:
     s.printAngles()
     s.printPostPen()
     print(s.getImpact())
+    print(generateShellHash(s))

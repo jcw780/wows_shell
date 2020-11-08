@@ -133,6 +133,10 @@ class shellPython {
     }
 };
 
+std::string generateShellPythonHash (const shellPython& s){
+    return wows_shell::generateHash(s.s);
+}
+
 class shellCalcPython : public wows_shell::shellCalc {
    public:
     shellCalcPython() = default;
@@ -353,6 +357,9 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("printImpact", &shellCombined::printImpact)
         .def("printAngles", &shellCombined::printAngles)
         .def("printPostPen", &shellCombined::printPostPen);
+    
+    m.def("generateHash", &wows_shell::generateShellParamHash);
+    m.def("generateShellHash", &generateShellPythonHash);
 
     pybind11::class_<shellPython>(m, "shell", pybind11::buffer_protocol())
         .def(pybind11::init<double, double, double, double, double, double,

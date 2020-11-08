@@ -15,16 +15,9 @@ void runtime() {
     unsigned int runs = 1;
     test = std::make_unique<wows_shell::shell>(.460, 780, .292, 1460, 2574, 6, .033,
                                           76, 45, 60, 0, "Yamato");
+    
+    std::cout << wows_shell::generateHash(*test) << "\n";
     for (unsigned int i = 0; i < runs; i++) {
-        // test = new wows_shell::shell(.460, 780, .292, 1460, 2574, 6, .001, 2, 91,
-        // 60,
-        //                        76, "Yamato");
-        // test = std::make_unique<wows_shell::shell>(
-        //    .460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, "Yamato");
-
-        // test = new wows_shell::shell(.102, 805, .3536, 15.2, 2300, 10, .01, 17,
-        // 45,
-        //                        60, "Yamato");
         auto t1 = std::chrono::high_resolution_clock::now();
         sc.calculateImpact<wows_shell::numerical::adamsBashforth5, false>(*test,
                                                                      false);

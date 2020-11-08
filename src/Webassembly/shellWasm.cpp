@@ -194,6 +194,10 @@ class shellWasm {
     }
 };
 
+std::string generateShellWasmHash (const shellWasm& s){
+    return wows_shell::generateHash(s.s);
+}
+
 class shellCalcWasm : public wows_shell::shellCalc {
     public:
     shellCalcWasm() = default;
@@ -461,6 +465,9 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("printImpact", &shellWasm::printImpact)
         .function("printAngles", &shellWasm::printAngles)
         .function("printPostPen", &shellWasm::printPostPen);
+    
+    emscripten::function("generateHash", &wows_shell::generateShellParamHash);
+    emscripten::function("generateShellHash", &generateShellWasmHash);
     
     emscripten::class_<shellCalcWasm>("shellCalc")
         .constructor()
