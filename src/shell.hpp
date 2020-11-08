@@ -9,6 +9,7 @@
 #include <string>
 #include <type_traits>
 #include <vector>
+#include <array>
 
 #include "controlEnums.hpp"
 #include "utility.hpp"

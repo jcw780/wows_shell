@@ -16,7 +16,7 @@ constexpr inline auto falsy_v = falsy<T>::value;
 
 template <typename T>
 std::string base64_encode(const T& in) {
-    static_assert(std::is_same<typename T::value_type, char>());
+    static_assert(std::is_same<typename T::value_type, char>(), "Only accepts char elements");
     const std::string b = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     std::string out;
 
