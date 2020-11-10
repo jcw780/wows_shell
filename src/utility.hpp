@@ -38,27 +38,13 @@ std::string base64_encode(const T& in) {
     return out;
 }
 
-uint32_t reverse_bytes(uint32_t bytes)
-{
-    uint32_t aux = 0;
-    uint8_t byte;
-    int i;
-
-    for(i = 0; i < 32; i+=8)
-    {
-        byte = (bytes >> i) & 0xff;
-        aux |= byte << (32 - 8 - i);
-    }
-    return aux;
-}
-
-template <typename T>
+template <typename T, bool pad=false>
 std::string base85Encode(const T& in){
     static_assert(std::is_same<typename T::value_type, char>(), "Only accepts char elements");
     const std::string charSet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+-;<=>?@^_`{|}~";
     std::string output;
 
-    constexpr std::uint32_t Pow85[5] = {
+    constexpr uint32_t Pow85[5] = {
 		52200625ul, 614125ul, 7225ul, 85ul, 1ul
 	};
 
@@ -66,26 +52,32 @@ std::string base85Encode(const T& in){
         return charSet[((InTuple / Pow85[stage]) % 85ul)];
     };
 
-    auto addToOutput = [&](const char* target){
-        const std::uint32_t InTuple = 
-        reverse_bytes(
-			*reinterpret_cast<const std::uint32_t*>(target)
-		);
+    auto addToOutput = [&](const char* target, uint8_t N){
+        uint32_t inTuple = 0;
 
-        for (uint8_t j=0; j<5; ++j){
-            output += mapToCharSet(InTuple, j);
+        for (uint8_t j=0; j<(sizeof(uint32_t) / sizeof(char)); ++j){
+            inTuple <<= 8;
+            inTuple += target[j];
+        }
+
+        for (uint8_t j=0; j<(N+1); ++j){
+            output += mapToCharSet(inTuple, j);
         }
     };
 
     for( uint8_t i = 0; i < in.size() / 4; ++i )
-        addToOutput(&in[i * 4]);
+        addToOutput(&in[i * 4], 4);
 
     std::array<char, 4> temp{0};
     for( std::size_t i = in.size() - in.size() % 4; i < in.size(); ++i){
         temp[4-i] = in[i];
     }
 
-    addToOutput(temp.data());
+    if constexpr(pad){
+        addToOutput(temp.data(), 4);
+    }else{
+        addToOutput(temp.data(), in.size() % 4);
+    }
 
     return output;
 }
