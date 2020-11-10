@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include <array>
+
 namespace wows_shell {
 namespace utility {
 template <typename>
@@ -38,7 +39,7 @@ std::string base64_encode(const T& in) {
     while (out.size()%4) out.push_back('=');
     return out;
 }
-
+  
 template <typename T>
 std::string base85Encode(const T& in, const bool pad=false){
     static_assert(std::is_same<typename T::value_type, char>(), "Only accepts char elements");
