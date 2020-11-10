@@ -4,6 +4,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <iterator>
 #include <string>
@@ -38,8 +39,8 @@ std::string base64_encode(const T& in) {
     return out;
 }
 
-template <typename T, bool pad=false>
-std::string base85Encode(const T& in){
+template <typename T>
+std::string base85Encode(const T& in, const bool pad=false){
     static_assert(std::is_same<typename T::value_type, char>(), "Only accepts char elements");
     const std::string charSet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+-;<=>?@^_`{|}~";
     std::string output;
@@ -65,19 +66,19 @@ std::string base85Encode(const T& in){
         }
     };
 
-    for( uint8_t i = 0; i < in.size() / 4; ++i )
+    std::div_t sizeBlockRemainder = std::div(in.size(), 4);
+    uint8_t remainder = sizeBlockRemainder.rem;
+    std::size_t blocks = sizeBlockRemainder.quot;
+
+    for( uint8_t i = 0; i < blocks; ++i )
         addToOutput(&in[i * 4], 4);
 
     std::array<char, 4> temp{0};
-    for( std::size_t i = in.size() - in.size() % 4; i < in.size(); ++i){
+    for( std::size_t i = in.size() - remainder; i < in.size(); ++i){
         temp[4-i] = in[i];
     }
 
-    if constexpr(pad){
-        addToOutput(temp.data(), 4);
-    }else{
-        addToOutput(temp.data(), in.size() % 4);
-    }
+    addToOutput(temp.data(), pad ? 4 : remainder);
 
     return output;
 }
