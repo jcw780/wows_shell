@@ -314,19 +314,17 @@ class shell {
     }
 };
 
-std::string generateHash(const double k, const double p, const double v0, const double normalization,
-          const double fuseTime, const double threshold, const double ricochet0,
-          const double ricochet1, const double nonAP){
-    std::array<char, 9 * sizeof(double)> hashString;
-    std::array<double, 9> parameters = {
+template<typename T>
+std::string generateHash(const T k, const T p, const T v0, const T normalization,
+          const T fuseTime, const T threshold, const T ricochet0,
+          const T ricochet1, const T nonAP){
+    std::array<char, 9 * sizeof(T)> hashString;
+    std::array<T, 9> parameters = {
         k, p, v0, normalization, fuseTime, threshold, ricochet0, ricochet1, nonAP
     };
 
-    for(std::size_t i=0; i<parameters.size(); ++i){
-        std::copy_n(reinterpret_cast<char*>(&parameters[i]), sizeof(double), &hashString[i*sizeof(double)]);
-    }
-    
-    return utility::base64_encode(hashString);
+    std::copy_n(reinterpret_cast<char*>(&parameters[0]), sizeof(T) * parameters.size(), &hashString[0]);
+    return utility::base85Encode(hashString);
 }
 
 std::string generateHash(const double caliber, const double v0, const double cD,

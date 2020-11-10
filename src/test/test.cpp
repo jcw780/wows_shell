@@ -64,6 +64,8 @@ void runtime() {
                      1000000000
               << "\n";
     // std::cout<<"Ended\n";
+
+    std::cout<<wows_shell::utility::base85Encode(std::string("Hello"))<<"\n";
 }
 
 int main() {
