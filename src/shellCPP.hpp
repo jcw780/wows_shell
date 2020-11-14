@@ -1013,7 +1013,7 @@ class shellCalc {
     // Again templates to reduce branching
     void calculatePostPen(
         const double thickness, const double inclination, shell &s,
-        std::vector<double> &angles, const bool changeDirection = true,
+        std::vector<double> &angles, const bool changeDirection = false,
         const bool fast = false,
         const std::size_t nThreads = std::thread::hardware_concurrency()) {
         // Specifies whether normalization alters the trajectory of the
