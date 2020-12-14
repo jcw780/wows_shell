@@ -857,10 +857,31 @@ class shellCalc {
                     ? s.horizontalSlope * distance + s.horizontalIntercept
                     : s.taperSlope * distance;
 
+            // Benchmark these
+            /*
+            //Version 1: Many branches
             double verticalRatio =
                 distance > s.delimDistance
-                    ? s.delimMaxSlope * distance + s.delimMaxIntercept
+                    ? distance > s.maxDistance
+                          ? s.maxRadius
+                          : s.delimMaxSlope * distance + s.delimMaxIntercept
                     : s.zeroDelimSlope * distance + s.zeroDelimIntercept;
+            */
+
+            /*
+            // Version 2: Less Branches
+            double verticalRatio =
+                distance > s.delimDistance
+                    ? std::min(s.maxRadius,
+                               s.delimMaxSlope * distance + s.delimMaxIntercept)
+                    : s.zeroDelimSlope * distance + s.zeroDelimIntercept;
+            */
+
+            // Version 3: No Branches
+            double verticalRatio =
+                std::min(std::min(s.maxRadius, s.delimMaxSlope * distance +
+                                                   s.delimMaxIntercept),
+                         s.zeroDelimSlope * distance + s.zeroDelimIntercept);
 
             double vertical = horizontal * vertical;
             double area = M_PI * horizontal / 2 * vertical / 2;

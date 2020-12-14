@@ -25,7 +25,8 @@ double combinedPenetration(double krupp, double mass, double caliber) {
 }
 
 class shell {
-   public:           // Description                units
+   public:  // Description                units
+    // Shell
     double v0;       // muzzle velocity            m/s
     double caliber;  // shell caliber              m
     double krupp;    // shell krupp                [ndim]
@@ -39,29 +40,34 @@ class shell {
     double ricochet1;      // ricochet angle 1           degrees
     double nonAP;          // penetration of non ap ammo mm
 
-    double idealRadius;
-    double minRadius;
-    double idealDistance;
+    // Dispersion
+    // In 30m units
+    double idealRadius = 10;
+    double minRadius = 2.8;
+    double idealDistance = 1000;
+    double taperDistance = 5000;  // meters
 
+    // Intermediate Horizontal Values
     double taperSlope;
     double horizontalSlope;
     double horizontalIntercept;
 
-    double delim;
-    double zeroRadius;
-    double delimRadius;
-    double maxRadius;
-    double maxDistance;
+    double delim = 0.5;
+    double zeroRadius = 0.2;
+    double delimRadius = 0.6;
+    double maxRadius = 0.8;
+    double maxDistance = 26630;
 
+    // Intermediate Vertical Values
     double zeroDelimSlope;
     double zeroDelimIntercept;
     double delimMaxSlope;
     double delimMaxIntercept;
     double delimDistance;
 
-    double taperDistance;
     double sigma;
 
+    // Intermediate Sigma Values
     double standardRatio;
     double halfRatio;
 
@@ -352,6 +358,17 @@ class shell {
             std::cout << "\n";
         }
         std::cout << "Completed Angle Data\n";
+    }
+
+    void printDispersionData() {
+        for (std::size_t i = 0; i < impactSize; ++i) {
+            for (std::size_t j = 0; j < dispersion::maxColumns; ++j) {
+                std::cout << std::fixed << std::setprecision(4)
+                          << get_dispersion(i, j) << " ";
+            }
+            std::cout << "\n";
+        }
+        std::cout << "Completed Dispersion Data\n";
     }
 
     void printPostPenData() {
