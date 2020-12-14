@@ -13,8 +13,13 @@ void runtime() {
     wows_shell::shellCalc sc;
     sc.set_max(25.0);
     unsigned int runs = 1;
-    test = std::make_unique<wows_shell::shell>(.460, 780, .292, 1460, 2574, 6,
-                                               .033, 76, 45, 60, 0, "Yamato");
+    /*test = std::make_unique<wows_shell::shell>(.460, 780, .292, 1460, 2574, 6,
+                                               .033, 76, 45, 60, 0, "Yamato");*/
+    wows_shell::shellParams sp = {.460, 780, .292, 1460, 2574, 6,
+                                  .033, 76,  45,   60,   0};
+    wows_shell::dispersionParams dp = {10,  2.8, 1000, 5000,  0.5,
+                                       0.2, 0.6, 0.8,  26630, 2.1};
+    test = std::make_unique<wows_shell::shell>(sp, dp, "Yamato");
 
     std::cout << wows_shell::generateHash(*test) << "\n";
     for (unsigned int i = 0; i < runs; i++) {

@@ -537,10 +537,6 @@ class shellCalc {
                                      effectivePenetrationDeckNormalized) =
                         s.nonAP;
                 } else {
-                    // double rawPenetration = pPPC * pow(IV, 1.1001);
-                    // double rawPenetration = pPPC * pow(IV, 1.38);
-                    // double rawPenetration = pPPC * pow(IV, 1.53803192);
-                    // double rawPenetration = pPPC * pow(IV, 1.54562941);
                     double rawPenetration = pPPC * pow(IV, velocityPower);
                     s.get_impact(i + j, impact::impactIndices::rawPenetration) =
                         rawPenetration;

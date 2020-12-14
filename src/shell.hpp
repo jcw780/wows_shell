@@ -15,6 +15,33 @@
 #include "utility.hpp"
 
 namespace wows_shell {
+struct shellParams {
+    double caliber;
+    double v0;
+    double cD;
+    double mass;
+    double krupp;
+    double normalization;
+    double fuseTime;
+    double threshold;
+    double ricochet0;
+    double ricochet1;
+    double nonAP;
+};
+
+struct dispersionParams {
+    double idealRadius;    // maxRadius at ideal distance 30m
+    double minRadius;      // minRadius at dist: 0 30m
+    double idealDistance;  // idealDistance 30m
+    double taperDistance;  // taperDistance m
+    double delim;          // vertical seperator ratio [1]
+    double zeroRadius;     // vertical ratio at dist: 0 [1]
+    double delimRadius;    // vertical ratio at delim [1]
+    double maxRadius;      // vertical ratio at maxDistance [1]
+    double maxDistance;    // max distance [m]
+    double sigma;          // bound of truncated normal distribution
+};
+
 double combinedAirDrag(double cD, double caliber, double mass) {
     return 0.5 * cD * pow((caliber / 2), 2) * M_PI / mass;
 }
@@ -27,12 +54,11 @@ double combinedPenetration(double krupp, double mass, double caliber) {
 class shell {
    public:  // Description                units
     // Shell
-    double v0;       // muzzle velocity            m/s
-    double caliber;  // shell caliber              m
-    double krupp;    // shell krupp                [ndim]
-    double mass;     // shell mass                 kg
-    double cD;       // coefficient of drag        [ndim]
-
+    double v0;             // muzzle velocity            m/s
+    double caliber;        // shell caliber              m
+    double krupp;          // shell krupp                [ndim]
+    double mass;           // shell mass                 kg
+    double cD;             // coefficient of drag        [ndim]
     double normalization;  // shell normalization        degrees
     double threshold;      // fusing threshold           mm
     double fuseTime;       // fuse time                  s
@@ -41,23 +67,22 @@ class shell {
     double nonAP;          // penetration of non ap ammo mm
 
     // Dispersion
-    // In 30m units
-    double idealRadius = 10;
-    double minRadius = 2.8;
-    double idealDistance = 1000;
-    double taperDistance = 5000;  // meters
-
+    // Horizontal
+    double idealRadius;
+    double minRadius;
+    double idealDistance;
+    double taperDistance;
     // Intermediate Horizontal Values
     double taperSlope;
     double horizontalSlope;
     double horizontalIntercept;
 
-    double delim = 0.5;
-    double zeroRadius = 0.2;
-    double delimRadius = 0.6;
-    double maxRadius = 0.8;
-    double maxDistance = 26630;
-
+    // Vertical
+    double delim;
+    double zeroRadius;
+    double delimRadius;
+    double maxRadius;
+    double maxDistance;
     // Intermediate Vertical Values
     double zeroDelimSlope;
     double zeroDelimIntercept;
@@ -66,8 +91,8 @@ class shell {
     double delimDistance;
     bool convex;
 
-    double sigma = 2.1;
-
+    // Distribution
+    double sigma;
     // Intermediate Sigma Values
     double standardRatio;
     double halfRatio;
@@ -80,18 +105,9 @@ class shell {
     // Condenses initial values into values used by calculations
     //[Reduces repeated computations]
     void preProcess() {
-        k = combinedAirDrag(cD, caliber, mass);
-        // condensed drag coefficient
-        // cw_2 = 100 + 1000 / 3 * caliber;
-        cw_2 = 0;
-        // linear drag coefficient
-        // pPPC = 0.5561613 * krupp / 2400 * pow(mass, 0.5506) /
-        //       pow((caliber * 1000), 0.6521);
-        // pPPC = 0.081525 * krupp / 2400 * pow(mass, 0.5506) /
-        //       pow((caliber * 1000), 0.6521);
-
+        k = combinedAirDrag(cD, caliber, mass);  // condensed drag coefficient
+        cw_2 = 0;                                // linear drag coefficient
         pPPC = combinedPenetration(krupp, mass, caliber);
-
         // condensed penetration coefficient
         normalizationR = normalization / 180 * M_PI;
         // normalization (radians)
@@ -109,7 +125,7 @@ class shell {
         delimMaxSlope = (maxRadius - delimRadius) / delimDistance;
         delimMaxIntercept = delimRadius - delimMaxSlope * delimDistance;
         convex = zeroDelimSlope >= delimMaxSlope;
-        // This allows for an optimization that removes a branch in a hot loop
+        // This allows for an optimization that removes branches in a hot loop
 
         const double left = -1 * sigma, right = sigma;
         const double phiL = utility::pdf(left), phiR = utility::pdf(right);
@@ -173,6 +189,15 @@ class shell {
           const double ricochet1, const double nonAP, const std::string &name) {
         setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                   threshold, ricochet0, ricochet1, nonAP, name);
+    }  // TODO: Deprecate / Remove because this is very unclean
+
+    shell(const shellParams sp, const std::string &name) {
+        setValues(sp, name);
+    }
+
+    shell(const shellParams sp, const dispersionParams dp,
+          const std::string &name) {
+        setValues(sp, dp, name);
     }
 
     void setValues(const double caliber, const double v0, const double cD,
@@ -201,6 +226,65 @@ class shell {
         } else {
             this->enableNonAP = false;
         }
+        preProcess();
+    }
+
+    void setValues(const shellParams sp, const std::string &name) {
+        fuseTime = sp.fuseTime;  // Shell fusetime        | No     | Yes
+        v0 = sp.v0;              // Shell muzzle velocity | Yes    | No
+        caliber = sp.caliber;    // Shell caliber         | Yes    | Yes
+        krupp = sp.krupp;        // Shell krupp           | Yes    | Yes
+        mass = sp.mass;          // Shell mass            | Yes    | Yes
+        normalization =
+            sp.normalization;      // Shell normalization   | Yes    | Yes
+        cD = sp.cD;                // Shell air drag coefficient | Yes    | Yes
+        this->name = name;         // Shell name  | No     | No
+        ricochet0 = sp.ricochet0;  // Ricochet Angle 0 | No     | Yes
+        ricochet1 = sp.ricochet1;  // Ricochet Angle 1 | No     | Yes
+                                   // Shell fusing threshold | No     | Yes
+        threshold = sp.threshold;
+        nonAP = sp.nonAP;
+        if (nonAP > 0) {
+            enableNonAP = true;
+        } else {
+            enableNonAP = false;
+        }
+        preProcess();
+    }
+
+    void setValues(const shellParams sp, const dispersionParams dp,
+                   const std::string &name) {
+        fuseTime = sp.fuseTime;  // Shell fusetime        | No     | Yes
+        v0 = sp.v0;              // Shell muzzle velocity | Yes    | No
+        caliber = sp.caliber;    // Shell caliber         | Yes    | Yes
+        krupp = sp.krupp;        // Shell krupp           | Yes    | Yes
+        mass = sp.mass;          // Shell mass            | Yes    | Yes
+        normalization =
+            sp.normalization;      // Shell normalization   | Yes    | Yes
+        cD = sp.cD;                // Shell air drag coefficient | Yes    | Yes
+        this->name = name;         // Shell name  | No     | No
+        ricochet0 = sp.ricochet0;  // Ricochet Angle 0 | No     | Yes
+        ricochet1 = sp.ricochet1;  // Ricochet Angle 1 | No     | Yes
+                                   // Shell fusing threshold | No     | Yes
+        threshold = sp.threshold;
+        nonAP = sp.nonAP;
+        if (nonAP > 0) {
+            enableNonAP = true;
+        } else {
+            enableNonAP = false;
+        }
+
+        idealRadius = dp.idealRadius;
+        minRadius = dp.minRadius;
+        idealDistance = dp.idealDistance;
+        taperDistance = dp.taperDistance;
+        delim = dp.delim;
+        zeroRadius = dp.zeroRadius;
+        delimRadius = dp.delimRadius;
+        maxRadius = dp.maxRadius;
+        maxDistance = dp.maxDistance;
+        sigma = dp.sigma;
+
         preProcess();
     }
 
