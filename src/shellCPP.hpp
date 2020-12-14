@@ -107,8 +107,9 @@ class shellCalc {
     // mini 'threadpool' used to kick off multithreaded functions
 
     template <typename O, typename F, typename... Args>
-    void mtFunctionRunner(const std::size_t assigned, const std::size_t length, const std::size_t size, O object,
-                          F function, Args... args) {
+    void mtFunctionRunner(const std::size_t assigned, const std::size_t length,
+                          const std::size_t size, O object, F function,
+                          Args... args) {
         if (assigned > 1) {
             mtFunctionRunnerSelected<true>(assigned, length, size, object,
                                            function, args...);
@@ -119,7 +120,8 @@ class shellCalc {
     }
 
     template <bool multiThreaded, typename O, typename F, typename... Args>
-    void mtFunctionRunnerSelected(const std::size_t assigned, const std::size_t length,
+    void mtFunctionRunnerSelected(const std::size_t assigned,
+                                  const std::size_t length,
                                   const std::size_t size, O object, F function,
                                   Args... args) {
         if constexpr (multiThreaded) {
@@ -831,6 +833,62 @@ class shellCalc {
             }
         }
         s.completedAngles = true;
+    }
+
+    // Dispersion Section
+    void calculateDispersion(
+        shell &s, std::size_t nThreads = std::thread::hardware_concurrency()) {
+        s.dispersionData.resize(dispersion::maxColumns * s.impactSizeAligned);
+        if (nThreads > std::thread::hardware_concurrency()) {
+            nThreads = std::thread::hardware_concurrency();
+        }
+        std::size_t length = ceil(static_cast<double>(s.impactSize) / vSize);
+        std::size_t assigned = assignThreadNum(length, nThreads);
+        mtFunctionRunner(assigned, length, s.impactSize, this,
+                         &shellCalc::dispersionGroup, std::ref(s));
+    }
+
+    void dispersionGroup(const std::size_t startIndex, shell &s) {
+        for (uint8_t j = 0; j < vSize; ++j) {
+            const uint8_t i = startIndex + j;
+            double distance = s.get_impact(i, impact::impactIndices::distance);
+            double horizontal =
+                distance > s.taperDistance
+                    ? s.horizontalSlope * distance + s.horizontalIntercept
+                    : s.taperSlope * distance;
+
+            double verticalRatio =
+                distance > s.delimDistance
+                    ? s.delimMaxSlope * distance + s.delimMaxIntercept
+                    : s.zeroDelimSlope * distance + s.zeroDelimIntercept;
+
+            double vertical = horizontal * vertical;
+            double area = M_PI * horizontal / 2 * vertical / 2;
+
+            s.get_dispersion(i, dispersion::dispersionIndices::maxHorizontal) =
+                horizontal;
+            s.get_dispersion(
+                i, dispersion::dispersionIndices::standardHorizontal) =
+                horizontal * s.standardRatio;
+            s.get_dispersion(i, dispersion::dispersionIndices::halfHorizontal) =
+                horizontal * s.halfRatio;
+
+            s.get_dispersion(i, dispersion::dispersionIndices::maxHorizontal) =
+                vertical;
+            s.get_dispersion(
+                i, dispersion::dispersionIndices::standardHorizontal) =
+                vertical * s.standardRatio;
+            s.get_dispersion(i, dispersion::dispersionIndices::halfHorizontal) =
+                vertical * s.halfRatio;
+
+            s.get_dispersion(i, dispersion::dispersionIndices::maxHorizontal) =
+                area;
+            s.get_dispersion(
+                i, dispersion::dispersionIndices::standardHorizontal) =
+                area * s.standardRatio;
+            s.get_dispersion(i, dispersion::dispersionIndices::halfHorizontal) =
+                area * s.halfRatio;
+        }
     }
 
     // Post-Penetration Section

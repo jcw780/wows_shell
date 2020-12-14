@@ -2,6 +2,7 @@
 
 #define _USE_MATH_DEFINES
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <iomanip>
@@ -9,34 +10,61 @@
 #include <string>
 #include <type_traits>
 #include <vector>
-#include <array>
 
 #include "controlEnums.hpp"
 #include "utility.hpp"
 
 namespace wows_shell {
-double combinedAirDrag(double cD, double caliber, double mass){
+double combinedAirDrag(double cD, double caliber, double mass) {
     return 0.5 * cD * pow((caliber / 2), 2) * M_PI / mass;
 }
 
-double combinedPenetration(double krupp, double mass, double caliber){
+double combinedPenetration(double krupp, double mass, double caliber) {
     return 0.00046905491615181766 * krupp / 2400 * pow(mass, 0.5506) *
-               pow(caliber, -0.6521);
+           pow(caliber, -0.6521);
 }
 
 class shell {
-   public:                 // Description                units
-    double v0;             // muzzle velocity            m/s
-    double caliber;        // shell caliber              m
-    double krupp;          // shell krupp                [ndim]
-    double mass;           // shell mass                 kg
-    double cD;             // coefficient of drag        [ndim]
+   public:           // Description                units
+    double v0;       // muzzle velocity            m/s
+    double caliber;  // shell caliber              m
+    double krupp;    // shell krupp                [ndim]
+    double mass;     // shell mass                 kg
+    double cD;       // coefficient of drag        [ndim]
+
     double normalization;  // shell normalization        degrees
     double threshold;      // fusing threshold           mm
     double fuseTime;       // fuse time                  s
     double ricochet0;      // ricochet angle 0           degrees
     double ricochet1;      // ricochet angle 1           degrees
     double nonAP;          // penetration of non ap ammo mm
+
+    double idealRadius;
+    double minRadius;
+    double idealDistance;
+
+    double taperSlope;
+    double horizontalSlope;
+    double horizontalIntercept;
+
+    double delim;
+    double zeroRadius;
+    double delimRadius;
+    double maxRadius;
+    double maxDistance;
+
+    double zeroDelimSlope;
+    double zeroDelimIntercept;
+    double delimMaxSlope;
+    double delimMaxIntercept;
+    double delimDistance;
+
+    double taperDistance;
+    double sigma;
+
+    double standardRatio;
+    double halfRatio;
+
     bool enableNonAP;
     std::string name;
 
@@ -46,7 +74,6 @@ class shell {
     //[Reduces repeated computations]
     void preProcess() {
         k = combinedAirDrag(cD, caliber, mass);
-        //k = 0.5 * cD * pow((caliber / 2), 2) * M_PI / mass;
         // condensed drag coefficient
         // cw_2 = 100 + 1000 / 3 * caliber;
         cw_2 = 0;
@@ -55,8 +82,7 @@ class shell {
         //       pow((caliber * 1000), 0.6521);
         // pPPC = 0.081525 * krupp / 2400 * pow(mass, 0.5506) /
         //       pow((caliber * 1000), 0.6521);
-        //pPPC = 0.00046905491615181766 * krupp / 2400 * pow(mass, 0.5506) *
-        //       pow(caliber, -0.6521);
+
         pPPC = combinedPenetration(krupp, mass, caliber);
 
         // condensed penetration coefficient
@@ -64,6 +90,25 @@ class shell {
         // normalization (radians)
         ricochet0R = ricochet0 / 180 * M_PI;
         ricochet1R = ricochet1 / 180 * M_PI;
+
+        horizontalSlope = (idealRadius - minRadius) / idealDistance;
+        horizontalIntercept = 30 * minRadius;
+        taperSlope = (horizontalSlope * taperDistance + horizontalIntercept) /
+                     taperDistance;
+
+        delimDistance = maxDistance * delim;
+        zeroDelimSlope = (delimRadius - zeroRadius) / delimDistance;
+        zeroDelimIntercept = zeroRadius;
+        delimMaxSlope = (maxRadius - delimRadius) / delimDistance;
+        delimMaxIntercept = delimRadius - delimMaxSlope * delimDistance;
+
+        const double left = -1 * sigma, right = sigma;
+        const double phiL = utility::pdf(left), phiR = utility::pdf(right);
+        const double Z = utility::cdf(right) - utility::cdf(left);
+        const double DsQ = (phiL - phiR) / Z;
+        standardRatio =
+            sqrt(1 + ((left * phiL - right * phiR) / Z) - (DsQ * DsQ)) / sigma;
+        halfRatio = utility::invCDF(.25 * Z + phiL);
     }
 
     // Not 100% necessary - sizes adjusted to fulfill alignment
@@ -90,6 +135,19 @@ class shell {
      * [5:6)-penetration max lateral angle
      */
     std::vector<double> angleData;
+
+    /* Dispersion data
+     *  [0:1)- max horizontal
+     *  [1:2)- std horizontal
+     *  [2:3)- 50% horizontal
+     *  [3:4)- max vertical
+     *  [4:5)- std vertical
+     *  [5:6)- 50% vertical
+     *  [6:7)- max area
+     *  [7:8)- std area
+     *  [8:9)- 50% area
+     */
+    std::vector<double> dispersionData;
 
     /* WARNING: LOCATION OF LATERAL ANGLE IN VECTOR CANNOT BE CHANGED OR ELSE
      * SIMD ALIGNMENT MAY NOT BE GUARANTEED [0:1) Lateral Angle [1:2) Distance
@@ -164,6 +222,24 @@ class shell {
     }
     double *get_anglePtr(const std::size_t row, const std::size_t impact) {
         return angleData.data() + row + impact * impactSizeAligned;
+    }
+
+    double *get_dispersionPtr(const std::size_t row, const std::size_t impact) {
+        return dispersionData.data() + row + impact * impactSizeAligned;
+    }
+
+    double *get_dispersionPtr(const std::size_t row,
+                              dispersion::dispersionIndices data) {
+        return get_dispersionPtr(row, toUnderlying(data));
+    }
+
+    double &get_dispersion(const std::size_t row, const std::size_t impact) {
+        return *get_dispersionPtr(row, impact);
+    }
+
+    double &get_dispersion(const std::size_t row,
+                           dispersion::dispersionIndices data) {
+        return *get_dispersionPtr(row, data);
     }
 
     double &get_postPen(const std::size_t row, post::postPenIndices data,
@@ -314,45 +390,47 @@ class shell {
     }
 };
 
-template<typename T>
-std::string generateHash(const T k, const T p, const T v0, const T normalization,
-          const T fuseTime, const T threshold, const T ricochet0,
-          const T ricochet1, const T nonAP){
+template <typename T>
+std::string generateHash(const T k, const T p, const T v0,
+                         const T normalization, const T fuseTime,
+                         const T threshold, const T ricochet0,
+                         const T ricochet1, const T nonAP) {
     std::array<char, 9 * sizeof(T)> hashString;
     std::array<T, 9> parameters = {
-        k, p, v0, normalization, fuseTime, threshold, ricochet0, ricochet1, nonAP
-    };
+        k,         p,         v0,        normalization, fuseTime,
+        threshold, ricochet0, ricochet1, nonAP};
 
-    std::copy_n(reinterpret_cast<char*>(&parameters[0]), sizeof(T) * parameters.size(), &hashString[0]);
+    std::copy_n(reinterpret_cast<char *>(&parameters[0]),
+                sizeof(T) * parameters.size(), &hashString[0]);
     return utility::base85Encode(hashString);
 }
 
 std::string generateHash(const double caliber, const double v0, const double cD,
-          const double mass, const double krupp, const double normalization,
-          const double fuseTime, const double threshold, const double ricochet0,
-          const double ricochet1, const double nonAP){
+                         const double mass, const double krupp,
+                         const double normalization, const double fuseTime,
+                         const double threshold, const double ricochet0,
+                         const double ricochet1, const double nonAP) {
     double k = combinedAirDrag(cD, caliber, mass);
     double p = combinedPenetration(krupp, mass, caliber);
-    return generateHash(k, p, v0, normalization, threshold, fuseTime, ricochet0, ricochet1, nonAP);
+    return generateHash(k, p, v0, normalization, threshold, fuseTime, ricochet0,
+                        ricochet1, nonAP);
 }
 
-std::string generateShellParamHash(const double caliber, const double v0, const double cD,
-          const double mass, const double krupp, const double normalization,
-          const double fuseTime, const double threshold, const double ricochet0,
-          const double ricochet1, const double nonAP){
-    return generateHash(caliber, v0, cD, mass, krupp, normalization, fuseTime, threshold, ricochet0, ricochet1, nonAP);
+std::string generateShellParamHash(
+    const double caliber, const double v0, const double cD, const double mass,
+    const double krupp, const double normalization, const double fuseTime,
+    const double threshold, const double ricochet0, const double ricochet1,
+    const double nonAP) {
+    return generateHash(caliber, v0, cD, mass, krupp, normalization, fuseTime,
+                        threshold, ricochet0, ricochet1, nonAP);
 }
 
-std::string generateHash(const shell& s){
-    return generateHash(
-        s.caliber, s.v0, s.cD, 
-        s.mass, s.krupp, s.normalization, 
-        s.fuseTime, s.threshold, s.ricochet0, 
-        s.ricochet1, s.nonAP);
+std::string generateHash(const shell &s) {
+    return generateHash(s.caliber, s.v0, s.cD, s.mass, s.krupp, s.normalization,
+                        s.fuseTime, s.threshold, s.ricochet0, s.ricochet1,
+                        s.nonAP);
 }
 
-std::string generateShellHash(const shell& s){
-    return generateHash(s);
-}
+std::string generateShellHash(const shell &s) { return generateHash(s); }
 
 }  // namespace wows_shell

@@ -198,12 +198,13 @@ void fitKruppNormal(shell &toFit, std::vector<double> &sampleData,
 }  // namespace wows_shell
 
 int main() {
-    wows_shell::shell test(.406, 762, 0.2988329237, 1225, 2520, 6, .033, 76, 45, 60,
-                      0, "Montana");
+    wows_shell::shell test(.406, 762, 0.2988329237, 1225, 2520, 6, .033, 76, 45,
+                           60, 0, "Montana");
     std::vector<double> sample = {10,    15,    20,    25,    30,    35,
                                   40,    45,    16139, 21854, 26518, 30450,
                                   33558, 36119, 37884, 38720};
-    wows_shell::fitDrag<wows_shell::numerical::adamsBashforth5>(test, sample, 8);
+    wows_shell::fitDrag<wows_shell::numerical::adamsBashforth5>(test, sample,
+                                                                8);
     std::cout << "cD: " << std::setprecision(10) << test.cD << "\n";
 
     /*std::vector<double> penetrationData = {
