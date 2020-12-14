@@ -64,6 +64,7 @@ class shell {
     double delimMaxSlope;
     double delimMaxIntercept;
     double delimDistance;
+    bool convex;
 
     double sigma = 2.1;
 
@@ -107,6 +108,8 @@ class shell {
         zeroDelimIntercept = zeroRadius;
         delimMaxSlope = (maxRadius - delimRadius) / delimDistance;
         delimMaxIntercept = delimRadius - delimMaxSlope * delimDistance;
+        convex = zeroDelimSlope >= delimMaxSlope;
+        // This allows for an optimization that removes a branch in a hot loop
 
         const double left = -1 * sigma, right = sigma;
         const double phiL = utility::pdf(left), phiR = utility::pdf(right);

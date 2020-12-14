@@ -844,10 +844,16 @@ class shellCalc {
         }
         std::size_t length = ceil(static_cast<double>(s.impactSize) / vSize);
         std::size_t assigned = assignThreadNum(length, nThreads);
-        mtFunctionRunner(assigned, length, s.impactSize, this,
-                         &shellCalc::dispersionGroup, std::ref(s));
+        if (s.convex) {
+            mtFunctionRunner(assigned, length, s.impactSize, this,
+                             &shellCalc::dispersionGroup<true>, std::ref(s));
+        } else {
+            mtFunctionRunner(assigned, length, s.impactSize, this,
+                             &shellCalc::dispersionGroup<false>, std::ref(s));
+        }
     }
 
+    template <bool convex>
     void dispersionGroup(const std::size_t startIndex, shell &s) {
         for (uint8_t j = 0; j < vSize; ++j) {
             const uint8_t i = startIndex + j;
@@ -870,13 +876,14 @@ class shellCalc {
                     : s.zeroDelimSlope * distance + s.zeroDelimIntercept;
             */
 
+            /*
             // Version 2: Less Branches
             double verticalRatio =
                 distance > s.delimDistance
                     ? std::min(s.maxRadius,
                                s.delimMaxSlope * distance + s.delimMaxIntercept)
                     : s.zeroDelimSlope * distance + s.zeroDelimIntercept;
-
+            */
             /*
             // Version 3: No Branches
             double verticalRatio =
@@ -884,6 +891,20 @@ class shellCalc {
                                                    s.delimMaxIntercept),
                          s.zeroDelimSlope * distance + s.zeroDelimIntercept);
             */
+            double verticalRatio;
+            if constexpr (convex) {
+                verticalRatio = std::min(
+                    s.maxRadius,
+                    std::min(
+                        s.delimMaxSlope * distance + s.delimMaxIntercept,
+                        s.zeroDelimSlope * distance + s.zeroDelimIntercept));
+            } else {
+                verticalRatio = std::min(
+                    s.maxRadius,
+                    std::max(
+                        s.delimMaxSlope * distance + s.delimMaxIntercept,
+                        s.zeroDelimSlope * distance + s.zeroDelimIntercept));
+            }
 
             double vertical =
                 horizontal * verticalRatio / sin(impactAngle * -1);
