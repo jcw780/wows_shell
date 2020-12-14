@@ -861,50 +861,25 @@ class shellCalc {
             double impactAngle = s.get_impact(
                 i, impact::impactIndices::impactAngleHorizontalRadians);
             double horizontal =
-                distance > s.taperDistance
-                    ? s.horizontalSlope * distance + s.horizontalIntercept
-                    : s.taperSlope * distance;
+                std::min(s.horizontalSlope * distance + s.horizontalIntercept,
+                         s.taperSlope * distance);
+            // Continuous piecewise linear [2] function
+            // Will always be convex - pick the lower of the two
 
-            // Benchmark these
-            /*
-            //Version 1: Many branches
-            double verticalRatio =
-                distance > s.delimDistance
-                    ? distance > s.maxDistance
-                          ? s.maxRadius
-                          : s.delimMaxSlope * distance + s.delimMaxIntercept
-                    : s.zeroDelimSlope * distance + s.zeroDelimIntercept;
-            */
-
-            /*
-            // Version 2: Less Branches
-            double verticalRatio =
-                distance > s.delimDistance
-                    ? std::min(s.maxRadius,
-                               s.delimMaxSlope * distance + s.delimMaxIntercept)
-                    : s.zeroDelimSlope * distance + s.zeroDelimIntercept;
-            */
-            /*
-            // Version 3: No Branches
-            double verticalRatio =
-                std::min(std::min(s.maxRadius, s.delimMaxSlope * distance +
-                                                   s.delimMaxIntercept),
-                         s.zeroDelimSlope * distance + s.zeroDelimIntercept);
-            */
-            double verticalRatio;
+            double verticalRatioUncapped;
             if constexpr (convex) {
-                verticalRatio = std::min(
-                    s.maxRadius,
-                    std::min(
-                        s.delimMaxSlope * distance + s.delimMaxIntercept,
-                        s.zeroDelimSlope * distance + s.zeroDelimIntercept));
+                verticalRatioUncapped = std::min(
+                    s.delimMaxSlope * distance + s.delimMaxIntercept,
+                    s.zeroDelimSlope * distance + s.zeroDelimIntercept);
             } else {
-                verticalRatio = std::min(
-                    s.maxRadius,
-                    std::max(
-                        s.delimMaxSlope * distance + s.delimMaxIntercept,
-                        s.zeroDelimSlope * distance + s.zeroDelimIntercept));
+                verticalRatioUncapped = std::max(
+                    s.delimMaxSlope * distance + s.delimMaxIntercept,
+                    s.zeroDelimSlope * distance + s.zeroDelimIntercept);
             }
+            // Continuous piecewise linear [2] function
+            // Will pick based on convexity
+            double verticalRatio = std::min(verticalRatioUncapped, s.maxRadius);
+            // Results will never be higher than s.maxRadius
 
             double vertical =
                 horizontal * verticalRatio / sin(impactAngle * -1);
