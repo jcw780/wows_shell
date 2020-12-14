@@ -65,7 +65,7 @@ class shell {
     double delimMaxIntercept;
     double delimDistance;
 
-    double sigma;
+    double sigma = 2.1;
 
     // Intermediate Sigma Values
     double standardRatio;
@@ -114,7 +114,7 @@ class shell {
         const double DsQ = (phiL - phiR) / Z;
         standardRatio =
             sqrt(1 + ((left * phiL - right * phiR) / Z) - (DsQ * DsQ)) / sigma;
-        halfRatio = utility::invCDF(.25 * Z + phiL);
+        halfRatio = utility::invCDF(.25 * Z + phiL) * -1;
     }
 
     // Not 100% necessary - sizes adjusted to fulfill alignment
@@ -362,6 +362,8 @@ class shell {
 
     void printDispersionData() {
         for (std::size_t i = 0; i < impactSize; ++i) {
+            std::cout << std::fixed << std::setprecision(4)
+                      << get_impact(i, impact::impactIndices::distance) << " ";
             for (std::size_t j = 0; j < dispersion::maxColumns; ++j) {
                 std::cout << std::fixed << std::setprecision(4)
                           << get_dispersion(i, j) << " ";

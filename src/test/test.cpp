@@ -13,14 +13,14 @@ void runtime() {
     wows_shell::shellCalc sc;
     sc.set_max(25.0);
     unsigned int runs = 1;
-    test = std::make_unique<wows_shell::shell>(.460, 780, .292, 1460, 2574, 6, .033,
-                                          76, 45, 60, 0, "Yamato");
-    
+    test = std::make_unique<wows_shell::shell>(.460, 780, .292, 1460, 2574, 6,
+                                               .033, 76, 45, 60, 0, "Yamato");
+
     std::cout << wows_shell::generateHash(*test) << "\n";
     for (unsigned int i = 0; i < runs; i++) {
         auto t1 = std::chrono::high_resolution_clock::now();
-        sc.calculateImpact<wows_shell::numerical::adamsBashforth5, false>(*test,
-                                                                     false);
+        sc.calculateImpact<wows_shell::numerical::adamsBashforth5, false>(
+            *test, false);
         auto t2 = std::chrono::high_resolution_clock::now();
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>(
                      t2 - t1)
@@ -42,8 +42,8 @@ void runtime() {
     std::size_t maxIndex = test->maxDist();
     if (maxIndex != std::numeric_limits<std::size_t>::max()) {
         std::cout << maxIndex << " "
-                  << test->get_impact(maxIndex,
-                                      wows_shell::impact::impactIndices::distance)
+                  << test->get_impact(
+                         maxIndex, wows_shell::impact::impactIndices::distance)
                   << "\n";
     } else {
         std::cout << maxIndex << " Error\n";
@@ -55,6 +55,9 @@ void runtime() {
     // test->printPostPenData();
     // test->printAngleData();
 
+    sc.calculateDispersion(*test);
+    test->printDispersionData();
+
     std::cout << std::fixed << std::setprecision(10)
               << total / runs / 1000000000 << std::endl;
     std::cout << std::fixed << std::setprecision(10)
@@ -65,7 +68,8 @@ void runtime() {
               << "\n";
     // std::cout<<"Ended\n";
 
-    std::cout<<wows_shell::utility::base85Encode(std::string("Hello"))<<"\n";
+    std::cout << wows_shell::utility::base85Encode(std::string("Hello"))
+              << "\n";
 }
 
 int main() {

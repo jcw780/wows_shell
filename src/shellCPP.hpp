@@ -852,6 +852,8 @@ class shellCalc {
         for (uint8_t j = 0; j < vSize; ++j) {
             const uint8_t i = startIndex + j;
             double distance = s.get_impact(i, impact::impactIndices::distance);
+            double impactAngle = s.get_impact(
+                i, impact::impactIndices::impactAngleHorizontalRadians);
             double horizontal =
                 distance > s.taperDistance
                     ? s.horizontalSlope * distance + s.horizontalIntercept
@@ -868,22 +870,23 @@ class shellCalc {
                     : s.zeroDelimSlope * distance + s.zeroDelimIntercept;
             */
 
-            /*
             // Version 2: Less Branches
             double verticalRatio =
                 distance > s.delimDistance
                     ? std::min(s.maxRadius,
                                s.delimMaxSlope * distance + s.delimMaxIntercept)
                     : s.zeroDelimSlope * distance + s.zeroDelimIntercept;
-            */
 
+            /*
             // Version 3: No Branches
             double verticalRatio =
                 std::min(std::min(s.maxRadius, s.delimMaxSlope * distance +
                                                    s.delimMaxIntercept),
                          s.zeroDelimSlope * distance + s.zeroDelimIntercept);
+            */
 
-            double vertical = horizontal * vertical;
+            double vertical =
+                horizontal * verticalRatio / sin(impactAngle * -1);
             double area = M_PI * horizontal / 2 * vertical / 2;
 
             s.get_dispersion(i, dispersion::dispersionIndices::maxHorizontal) =
@@ -894,21 +897,19 @@ class shellCalc {
             s.get_dispersion(i, dispersion::dispersionIndices::halfHorizontal) =
                 horizontal * s.halfRatio;
 
-            s.get_dispersion(i, dispersion::dispersionIndices::maxHorizontal) =
+            s.get_dispersion(i, dispersion::dispersionIndices::maxVertical) =
                 vertical;
-            s.get_dispersion(
-                i, dispersion::dispersionIndices::standardHorizontal) =
+            s.get_dispersion(i,
+                             dispersion::dispersionIndices::standardVertical) =
                 vertical * s.standardRatio;
-            s.get_dispersion(i, dispersion::dispersionIndices::halfHorizontal) =
+            s.get_dispersion(i, dispersion::dispersionIndices::halfVertical) =
                 vertical * s.halfRatio;
 
-            s.get_dispersion(i, dispersion::dispersionIndices::maxHorizontal) =
-                area;
-            s.get_dispersion(
-                i, dispersion::dispersionIndices::standardHorizontal) =
-                area * s.standardRatio;
-            s.get_dispersion(i, dispersion::dispersionIndices::halfHorizontal) =
-                area * s.halfRatio;
+            s.get_dispersion(i, dispersion::dispersionIndices::maxArea) = area;
+            s.get_dispersion(i, dispersion::dispersionIndices::standardArea) =
+                area * s.standardRatio * s.standardRatio;
+            s.get_dispersion(i, dispersion::dispersionIndices::halfArea) =
+                area * s.halfRatio * s.halfRatio;
         }
     }
 
