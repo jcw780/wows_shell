@@ -140,3 +140,5 @@ cython_debug/
 # Cppimport Files
 *.cppimporthash
 .rendered.*.cpp
+
+test.bat

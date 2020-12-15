@@ -27,6 +27,25 @@ struct shellParams {
     double ricochet0;
     double ricochet1;
     double nonAP;  // probably change this to int or something
+
+    shellParams() = default;
+    shellParams(const double caliber_, const double v0_, const double cD_,
+                const double mass_, const double krupp_,
+                const double normalization_, const double fuseTime_,
+                const double threshold_, const double ricochet0_,
+                const double ricochet1_, const double nonAP_) {
+        caliber = caliber_;
+        v0 = v0_;
+        cD = cD_;
+        mass = mass_;
+        krupp = krupp_;
+        normalization = normalization_;
+        fuseTime = fuseTime_;
+        threshold = threshold_;
+        ricochet0 = ricochet0_;
+        ricochet1 = ricochet1_;
+        nonAP = nonAP_;
+    }
 };
 
 struct dispersionParams {
@@ -40,6 +59,24 @@ struct dispersionParams {
     double maxRadius;      // vertical ratio at maxDistance [1]
     double maxDistance;    // max distance [m]
     double sigma;          // bound of truncated normal distribution
+
+    dispersionParams() = default;
+    dispersionParams(const double idealRadius_, const double minRadius_,
+                     const double idealDistance_, const double taperDistance_,
+                     const double delim_, const double zeroRadius_,
+                     const double delimRadius_, const double maxRadius_,
+                     const double maxDistance_, const double sigma_) {
+        idealRadius = idealRadius_;
+        minRadius = minRadius_;
+        idealDistance = idealDistance_;
+        taperDistance = taperDistance_;
+        delim = delim_;
+        zeroRadius = zeroRadius_;
+        delimRadius = delimRadius_;
+        maxRadius = maxRadius_;
+        maxDistance = maxDistance_;
+        sigma = sigma_;
+    }
 };
 
 double combinedAirDrag(double cD, double caliber, double mass) {
