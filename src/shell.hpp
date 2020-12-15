@@ -229,7 +229,7 @@ class shell {
         preProcess();
     }
 
-    void setValues(const shellParams sp, const std::string &name) {
+    void setValues(const shellParams &sp, const std::string &name) {
         fuseTime = sp.fuseTime;  // Shell fusetime        | No     | Yes
         v0 = sp.v0;              // Shell muzzle velocity | Yes    | No
         caliber = sp.caliber;    // Shell caliber         | Yes    | Yes
@@ -252,7 +252,7 @@ class shell {
         preProcess();
     }
 
-    void setValues(const shellParams sp, const dispersionParams dp,
+    void setValues(const shellParams &sp, const dispersionParams &dp,
                    const std::string &name) {
         fuseTime = sp.fuseTime;  // Shell fusetime        | No     | Yes
         v0 = sp.v0;              // Shell muzzle velocity | Yes    | No
