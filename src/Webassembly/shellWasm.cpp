@@ -98,7 +98,6 @@ emscripten::val getImpactSizedPointArray(wows_shell::shell &s,
                                          emscripten::val params1,
                                          emscripten::val params2) {
     emscripten::val points = emscripten::val::array();
-
     double *startX, *startY;
     auto setup = [&](emscripten::val &param, double *&tgt) {
         std::size_t index = param[0].as<std::size_t>();
@@ -106,7 +105,12 @@ emscripten::val getImpactSizedPointArray(wows_shell::shell &s,
             case wows_shell::toUnderlying(
                 wows_shell::calculateType::calcIndices::impact):
                 if (s.completedImpact) {
-                    tgt = s.get_impactPtr(0, param[1].as<std::size_t>());
+                    std::size_t index = param[1].as<std::size_t>();
+                    if (0 <= index && index < wows_shell::impact::maxColumns) {
+                        tgt = s.get_impactPtr(0, index);
+                    } else {
+                        throw std::runtime_error("Invalid impact index");
+                    }
                 } else {
                     throw std::runtime_error("Impact data not generated");
                 }
@@ -114,26 +118,42 @@ emscripten::val getImpactSizedPointArray(wows_shell::shell &s,
             case wows_shell::toUnderlying(
                 wows_shell::calculateType::calcIndices::angle):
                 if (s.completedAngles) {
-                    tgt = s.get_anglePtr(0, param[1].as<std::size_t>());
+                    std::size_t index = param[1].as<std::size_t>();
+                    if (0 <= index && index < wows_shell::angle::maxColumns) {
+                        tgt = s.get_anglePtr(0, index);
+                    } else {
+                        throw std::runtime_error("Invalid angle index");
+                    }
                 } else {
-                    throw std::runtime_error("Impact data not generated");
+                    throw std::runtime_error("Angle data not generated");
                 }
                 break;
             case wows_shell::toUnderlying(
                 wows_shell::calculateType::calcIndices::dispersion):
                 if (s.completedDispersion) {
-                    tgt = s.get_dispersionPtr(0, param[1].as<std::size_t>());
+                    std::size_t index = param[1].as<std::size_t>();
+                    if (0 <= index &&
+                        index < wows_shell::dispersion::maxColumns) {
+                        tgt = s.get_dispersionPtr(0, index);
+                    } else {
+                        throw std::runtime_error("Invalid dispersion index");
+                    }
                 } else {
-                    throw std::runtime_error("Impact data not generated");
+                    throw std::runtime_error("Dispersion data not generated");
                 }
                 break;
             case wows_shell::toUnderlying(
                 wows_shell::calculateType::calcIndices::post):
                 if (s.completedPostPen) {
-                    tgt = s.get_postPenPtr(0, param[1].as<std::size_t>(),
-                                           param[2].as<std::size_t>());
+                    std::size_t index = param[1].as<std::size_t>();
+                    if (0 <= index && index < wows_shell::post::maxColumns) {
+                        tgt = s.get_postPenPtr(0, index,
+                                               param[2].as<std::size_t>());
+                    } else {
+                        throw std::runtime_error("Invalid post index");
+                    }
                 } else {
-                    throw std::runtime_error("Impact data not generated");
+                    throw std::runtime_error("Post data not generated");
                 }
                 break;
             default:
