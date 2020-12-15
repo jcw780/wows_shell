@@ -847,6 +847,7 @@ class shellCalc {
             mtFunctionRunner(assigned, length, s.impactSize, this,
                              &shellCalc::dispersionGroup<false>, std::ref(s));
         }
+        s.completedDispersion = true;
     }
 
     template <bool convex>

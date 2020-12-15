@@ -78,6 +78,11 @@ static_assert(toUnderlying(postPenIndices::xwf) == (maxColumns - 1),
               "Invaild postpen columns");
 }  // namespace post
 
+namespace calculateType {
+enum class calcIndices { impact, angle, dispersion, post };
+static_assert(toUnderlying(calcIndices::post) == 3, "Invalid data indices");
+}  // namespace calculateType
+
 enum class numerical {
     forwardEuler,
     rungeKutta2,

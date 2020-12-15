@@ -210,6 +210,11 @@
                 Module.postPenIndices.distance.value,
                 Module.postPenIndices.x.value
             ));
+
+            console.log(Module.getImpactSizedPointArray(shell,
+                [0, Module.impactIndices.distance.value],
+                [3, Module.postPenIndices.x.value, 0]
+            ));
         }
 
         for (const shell of shells) {

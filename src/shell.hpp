@@ -138,7 +138,7 @@ class shell {
 
     // Not 100% necessary - sizes adjusted to fulfill alignment
     bool completedImpact = false, completedAngles = false,
-         completedPostPen = false;
+         completedDispersion = false, completedPostPen = false;
 
     /*trajectories output
     [0           ]trajx 0        [1           ]trajy 1
@@ -191,11 +191,11 @@ class shell {
                   threshold, ricochet0, ricochet1, nonAP, name);
     }  // TODO: Deprecate / Remove because this is very unclean
 
-    shell(const shellParams sp, const std::string &name) {
+    shell(const shellParams &sp, const std::string &name) {
         setValues(sp, name);
     }
 
-    shell(const shellParams sp, const dispersionParams dp,
+    shell(const shellParams &sp, const dispersionParams &dp,
           const std::string &name) {
         setValues(sp, dp, name);
     }

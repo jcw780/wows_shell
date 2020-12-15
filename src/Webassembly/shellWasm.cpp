@@ -6,15 +6,17 @@
 
 #include "../shellCPP.hpp"
 
-namespace pointArray{
-//These functions are for producing arrays suitable for chart.js scatter plots
-emscripten::val getImpactPointArray(wows_shell::shell& s, const std::size_t xIndex, const std::size_t yIndex){
+namespace pointArray {
+// These functions are for producing arrays suitable for chart.js scatter plots
+emscripten::val getImpactPointArray(wows_shell::shell &s,
+                                    const std::size_t xIndex,
+                                    const std::size_t yIndex) {
     if (s.completedImpact) {
         emscripten::val points = emscripten::val::array();
-        for(std::size_t i=0; i<s.impactSize; i++){
+        for (std::size_t i = 0; i < s.impactSize; i++) {
             emscripten::val point = emscripten::val::object();
             point.set("x", s.get_impact(i, xIndex));
-            point.set("y",s.get_impact(i, yIndex));
+            point.set("y", s.get_impact(i, yIndex));
             points.call<void>("push", point);
         }
         return points;
@@ -23,13 +25,15 @@ emscripten::val getImpactPointArray(wows_shell::shell& s, const std::size_t xInd
     }
 }
 
-emscripten::val getAnglePointArray(wows_shell::shell& s, const std::size_t xIndex, const std::size_t yIndex){
-    if (s.completedImpact) {
+emscripten::val getAnglePointArray(wows_shell::shell &s,
+                                   const std::size_t xIndex,
+                                   const std::size_t yIndex) {
+    if (s.completedAngles) {
         emscripten::val points = emscripten::val::array();
-        for(std::size_t i=0; i<s.impactSize; i++){
+        for (std::size_t i = 0; i < s.impactSize; i++) {
             emscripten::val point = emscripten::val::object();
             point.set("x", s.get_angle(i, xIndex));
-            point.set("y",s.get_angle(i, yIndex));
+            point.set("y", s.get_angle(i, yIndex));
             points.call<void>("push", point);
         }
         return points;
@@ -38,13 +42,16 @@ emscripten::val getAnglePointArray(wows_shell::shell& s, const std::size_t xInde
     }
 }
 
-emscripten::val getPostPenPointArray(wows_shell::shell& s, const std::size_t angle, const std::size_t xIndex, const std::size_t yIndex){
-    if (s.completedImpact) {
+emscripten::val getPostPenPointArray(wows_shell::shell &s,
+                                     const std::size_t angle,
+                                     const std::size_t xIndex,
+                                     const std::size_t yIndex) {
+    if (s.completedPostPen) {
         emscripten::val points = emscripten::val::array();
-        for(std::size_t i=0; i<s.impactSize; i++){
+        for (std::size_t i = 0; i < s.impactSize; i++) {
             emscripten::val point = emscripten::val::object();
             point.set("x", s.get_postPen(i, xIndex, angle));
-            point.set("y",s.get_postPen(i, yIndex, angle));
+            point.set("y", s.get_postPen(i, yIndex, angle));
             points.call<void>("push", point);
         }
         return points;
@@ -53,46 +60,111 @@ emscripten::val getPostPenPointArray(wows_shell::shell& s, const std::size_t ang
     }
 }
 
-emscripten::val getPostPenPointArrayFuseStatus(wows_shell::shell& s, const bool addCondition, const std::size_t angle, const std::size_t xIndex, const std::size_t yIndex){
+emscripten::val getPostPenPointArrayFuseStatus(wows_shell::shell &s,
+                                               const bool addCondition,
+                                               const std::size_t angle,
+                                               const std::size_t xIndex,
+                                               const std::size_t yIndex) {
     if (s.completedImpact) {
         emscripten::val points = emscripten::val::array();
-        if(addCondition){
-            for(std::size_t i=0; i<s.impactSize; i++){
-                if(s.get_postPen(i, wows_shell::post::postPenIndices::xwf, angle) >= 0){
+        if (addCondition) {
+            for (std::size_t i = 0; i < s.impactSize; i++) {
+                if (s.get_postPen(i, wows_shell::post::postPenIndices::xwf,
+                                  angle) >= 0) {
                     emscripten::val point = emscripten::val::object();
                     point.set("x", s.get_postPen(i, xIndex, angle));
-                    point.set("y",s.get_postPen(i, yIndex, angle));
+                    point.set("y", s.get_postPen(i, yIndex, angle));
                     points.call<void>("push", point);
                 }
             }
-        }else{
-            for(std::size_t i=0; i<s.impactSize; i++){
-                if(s.get_postPen(i, wows_shell::post::postPenIndices::xwf, angle) < 0){
+        } else {
+            for (std::size_t i = 0; i < s.impactSize; i++) {
+                if (s.get_postPen(i, wows_shell::post::postPenIndices::xwf,
+                                  angle) < 0) {
                     emscripten::val point = emscripten::val::object();
                     point.set("x", s.get_postPen(i, xIndex, angle));
-                    point.set("y",s.get_postPen(i, yIndex, angle));
+                    point.set("y", s.get_postPen(i, yIndex, angle));
                     points.call<void>("push", point);
                 }
             }
         }
         return points;
     } else {
-        throw std::runtime_error("Impact data not generated");
+        throw std::runtime_error("Post pen data not generated");
     }
 }
+
+emscripten::val getImpactSizedPointArray(wows_shell::shell &s,
+                                         emscripten::val params1,
+                                         emscripten::val params2) {
+    emscripten::val points = emscripten::val::array();
+
+    double *startX, *startY;
+    auto setup = [&](emscripten::val &param, double *&tgt) {
+        std::size_t index = param[0].as<std::size_t>();
+        switch (index) {
+            case wows_shell::toUnderlying(
+                wows_shell::calculateType::calcIndices::impact):
+                if (s.completedImpact) {
+                    tgt = s.get_impactPtr(0, param[1].as<std::size_t>());
+                } else {
+                    throw std::runtime_error("Impact data not generated");
+                }
+                break;
+            case wows_shell::toUnderlying(
+                wows_shell::calculateType::calcIndices::angle):
+                if (s.completedAngles) {
+                    tgt = s.get_anglePtr(0, param[1].as<std::size_t>());
+                } else {
+                    throw std::runtime_error("Impact data not generated");
+                }
+                break;
+            case wows_shell::toUnderlying(
+                wows_shell::calculateType::calcIndices::dispersion):
+                if (s.completedDispersion) {
+                    tgt = s.get_dispersionPtr(0, param[1].as<std::size_t>());
+                } else {
+                    throw std::runtime_error("Impact data not generated");
+                }
+                break;
+            case wows_shell::toUnderlying(
+                wows_shell::calculateType::calcIndices::post):
+                if (s.completedPostPen) {
+                    tgt = s.get_postPenPtr(0, param[1].as<std::size_t>(),
+                                           param[2].as<std::size_t>());
+                } else {
+                    throw std::runtime_error("Impact data not generated");
+                }
+                break;
+            default:
+                throw std::runtime_error("Invalid selection");
+        }
+    };
+    setup(params1, startX);
+    setup(params2, startY);
+
+    for (std::size_t i = 0; i < s.impactSize; ++i) {
+        emscripten::val point = emscripten::val::object();
+        point.set("x", *(startX + i));
+        point.set("y", *(startY + i));
+        points.call<void>("push", point);
+    }
+
+    return points;
 }
+
+}  // namespace pointArray
 
 #define ENABLE_SPLIT_SHELL
 #ifdef ENABLE_SPLIT_SHELL
 class shellWasm {
-    public:
+   public:
     wows_shell::shell s;
     shellWasm(const double caliber, const double v0, const double cD,
-                const double mass, const double krupp,
-                const double normalization, const double fuseTime,
-                const double threshold, const double ricochet0,
-                const double ricochet1, const double nonAP,
-                const std::string &name) {
+              const double mass, const double krupp, const double normalization,
+              const double fuseTime, const double threshold,
+              const double ricochet0, const double ricochet1,
+              const double nonAP, const std::string &name) {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
@@ -105,8 +177,8 @@ class shellWasm {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
-    std::size_t impactSize(){return s.impactSize;}
-    std::size_t impactSizeAligned(){return s.impactSizeAligned;}
+    std::size_t impactSize() { return s.impactSize; }
+    std::size_t impactSizeAligned() { return s.impactSizeAligned; }
 
     std::vector<double> impactData() {
         if (s.completedImpact) {
@@ -116,8 +188,10 @@ class shellWasm {
         }
     }
 
-    //These functions are for producing arrays suitable for chart.js scatter plots
-    emscripten::val getImpactPointArray(const std::size_t xIndex, const std::size_t yIndex){
+    // These functions are for producing arrays suitable for chart.js scatter
+    // plots
+    emscripten::val getImpactPointArray(const std::size_t xIndex,
+                                        const std::size_t yIndex) {
         return pointArray::getImpactPointArray(s, xIndex, yIndex);
     }
 
@@ -139,8 +213,10 @@ class shellWasm {
         return s.get_angle(row, impact);
     }
 
-    //These functions are for producing arrays suitable for chart.js scatter plots
-    emscripten::val getAnglePointArray(const std::size_t xIndex, const std::size_t yIndex){
+    // These functions are for producing arrays suitable for chart.js scatter
+    // plots
+    emscripten::val getAnglePointArray(const std::size_t xIndex,
+                                       const std::size_t yIndex) {
         return pointArray::getAnglePointArray(s, xIndex, yIndex);
     }
 
@@ -154,19 +230,28 @@ class shellWasm {
         }
     }
 
-    double getPostPenPoint(const std::size_t i, const std::size_t j, const std::size_t k) {
+    double getPostPenPoint(const std::size_t i, const std::size_t j,
+                           const std::size_t k) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return s.get_postPen(i, j, k);
     }
 
-    //These functions are for producing arrays suitable for chart.js scatter plots
-    emscripten::val getPostPenPointArray(const std::size_t angle, const std::size_t xIndex, const std::size_t yIndex){
+    // These functions are for producing arrays suitable for chart.js scatter
+    // plots
+    emscripten::val getPostPenPointArray(const std::size_t angle,
+                                         const std::size_t xIndex,
+                                         const std::size_t yIndex) {
         return pointArray::getPostPenPointArray(s, angle, xIndex, yIndex);
     }
 
-    //These functions are for producing arrays suitable for chart.js scatter plots
-    emscripten::val getPostPenPointArrayFuseStatus(const bool addCondition, const std::size_t angle, const std::size_t xIndex, const std::size_t yIndex){
-        return pointArray::getPostPenPointArrayFuseStatus(s, addCondition, angle, xIndex, yIndex);
+    // These functions are for producing arrays suitable for chart.js scatter
+    // plots
+    emscripten::val getPostPenPointArrayFuseStatus(const bool addCondition,
+                                                   const std::size_t angle,
+                                                   const std::size_t xIndex,
+                                                   const std::size_t yIndex) {
+        return pointArray::getPostPenPointArrayFuseStatus(
+            s, addCondition, angle, xIndex, yIndex);
     }
 
     void printImpact() {
@@ -194,15 +279,20 @@ class shellWasm {
     }
 };
 
-std::string generateShellWasmHash (const shellWasm& s){
+std::string generateShellWasmHash(const shellWasm &s) {
     return wows_shell::generateHash(s.s);
 }
 
+emscripten::val getImpactSizedPointArray(shellWasm &s, emscripten::val params1,
+                                         emscripten::val params2) {
+    return pointArray::getImpactSizedPointArray(s.s, params1, params2);
+}
+
 class shellCalcWasm : public wows_shell::shellCalc {
-    public:
+   public:
     shellCalcWasm() = default;
 
-    void setMax(const double max){set_max(max);}
+    void setMax(const double max) { set_max(max); }
     void setMin(const double min) { set_min(min); }
     void setPrecision(const double precision) { set_precision(precision); }
     void setX0(const double x0) { set_x0(x0); }
@@ -213,21 +303,21 @@ class shellCalcWasm : public wows_shell::shellCalc {
     void setDtf(const double dtf) { set_dtf(dtf); }
 
     template <wows_shell::numerical Numerical>
-    void calcImpact(shellWasm &sp){
-        #ifdef __EMSCRIPTEN_PTHREADS__
+    void calcImpact(shellWasm &sp) {
+#ifdef __EMSCRIPTEN_PTHREADS__
         calculateImpact<false, Numerical, false>(sp.s);
-        #else
+#else
         calculateImpact<false, Numerical, false>(sp.s, 1);
-        #endif
-    }   
+#endif
+    }
 
     void calcAngles(shellWasm &sp, const double thickness,
                     const double inclination) {
-        #ifdef __EMSCRIPTEN_PTHREADS__
+#ifdef __EMSCRIPTEN_PTHREADS__
         calculateAngles(thickness, inclination, sp.s);
-        #else
+#else
         calculateAngles(thickness, inclination, sp.s, 1);
-        #endif
+#endif
     }
 
     void calcPostPen(shellWasm &sp, const double thickness,
@@ -235,13 +325,13 @@ class shellCalcWasm : public wows_shell::shellCalc {
                      const bool changeDirection, const bool fast) {
         std::vector<double> input =
             emscripten::convertJSArrayToNumberVector<double>(anglesVal);
-        #ifdef __EMSCRIPTEN_PTHREADS__
+#ifdef __EMSCRIPTEN_PTHREADS__
         calculatePostPen(thickness, inclination, sp.s, input, changeDirection,
                          fast);
-        #else
+#else
         calculatePostPen(thickness, inclination, sp.s, input, changeDirection,
                          fast, 1);
-        #endif
+#endif
     }
 };
 #endif
@@ -293,13 +383,11 @@ class shellCombined {
     template <wows_shell::numerical Numerical>
     void calcImpact() {
         for (auto &s : ships) {
-            #ifdef __EMSCRIPTEN_PTHREADS__
-            calc.calculateImpact<Numerical, false>(
-                s, false);
-            #else
-            calc.calculateImpact<Numerical, false>(
-                s, false, 1);
-            #endif
+#ifdef __EMSCRIPTEN_PTHREADS__
+            calc.calculateImpact<Numerical, false>(s, false);
+#else
+            calc.calculateImpact<Numerical, false>(s, false, 1);
+#endif
         }
     }
 
@@ -315,25 +403,30 @@ class shellCombined {
         }
     }
 
-    double getImpactPoint(const std::size_t shipIndex, const std::size_t i, const std::size_t j) {
+    double getImpactPoint(const std::size_t shipIndex, const std::size_t i,
+                          const std::size_t j) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return ships[shipIndex].get_impact(i, j);
     }
 
-    //These functions are for producing arrays suitable for chart.js scatter plots
-    emscripten::val getImpactPointArray(const std::size_t shipIndex, const std::size_t xIndex, const std::size_t yIndex){
-        return pointArray::getImpactPointArray(ships[shipIndex], xIndex, yIndex);
+    // These functions are for producing arrays suitable for chart.js scatter
+    // plots
+    emscripten::val getImpactPointArray(const std::size_t shipIndex,
+                                        const std::size_t xIndex,
+                                        const std::size_t yIndex) {
+        return pointArray::getImpactPointArray(ships[shipIndex], xIndex,
+                                               yIndex);
     }
 
     // Angle Data Wrappers
 
     void calcAngles(const double thickness, const double inclination) {
         for (auto &s : ships) {
-            #ifdef __EMSCRIPTEN_PTHREADS__
+#ifdef __EMSCRIPTEN_PTHREADS__
             calc.calculateAngles(thickness, inclination, s);
-            #else
+#else
             calc.calculateAngles(thickness, inclination, s, 1);
-            #endif
+#endif
         }
     }
 
@@ -345,14 +438,17 @@ class shellCombined {
         }
     }
 
-    double getAnglePoint(const std::size_t shipIndex, const std::size_t row, const std::size_t impact) {
+    double getAnglePoint(const std::size_t shipIndex, const std::size_t row,
+                         const std::size_t impact) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return ships[shipIndex].get_angle(row, impact);
     }
 
-    emscripten::val getAnglePointArray(const std::size_t shipIndex, const std::size_t xIndex, const std::size_t yIndex){
+    emscripten::val getAnglePointArray(const std::size_t shipIndex,
+                                       const std::size_t xIndex,
+                                       const std::size_t yIndex) {
         return pointArray::getAnglePointArray(ships[shipIndex], xIndex, yIndex);
-    }    
+    }
 
     // Post Penetration Wrappers
 
@@ -362,13 +458,13 @@ class shellCombined {
         std::vector<double> input =
             emscripten::convertJSArrayToNumberVector<double>(v);
         for (auto &s : ships) {
-            #ifdef __EMSCRIPTEN_PTHREADS__
+#ifdef __EMSCRIPTEN_PTHREADS__
             calc.calculatePostPen(thickness, inclination, s, input,
                                   changeDirection, fast);
-            #else
+#else
             calc.calculatePostPen(thickness, inclination, s, input,
                                   changeDirection, fast, 1);
-            #endif
+#endif
         }
     }
 
@@ -383,17 +479,27 @@ class shellCombined {
         }
     }
 
-    double getPostPenPoint(const std::size_t shipIndex, const std::size_t i, const std::size_t j, const std::size_t k) {
+    double getPostPenPoint(const std::size_t shipIndex, const std::size_t i,
+                           const std::size_t j, const std::size_t k) {
         // NOT SAFE - PLEASE MAKE SURE YOU ARE NOT OVERFLOWING
         return ships[shipIndex].get_postPen(i, j, k);
     }
 
-    emscripten::val getPostPenPointArray(const std::size_t shipIndex, const std::size_t angle, const std::size_t xIndex, const std::size_t yIndex){
-        return pointArray::getPostPenPointArray(ships[shipIndex], angle, xIndex, yIndex);
+    emscripten::val getPostPenPointArray(const std::size_t shipIndex,
+                                         const std::size_t angle,
+                                         const std::size_t xIndex,
+                                         const std::size_t yIndex) {
+        return pointArray::getPostPenPointArray(ships[shipIndex], angle, xIndex,
+                                                yIndex);
     }
-    
-    emscripten::val getPostPenPointArrayFuseStatus(const std::size_t shipIndex, const bool addCondition, const std::size_t angle, const std::size_t xIndex, const std::size_t yIndex){
-        return pointArray::getPostPenPointArrayFuseStatus(ships[shipIndex], addCondition, angle, xIndex, yIndex);
+
+    emscripten::val getPostPenPointArrayFuseStatus(const std::size_t shipIndex,
+                                                   const bool addCondition,
+                                                   const std::size_t angle,
+                                                   const std::size_t xIndex,
+                                                   const std::size_t yIndex) {
+        return pointArray::getPostPenPointArrayFuseStatus(
+            ships[shipIndex], addCondition, angle, xIndex, yIndex);
     }
 
     // Print Functions
@@ -444,10 +550,10 @@ class shellCombined {
 
 // Testline: s = shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76.0, .033 )
 EMSCRIPTEN_BINDINGS(shellWasm) {
-
 #ifdef ENABLE_SPLIT_SHELL
     emscripten::class_<shellWasm>("shell")
-        .constructor<double, double, double, double, double, double, double, double, double, double, double, std::string>()
+        .constructor<double, double, double, double, double, double, double,
+                     double, double, double, double, std::string>()
         .function("setValues", &shellWasm::setValues)
         .function("getImpactPoint", &shellWasm::getImpactPoint)
         .function("getImpactPointArray", &shellWasm::getImpactPointArray)
@@ -460,15 +566,17 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("postPenData", &shellWasm::postPenData)
         .function("getPostPenPoint", &shellWasm::getPostPenPoint)
         .function("getPostPenPointArray", &shellWasm::getPostPenPointArray)
-        .function("getPostPenPointArrayFuseStatus", &shellWasm::getPostPenPointArrayFuseStatus)
+        .function("getPostPenPointArrayFuseStatus",
+                  &shellWasm::getPostPenPointArrayFuseStatus)
         .function("getPostPenSize", &shellWasm::postPenSize)
         .function("printImpact", &shellWasm::printImpact)
         .function("printAngles", &shellWasm::printAngles)
         .function("printPostPen", &shellWasm::printPostPen);
-    
+
     emscripten::function("generateHash", &wows_shell::generateShellParamHash);
     emscripten::function("generateShellHash", &generateShellWasmHash);
-    
+    emscripten::function("getImpactSizedPointArray", &getImpactSizedPointArray);
+
     emscripten::class_<shellCalcWasm>("shellCalc")
         .constructor()
         .function("setMax", &shellCalcWasm::setMax)
@@ -480,16 +588,21 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("setXf0", &shellCalcWasm::setXf0)
         .function("setYf0", &shellCalcWasm::setYf0)
         .function("setDtf", &shellCalcWasm::setDtf)
-        .function("calcImpact",
-                  &shellCalcWasm::calcImpact<wows_shell::numerical::forwardEuler>)
-        .function("calcImpactAdamsBashforth5",
-                  &shellCalcWasm::calcImpact<wows_shell::numerical::adamsBashforth5>)
-        .function("calcImpactForwardEuler",
-                  &shellCalcWasm::calcImpact<wows_shell::numerical::forwardEuler>)
-        .function("calcImpactRungeKutta2",
-                  &shellCalcWasm::calcImpact<wows_shell::numerical::rungeKutta2>)
-        .function("calcImpactRungeKutta4",
-                  &shellCalcWasm::calcImpact<wows_shell::numerical::rungeKutta4>)
+        .function(
+            "calcImpact",
+            &shellCalcWasm::calcImpact<wows_shell::numerical::forwardEuler>)
+        .function(
+            "calcImpactAdamsBashforth5",
+            &shellCalcWasm::calcImpact<wows_shell::numerical::adamsBashforth5>)
+        .function(
+            "calcImpactForwardEuler",
+            &shellCalcWasm::calcImpact<wows_shell::numerical::forwardEuler>)
+        .function(
+            "calcImpactRungeKutta2",
+            &shellCalcWasm::calcImpact<wows_shell::numerical::rungeKutta2>)
+        .function(
+            "calcImpactRungeKutta4",
+            &shellCalcWasm::calcImpact<wows_shell::numerical::rungeKutta4>)
         .function("calcAngles", &shellCalcWasm::calcAngles)
         .function("calcPostPen", &shellCalcWasm::calcPostPen);
 #endif
@@ -508,16 +621,21 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("setYf0", &shellCombined::setYf0)
         .function("setDtf", &shellCombined::setDtf)
 
-        .function("calcImpact",
-                  &shellCombined::calcImpact<wows_shell::numerical::adamsBashforth5>)
-        .function("calcImpactAdamsBashforth5",
-                  &shellCombined::calcImpact<wows_shell::numerical::adamsBashforth5>)
-        .function("calcImpactForwardEuler",
-                  &shellCombined::calcImpact<wows_shell::numerical::forwardEuler>)
-        .function("calcImpactRungeKutta2",
-                  &shellCombined::calcImpact<wows_shell::numerical::rungeKutta2>)
-        .function("calcImpactRungeKutta4",
-                  &shellCombined::calcImpact<wows_shell::numerical::rungeKutta4>)
+        .function(
+            "calcImpact",
+            &shellCombined::calcImpact<wows_shell::numerical::adamsBashforth5>)
+        .function(
+            "calcImpactAdamsBashforth5",
+            &shellCombined::calcImpact<wows_shell::numerical::adamsBashforth5>)
+        .function(
+            "calcImpactForwardEuler",
+            &shellCombined::calcImpact<wows_shell::numerical::forwardEuler>)
+        .function(
+            "calcImpactRungeKutta2",
+            &shellCombined::calcImpact<wows_shell::numerical::rungeKutta2>)
+        .function(
+            "calcImpactRungeKutta4",
+            &shellCombined::calcImpact<wows_shell::numerical::rungeKutta4>)
 
         .function("getImpactPoint", &shellCombined::getImpactPoint)
         .function("impactData", &shellCombined::impactData)
@@ -534,7 +652,8 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("getPostPenPoint", &shellCombined::getPostPenPoint)
         .function("postPenData", &shellCombined::postPenData)
         .function("getPostPenPointArray", &shellCombined::getPostPenPointArray)
-        .function("getPostPenPointArrayFuseStatus", &shellCombined::getPostPenPointArrayFuseStatus)
+        .function("getPostPenPointArrayFuseStatus",
+                  &shellCombined::getPostPenPointArrayFuseStatus)
         .function("getPostPenSize", &shellCombined::postPenSize)
 
         .function("printImpact", &shellCombined::printImpact)
@@ -553,15 +672,17 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
                wows_shell::impact::impactIndices::impactAngleHorizontalDegrees)
         .value("impactV", wows_shell::impact::impactIndices::impactVelocity)
         .value("rawPen", wows_shell::impact::impactIndices::rawPenetration)
-        .value("ePenH",
-               wows_shell::impact::impactIndices::effectivePenetrationHorizontal)
+        .value(
+            "ePenH",
+            wows_shell::impact::impactIndices::effectivePenetrationHorizontal)
         .value("ePenHN", wows_shell::impact::impactIndices::
                              effectivePenetrationHorizontalNormalized)
         .value("impactADD",
                wows_shell::impact::impactIndices::impactAngleDeckDegrees)
-        .value("ePenD", wows_shell::impact::impactIndices::effectivePenetrationDeck)
-        .value("ePenDN",
-               wows_shell::impact::impactIndices::effectivePenetrationDeckNormalized)
+        .value("ePenD",
+               wows_shell::impact::impactIndices::effectivePenetrationDeck)
+        .value("ePenDN", wows_shell::impact::impactIndices::
+                             effectivePenetrationDeckNormalized)
         .value("tToTarget", wows_shell::impact::impactIndices::timeToTarget)
         .value("tToTargetA",
                wows_shell::impact::impactIndices::timeToTargetAdjusted);
