@@ -168,6 +168,14 @@ class shellWasm {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
+    shellWasm(const wows_shell::shellParams &sp, const std::string &name) {
+        s.setValues(sp, name);
+    }
+    shellWasm(const wows_shell::shellParams &sp,
+              const wows_shell::dispersionParams &dp, const std::string &name) {
+        s.setValues(sp, dp, name);
+    }
+
     void setValues(const double caliber, const double v0, const double cD,
                    const double mass, const double krupp,
                    const double normalization, const double fuseTime,
@@ -317,6 +325,14 @@ class shellCalcWasm : public wows_shell::shellCalc {
         calculateAngles(thickness, inclination, sp.s);
 #else
         calculateAngles(thickness, inclination, sp.s, 1);
+#endif
+    }
+
+    void calcDispersion(shellWasm &sp) {
+#ifdef __EMSCRIPTEN_PTHREADS__
+        calculateDispersion(sp.s);
+#else
+        calculateDispersion(sp.s, 1);
 #endif
     }
 
@@ -550,10 +566,38 @@ class shellCombined {
 
 // Testline: s = shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76.0, .033 )
 EMSCRIPTEN_BINDINGS(shellWasm) {
+    emscripten::value_object<wows_shell::shellParams>("shellParams")
+        .field("caliber", &wows_shell::shellParams::caliber)
+        .field("v0", &wows_shell::shellParams::v0)
+        .field("cD", &wows_shell::shellParams::cD)
+        .field("mass", &wows_shell::shellParams::mass)
+        .field("krupp", &wows_shell::shellParams::krupp)
+        .field("normalization", &wows_shell::shellParams::normalization)
+        .field("fuseTime", &wows_shell::shellParams::fuseTime)
+        .field("threshold", &wows_shell::shellParams::threshold)
+        .field("ricochet0", &wows_shell::shellParams::ricochet0)
+        .field("ricochet1", &wows_shell::shellParams::ricochet1)
+        .field("nonAP", &wows_shell::shellParams::nonAP);
+
+    emscripten::value_object<wows_shell::dispersionParams>("dispersionParams")
+        .field("idealRadius", &wows_shell::dispersionParams::idealRadius)
+        .field("minRadius", &wows_shell::dispersionParams::minRadius)
+        .field("idealDistance", &wows_shell::dispersionParams::idealDistance)
+        .field("taperDistance", &wows_shell::dispersionParams::taperDistance)
+        .field("delim", &wows_shell::dispersionParams::delim)
+        .field("zeroRadius", &wows_shell::dispersionParams::zeroRadius)
+        .field("delimRadius", &wows_shell::dispersionParams::delimRadius)
+        .field("maxRadius", &wows_shell::dispersionParams::maxRadius)
+        .field("maxDistance", &wows_shell::dispersionParams::maxDistance)
+        .field("sigma", &wows_shell::dispersionParams::sigma);
+
 #ifdef ENABLE_SPLIT_SHELL
     emscripten::class_<shellWasm>("shell")
         .constructor<double, double, double, double, double, double, double,
                      double, double, double, double, std::string>()
+        .constructor<wows_shell::shellParams, std::string>()
+        .constructor<wows_shell::shellParams, wows_shell::dispersionParams,
+                     std::string>()
         .function("setValues", &shellWasm::setValues)
         .function("getImpactPoint", &shellWasm::getImpactPoint)
         .function("getImpactPointArray", &shellWasm::getImpactPointArray)
@@ -604,6 +648,7 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
             "calcImpactRungeKutta4",
             &shellCalcWasm::calcImpact<wows_shell::numerical::rungeKutta4>)
         .function("calcAngles", &shellCalcWasm::calcAngles)
+        .function("calcDispersion", &shellCalcWasm::calcDispersion)
         .function("calcPostPen", &shellCalcWasm::calcPostPen);
 #endif
 #ifdef ENABLE_SHELL_COMBINED
@@ -698,6 +743,25 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .value("fuse", wows_shell::angle::angleIndices::fuseRadians)
         .value("fuseD", wows_shell::angle::angleIndices::fuseDegrees);
 
+    emscripten::enum_<wows_shell::dispersion::dispersionIndices>(
+        "dispersionIndices")
+        .value("maxHorizontal",
+               wows_shell::dispersion::dispersionIndices::maxHorizontal)
+        .value("standardHorizontal",
+               wows_shell::dispersion::dispersionIndices::standardHorizontal)
+        .value("halfHorizontal",
+               wows_shell::dispersion::dispersionIndices::halfHorizontal)
+        .value("maxVertical",
+               wows_shell::dispersion::dispersionIndices::maxVertical)
+        .value("standardVertical",
+               wows_shell::dispersion::dispersionIndices::standardVertical)
+        .value("halfVertical",
+               wows_shell::dispersion::dispersionIndices::halfVertical)
+        .value("maxArea", wows_shell::dispersion::dispersionIndices::maxArea)
+        .value("standardArea",
+               wows_shell::dispersion::dispersionIndices::standardArea)
+        .value("halfArea", wows_shell::dispersion::dispersionIndices::halfArea);
+
     emscripten::enum_<wows_shell::post::postPenIndices>("postPenIndices")
         .value("angle", wows_shell::post::postPenIndices::angle)
         .value("distance", wows_shell::post::postPenIndices::distance)
@@ -705,4 +769,10 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .value("y", wows_shell::post::postPenIndices::y)
         .value("z", wows_shell::post::postPenIndices::z)
         .value("xwf", wows_shell::post::postPenIndices::xwf);
+
+    emscripten::enum_<wows_shell::calculateType::calcIndices>("calcIndices")
+        .value("impact", wows_shell::calculateType::calcIndices::impact)
+        .value("angle", wows_shell::calculateType::calcIndices::angle)
+        .value("dispersion", wows_shell::calculateType::calcIndices::dispersion)
+        .value("post", wows_shell::calculateType::calcIndices::post);
 };

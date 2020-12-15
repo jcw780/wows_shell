@@ -62,6 +62,17 @@
         [.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0],
         [.220, 995, .2549, 207, 2574, 7, .022, 37, 55, 65, 0]
     ];
+    const shellDataStruct = [
+        [{
+            caliber: .460, v0: 780, cD: .292, mass: 1460, krupp: 2574,
+            normalization: 6, fuseTime: .033, threshold: 76, ricochet0: 45,
+            ricochet1: 60, nonAP: 0
+        }, {
+            idealRadius: 10, minRadius: 2.8, idealDistance: 1000,
+            taperDistance: 5000, delim: 0.5, zeroRadius: 0.2,
+            delimRadius: 0.6, maxRadius: 0.8, maxDistance: 26630, sigma: 2.1
+        }],
+    ];
     const angles = [10];
 
 
@@ -145,14 +156,19 @@
         calc.setPrecision(0.1);
         calc.setDtMin(0.01);
 
-        for (const data of shellData) {
+        /*for (const data of shellData) {
             shells.push(new Module.shell(...data, ''));
             console.log(Module.generateHash(...data));
+        }*/
+
+        for (const data of shellDataStruct) {
+            shells.push(new Module.shell(data[0], data[1], ''));
         }
 
         for (const shell of shells) {
             calc.calcImpact(shell);
             calc.calcAngles(shell, 70, -20);
+            calc.calcDispersion(shell);
             calc.calcPostPen(shell, 70, -20, angles, true, false);
 
             const hash = Module.generateShellHash(shell)
@@ -212,8 +228,13 @@
             ));
 
             console.log(Module.getImpactSizedPointArray(shell,
-                [0, Module.impactIndices.distance.value],
-                [3, Module.postPenIndices.x.value, 0]
+                [Module.calcIndices.impact.value, Module.impactIndices.distance.value],
+                [Module.calcIndices.post.value, Module.postPenIndices.x.value, 0]
+            ));
+
+            console.log(Module.getImpactSizedPointArray(shell,
+                [Module.calcIndices.impact.value, Module.impactIndices.distance.value],
+                [Module.calcIndices.dispersion.value, Module.dispersionIndices.maxHorizontal.value]
             ));
         }
 

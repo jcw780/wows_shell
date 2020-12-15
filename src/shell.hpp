@@ -26,7 +26,7 @@ struct shellParams {
     double threshold;
     double ricochet0;
     double ricochet1;
-    double nonAP;
+    double nonAP;  // probably change this to int or something
 };
 
 struct dispersionParams {
