@@ -93,57 +93,74 @@ class shellPython {
         return s.interpolateDistanceImpact(distance, impact);
     }
 
-    pybind11::array_t<double> getImpact() {
+    pybind11::array_t<double> getImpact(bool owned = true) {
+        constexpr std::size_t sT = sizeof(double);
         if (s.completedImpact) {
-            constexpr std::size_t sT = sizeof(double);
-            auto result = pybind11::array(pybind11::buffer_info(
-                s.get_impactPtr(0, 0), sT,
-                pybind11::format_descriptor<double>::value, 2,
-                {wows_shell::impact::maxColumns, s.impactSize},
-                {s.impactSizeAligned * sT, sT}));
+            std::vector<size_t> shape = {wows_shell::impact::maxColumns,
+                                         s.impactSize};
+            std::vector<size_t> stride = {s.impactSizeAligned * sT, sT};
+            double *tgt = s.get_impactPtr(0, 0);
+            auto result =
+                owned ? pybind11::array_t<double>(pybind11::buffer_info(
+                            tgt, sT, pybind11::format_descriptor<double>::value,
+                            2, shape, stride))
+                      : pybind11::array_t<double>(shape, stride, tgt);
             return result;
         } else {
             throw std::runtime_error("Impact data not generated");
         }
     }
 
-    pybind11::array_t<double> getAngles() {
+    pybind11::array_t<double> getAngles(bool owned = true) {
         if (s.completedAngles) {
             constexpr std::size_t sT = sizeof(double);
-            auto result = pybind11::array(pybind11::buffer_info(
-                s.get_anglePtr(0, 0), sT,
-                pybind11::format_descriptor<double>::value, 2,
-                {wows_shell::angle::maxColumns, s.impactSize},
-                {s.impactSizeAligned * sT, sT}));
+            std::vector<size_t> shape = {wows_shell::angle::maxColumns,
+                                         s.impactSize};
+            std::vector<size_t> stride = {s.impactSizeAligned * sT, sT};
+            double *tgt = s.get_anglePtr(0, 0);
+            auto result =
+                owned ? pybind11::array_t<double>(pybind11::buffer_info(
+                            tgt, sT, pybind11::format_descriptor<double>::value,
+                            2, shape, stride))
+                      : pybind11::array_t<double>(shape, stride, tgt);
             return result;
         } else {
             throw std::runtime_error("Impact data not generated");
         }
     }
 
-    pybind11::array_t<double> getDispersion() {
+    pybind11::array_t<double> getDispersion(bool owned = true) {
         if (s.completedDispersion) {
             constexpr std::size_t sT = sizeof(double);
-            auto result = pybind11::array(pybind11::buffer_info(
-                s.get_dispersionPtr(0, 0), sT,
-                pybind11::format_descriptor<double>::value, 2,
-                {wows_shell::dispersion::maxColumns, s.impactSize},
-                {s.impactSizeAligned * sT, sT}));
+            std::vector<size_t> shape = {wows_shell::dispersion::maxColumns,
+                                         s.impactSize};
+            std::vector<size_t> stride = {s.impactSizeAligned * sT, sT};
+            double *tgt = s.get_dispersionPtr(0, 0);
+            auto result =
+                owned ? pybind11::array_t<double>(pybind11::buffer_info(
+                            tgt, sT, pybind11::format_descriptor<double>::value,
+                            2, shape, stride))
+                      : pybind11::array_t<double>(shape, stride, tgt);
             return result;
         } else {
             throw std::runtime_error("Impact data not generated");
         }
     }
 
-    pybind11::array_t<double> getPostPen() {
+    pybind11::array_t<double> getPostPen(bool owned = true) {
         if (s.completedPostPen) {
             constexpr std::size_t sT = sizeof(double);
             std::size_t numAngles = s.postPenSize / s.impactSize;
-            auto result = pybind11::array(pybind11::buffer_info(
-                s.get_postPenPtr(0, 0, 0), sT,
-                pybind11::format_descriptor<double>::value, 3,
-                {wows_shell::post::maxColumns, numAngles, s.impactSize},
-                {s.postPenSize * sT, s.impactSize * sT, sT}));
+            std::vector<size_t> shape = {wows_shell::post::maxColumns,
+                                         numAngles, s.impactSize};
+            std::vector<size_t> stride = {s.postPenSize * sT, s.impactSize * sT,
+                                          sT};
+            double *tgt = s.get_postPenPtr(0, 0, 0);
+            auto result =
+                owned ? pybind11::array_t<double>(pybind11::buffer_info(
+                            tgt, sT, pybind11::format_descriptor<double>::value,
+                            3, shape, stride))
+                      : pybind11::array_t<double>(shape, stride, tgt);
             return result;
         } else {
             throw std::runtime_error("PostPen data not generated");
@@ -414,11 +431,15 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("setValues", &shellPython::setValues)
         .def("interpolateDistanceImpact",
              &shellPython::interpolateDistanceImpact)
-        .def("getImpact", &shellPython::getImpact)
+        .def("getImpact", &shellPython::getImpact,
+             pybind11::arg("owned") = true)
         // pybind11::return_value_policy::reference)
-        .def("getAngles", &shellPython::getAngles)
-        .def("getDispersion", &shellPython::getDispersion)
-        .def("getPostPen", &shellPython::getPostPen)
+        .def("getAngles", &shellPython::getAngles,
+             pybind11::arg("owned") = true)
+        .def("getDispersion", &shellPython::getDispersion,
+             pybind11::arg("owned") = true)
+        .def("getPostPen", &shellPython::getPostPen,
+             pybind11::arg("owned") = true)
         // pybind11::return_value_policy::reference)
         .def("printImpact", &shellPython::printImpact)
         .def("printAngles", &shellPython::printAngles)
