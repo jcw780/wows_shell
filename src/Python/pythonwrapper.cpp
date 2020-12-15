@@ -36,6 +36,10 @@ class shellPython {
                 const double threshold, const double ricochet0,
                 const double ricochet1, const double nonAP,
                 const std::string &name) {
+        PyErr_WarnEx(PyExc_DeprecationWarning,
+                     "This constructor is deprecated, use "
+                     "shell(shellParams(args...), name) instead.",
+                     1);
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
@@ -219,6 +223,9 @@ class shellCombined {
                   const double threshold, const double ricochet0,
                   const double ricochet1, const double nonAP,
                   const std::string &name) {
+        PyErr_WarnEx(
+            PyExc_DeprecationWarning,
+            "shellCombined is deprecated, use shell and shellCalc instead.", 1);
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
