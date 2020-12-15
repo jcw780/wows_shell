@@ -10,6 +10,8 @@ setup_pybind11(cfg)
 strdup not defined in windows
 https://github.com/pybind/pybind11/issues/1212
 */
+#include <cstdlib>
+#include <iterator>
 #ifdef _WIN32
 #define strdup _strdup
 #endif
@@ -71,6 +73,14 @@ class shellPython {
         }
     }
 
+    void printDispersion() {
+        if (s.completedDispersion) {
+            s.printDispersionData();
+        } else {
+            throw std::runtime_error("Dispersion data not generated");
+        }
+    }
+
     void printPostPen() {
         if (s.completedPostPen) {
             s.printPostPenData();
@@ -87,17 +97,10 @@ class shellPython {
         if (s.completedImpact) {
             constexpr std::size_t sT = sizeof(double);
             auto result = pybind11::array(pybind11::buffer_info(
-                s.get_impactPtr(0, 0), /* Pointer to data (nullptr -> ask NumPy
-                                         to allocate!) */
-                sT,                    /* Size of one item */
-                pybind11::format_descriptor<double>::value, /* Buffer format */
-                2, /* How many dimensions? */
-                std::vector<std::size_t>{
-                    wows_shell::impact::maxColumns,
-                    s.impactSize}, /* Number of elements for each dimension */
-                std::vector<std::size_t>{s.impactSizeAligned * sT, sT}
-                /* Strides for each dimension */
-                ));
+                s.get_impactPtr(0, 0), sT,
+                pybind11::format_descriptor<double>::value, 2,
+                {wows_shell::impact::maxColumns, s.impactSize},
+                {s.impactSizeAligned * sT, sT}));
             return result;
         } else {
             throw std::runtime_error("Impact data not generated");
@@ -105,20 +108,27 @@ class shellPython {
     }
 
     pybind11::array_t<double> getAngles() {
-        if (s.completedImpact) {
+        if (s.completedAngles) {
             constexpr std::size_t sT = sizeof(double);
             auto result = pybind11::array(pybind11::buffer_info(
-                s.get_anglePtr(0, 0), /* Pointer to data (nullptr -> ask NumPy
-                                         to allocate!) */
-                sT,                   /* Size of one item */
-                pybind11::format_descriptor<double>::value, /* Buffer format */
-                2, /* How many dimensions? */
-                std::vector<std::size_t>{
-                    wows_shell::angle::maxColumns,
-                    s.impactSize}, /* Number of elements for each dimension */
-                std::vector<std::size_t>{s.impactSizeAligned * sT, sT}
-                /* Strides for each dimension */
-                ));
+                s.get_anglePtr(0, 0), sT,
+                pybind11::format_descriptor<double>::value, 2,
+                {wows_shell::angle::maxColumns, s.impactSize},
+                {s.impactSizeAligned * sT, sT}));
+            return result;
+        } else {
+            throw std::runtime_error("Impact data not generated");
+        }
+    }
+
+    pybind11::array_t<double> getDispersion() {
+        if (s.completedDispersion) {
+            constexpr std::size_t sT = sizeof(double);
+            auto result = pybind11::array(pybind11::buffer_info(
+                s.get_dispersionPtr(0, 0), sT,
+                pybind11::format_descriptor<double>::value, 2,
+                {wows_shell::dispersion::maxColumns, s.impactSize},
+                {s.impactSizeAligned * sT, sT}));
             return result;
         } else {
             throw std::runtime_error("Impact data not generated");
@@ -128,14 +138,12 @@ class shellPython {
     pybind11::array_t<double> getPostPen() {
         if (s.completedPostPen) {
             constexpr std::size_t sT = sizeof(double);
+            std::size_t numAngles = s.postPenSize / s.impactSize;
             auto result = pybind11::array(pybind11::buffer_info(
                 s.get_postPenPtr(0, 0, 0), sT,
                 pybind11::format_descriptor<double>::value, 3,
-                std::vector<std::size_t>{wows_shell::post::maxColumns,
-                                         (int)s.postPenSize / s.impactSize,
-                                         s.impactSize},
-                std::vector<std::size_t>{s.postPenSize * sT, s.impactSize * sT,
-                                         sT}));
+                {wows_shell::post::maxColumns, numAngles, s.impactSize},
+                {s.postPenSize * sT, s.impactSize * sT, sT}));
             return result;
         } else {
             throw std::runtime_error("PostPen data not generated");
@@ -170,6 +178,8 @@ class shellCalcPython : public wows_shell::shellCalc {
                     const double inclination) {
         calculateAngles(thickness, inclination, sp.s);
     }
+
+    void calcDispersion(shellPython &sp) { calculateDispersion(sp.s); }
 
     void calcPostPen(shellPython &sp, const double thickness,
                      const double inclination, std::vector<double> angles,
@@ -279,17 +289,10 @@ class shellCombined {
         if (s.completedImpact) {
             constexpr std::size_t sT = sizeof(double);
             auto result = pybind11::array(pybind11::buffer_info(
-                s.get_impactPtr(0, 0), /* Pointer to data (nullptr -> ask NumPy
-                                         to allocate!) */
-                sT,                    /* Size of one item */
-                pybind11::format_descriptor<double>::value, /* Buffer format */
-                2, /* How many dimensions? */
-                std::vector<std::size_t>{
-                    wows_shell::impact::maxColumns,
-                    s.impactSize}, /* Number of elements for each dimension */
-                std::vector<std::size_t>{s.impactSizeAligned * sT, sT}
-                /* Strides for each dimension */
-                ));
+                s.get_impactPtr(0, 0), sT,
+                pybind11::format_descriptor<double>::value, 2,
+                {wows_shell::impact::maxColumns, s.impactSize},
+                {s.impactSizeAligned * sT, sT}));
             return result;
         } else {
             throw std::runtime_error("Impact data not generated");
@@ -297,20 +300,13 @@ class shellCombined {
     }
 
     pybind11::array_t<double> getAngles() {
-        if (s.completedImpact) {
+        if (s.completedAngles) {
             constexpr std::size_t sT = sizeof(double);
             auto result = pybind11::array(pybind11::buffer_info(
-                s.get_anglePtr(0, 0), /* Pointer to data (nullptr -> ask NumPy
-                                         to allocate!) */
-                sT,                   /* Size of one item */
-                pybind11::format_descriptor<double>::value, /* Buffer format */
-                2, /* How many dimensions? */
-                std::vector<std::size_t>{
-                    wows_shell::angle::maxColumns,
-                    s.impactSize}, /* Number of elements for each dimension */
-                std::vector<std::size_t>{s.impactSizeAligned * sT, sT}
-                /* Strides for each dimension */
-                ));
+                s.get_anglePtr(0, 0), sT,
+                pybind11::format_descriptor<double>::value, 2,
+                {wows_shell::angle::maxColumns, s.impactSize},
+                {s.impactSizeAligned * sT, sT}));
             return result;
         } else {
             throw std::runtime_error("Impact data not generated");
@@ -320,14 +316,12 @@ class shellCombined {
     pybind11::array_t<double> getPostPen() {
         if (s.completedPostPen) {
             constexpr std::size_t sT = sizeof(double);
+            std::size_t numAngles = s.postPenSize / s.impactSize;
             auto result = pybind11::array(pybind11::buffer_info(
                 s.get_postPenPtr(0, 0, 0), sT,
                 pybind11::format_descriptor<double>::value, 3,
-                std::vector<std::size_t>{wows_shell::post::maxColumns,
-                                         (int)s.postPenSize / s.impactSize,
-                                         s.impactSize},
-                std::vector<std::size_t>{s.postPenSize * sT, s.impactSize * sT,
-                                         sT}));
+                {wows_shell::post::maxColumns, numAngles, s.impactSize},
+                {s.postPenSize * sT, s.impactSize * sT, sT}));
             return result;
         } else {
             throw std::runtime_error("PostPen data not generated");
@@ -423,10 +417,12 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("getImpact", &shellPython::getImpact)
         // pybind11::return_value_policy::reference)
         .def("getAngles", &shellPython::getAngles)
+        .def("getDispersion", &shellPython::getDispersion)
         .def("getPostPen", &shellPython::getPostPen)
         // pybind11::return_value_policy::reference)
         .def("printImpact", &shellPython::printImpact)
         .def("printAngles", &shellPython::printAngles)
+        .def("printDispersion", &shellPython::printDispersion)
         .def("printPostPen", &shellPython::printPostPen);
 
     pybind11::class_<shellCalcPython>(m, "shellCalc",
@@ -451,6 +447,7 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("calcImpactRungeKutta4",
              &shellCalcPython::calcImpact<wows_shell::numerical::rungeKutta4>)
         .def("calcAngles", &shellCalcPython::calcAngles)
+        .def("calcDispersion", &shellCalcPython::calcDispersion)
         .def("calcPostPen", &shellCalcPython::calcPostPen);
     // Enums
     pybind11::enum_<wows_shell::impact::impactIndices>(m, "impactIndices",
