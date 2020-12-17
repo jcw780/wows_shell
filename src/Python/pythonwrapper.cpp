@@ -60,6 +60,10 @@ class shellPython {
                    const double threshold, const double ricochet0,
                    const double ricochet1, const double nonAP,
                    const std::string &name) {
+        PyErr_WarnEx(PyExc_DeprecationWarning,
+                     "shell.setValues(args...) is deprecated, use "
+                     "shell.setValues(shellParams(args...), name) instead.",
+                     1);
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }

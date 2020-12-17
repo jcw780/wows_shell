@@ -1,13 +1,13 @@
-from pythonwrapper import shell, shellCalc
-from pythonwrapper import impactIndices, angleIndices, postPenIndices
+from pythonwrapper import *
 import numpy as np
 import matplotlib
 #matplotlib.use('TkAgg',warn=False, force=True)
 import matplotlib.pyplot as plt
 
-#Yes, this can be written more efficiently
+# Yes, this can be written more efficiently
 
-s = shell(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0, 'Yamato')
+s = shell(shellParams(.460, 780, .292, 1460,
+                      2574, 6, .033, 76, 45, 60, 0), 'Yamato')
 impacts = {}
 
 c = shellCalc()
@@ -85,13 +85,15 @@ ax2L = []
 
 for key, value in impacts.items():
     ax1V, = ax1.plot(
-        value[impactIndices.launchAngle,:], 
-        value[impactIndices.distance,:] - reference[impactIndices.distance,:],
+        value[impactIndices.launchAngle, :],
+        value[impactIndices.distance, :] -
+        reference[impactIndices.distance, :],
         label=key)
     ax1L.append(ax1V)
     ax2V, = ax2.plot(
-        value[impactIndices.launchAngle,:], 
-        value[impactIndices.timeToTarget,:] - reference[impactIndices.timeToTarget,:],
+        value[impactIndices.launchAngle, :],
+        value[impactIndices.timeToTarget, :] -
+        reference[impactIndices.timeToTarget, :],
         label=key)
     ax2L.append(ax2V)
     '''ax3V, = ax3.plot(
@@ -110,4 +112,3 @@ ax2.set_ylabel('Time error (s)')
 ax2.legend(handles=ax2L)
 
 plt.show()
-
