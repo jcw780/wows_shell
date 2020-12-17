@@ -359,8 +359,9 @@ void extractDictToArray(Input &input, Keys &keys, Output &output,
                         KeyGenerator keyGenerator) {
     using V = typename Output::value_type;
     for (std::size_t i = 0; i < keys.size(); ++i) {
-        if (input.contains(keyGenerator(keys[i]))) {
-            output[i] = input[keyGenerator(keys[i])].template cast<V>();
+        auto adjKey = keyGenerator(keys[i]);
+        if (input.contains(adjKey)) {
+            output[i] = input[adjKey].template cast<V>();
             std::cout << "Key: " << keys[i] << " Value: " << output[i]
                       << " Added\n";
         } else {
@@ -369,30 +370,49 @@ void extractDictToArray(Input &input, Keys &keys, Output &output,
     }
 }
 
+template <typename KV>
+std::unique_ptr<wows_shell::shellParams> makeShellParamsFromKV(KV &input) {
+    constexpr std::size_t structSize = 11;
+    constexpr std::array<char const *, structSize> doubleKeys = {
+        "caliber",       "v0",       "cD",        "mass",      "krupp",
+        "normalization", "fuseTime", "threshold", "ricochet0", "ricochet1",
+        "nonAP"};
+    std::array<double, structSize> doubleValues{};
+    extractDictToArray(input, doubleKeys, doubleValues,
+                       [](const char *in) { return pybind11::str(in); });
+
+    return std::make_unique<wows_shell::shellParams>(
+        doubleValues[0], doubleValues[1], doubleValues[2], doubleValues[3],
+        doubleValues[4], doubleValues[5], doubleValues[6], doubleValues[7],
+        doubleValues[8], doubleValues[9], doubleValues[10]);
+}
+
+template <typename KV>
+std::unique_ptr<wows_shell::dispersionParams> makeDispersionParamsKV(
+    KV &input) {
+    constexpr std::size_t structSize = 10;
+    constexpr std::array<char const *, structSize> doubleKeys = {
+        "idealRadius", "minRadius",  "idealDistance", "taperDistance",
+        "delim",       "zeroRadius", "delimRadius",   "maxRadius",
+        "maxDistance", "sigma"};
+    std::array<double, structSize> doubleValues{};
+    extractDictToArray(input, doubleKeys, doubleValues,
+                       [](const char *in) { return pybind11::str(in); });
+
+    return std::make_unique<wows_shell::dispersionParams>(
+        doubleValues[0], doubleValues[1], doubleValues[2], doubleValues[3],
+        doubleValues[4], doubleValues[5], doubleValues[6], doubleValues[7],
+        doubleValues[8], doubleValues[9]);
+}
 PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::class_<wows_shell::shellParams>(m, "shellParams")
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double, double>())
+        .def(pybind11::init(
+            [](pybind11::dict &i) { return makeShellParamsFromKV(i); }))
+        .def(pybind11::init(
+            [](pybind11::kwargs &i) { return makeShellParamsFromKV(i); }))
         .def(pybind11::init())
-        .def(pybind11::init([](pybind11::dict &input) {
-            constexpr std::size_t structSize = 11;
-            constexpr std::array<char const *, structSize> doubleKeys = {
-                "caliber",   "v0",        "cD",
-                "mass",      "krupp",     "normalization",
-                "fuseTime",  "threshold", "ricochet0",
-                "ricochet1", "nonAP"};
-            std::array<double, structSize> doubleValues{};
-            extractDictToArray(
-                input, doubleKeys, doubleValues,
-                [](const char *in) { return pybind11::str(in); });
-
-            return std::make_unique<wows_shell::shellParams>(
-                doubleValues[0], doubleValues[1], doubleValues[2],
-                doubleValues[3], doubleValues[4], doubleValues[5],
-                doubleValues[6], doubleValues[7], doubleValues[8],
-                doubleValues[9], doubleValues[10]);
-        }))
-
         .def_readwrite("caliber", &wows_shell::shellParams::caliber)
         .def_readwrite("v0", &wows_shell::shellParams::v0)
         .def_readwrite("cD", &wows_shell::shellParams::cD)
@@ -408,23 +428,10 @@ PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::class_<wows_shell::dispersionParams>(m, "dispersionParams")
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double>())
-        .def(pybind11::init([](pybind11::dict &input) {
-            constexpr std::size_t structSize = 10;
-            constexpr std::array<char const *, structSize> doubleKeys = {
-                "idealRadius", "minRadius",  "idealDistance", "taperDistance",
-                "delim",       "zeroRadius", "delimRadius",   "maxRadius",
-                "maxDistance", "sigma"};
-            std::array<double, structSize> doubleValues{};
-            extractDictToArray(
-                input, doubleKeys, doubleValues,
-                [](const char *in) { return pybind11::str(in); });
-
-            return std::make_unique<wows_shell::dispersionParams>(
-                doubleValues[0], doubleValues[1], doubleValues[2],
-                doubleValues[3], doubleValues[4], doubleValues[5],
-                doubleValues[6], doubleValues[7], doubleValues[8],
-                doubleValues[9]);
-        }))
+        .def(pybind11::init(
+            [](pybind11::dict &i) { return makeDispersionParamsKV(i); }))
+        .def(pybind11::init(
+            [](pybind11::kwargs &i) { return makeDispersionParamsKV(i); }))
         .def(pybind11::init())
         .def_readwrite("idealRadius",
                        &wows_shell::dispersionParams::idealRadius)
