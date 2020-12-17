@@ -488,9 +488,10 @@ PYBIND11_MODULE(pythonwrapper, m) {
     m.def("generateShellHash", &generateShellPythonHash);
 
     pybind11::class_<shellPython>(m, "shell", pybind11::buffer_protocol())
-        .def(pybind11::init<double, double, double, double, double, double,
-                            double, double, double, double, double,
-                            std::string &>())
+        .def(pybind11::init<const double, const double, const double,
+                            const double, const double, const double,
+                            const double, const double, const double,
+                            const double, const double, std::string &>())
         .def(pybind11::init<shellParams &, std::string &>())
         .def(pybind11::init<shellParams &, dispersionParams &, std::string &>())
         .def(

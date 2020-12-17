@@ -1,6 +1,5 @@
 # WASM outputs
-*.js
-*.wasm
+build/
 
 # WASM Testing
 _site/
