@@ -28,9 +28,10 @@ https://github.com/pybind/pybind11/issues/1212
 
 #include "../shellCPP.hpp"
 
+namespace wows_shell {
 class shellPython {
    public:
-    wows_shell::shell s;
+    shell s;
     shellPython(const double caliber, const double v0, const double cD,
                 const double mass, const double krupp,
                 const double normalization, const double fuseTime,
@@ -44,11 +45,10 @@ class shellPython {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
-    shellPython(const wows_shell::shellParams &sp, const std::string &name) {
+    shellPython(const shellParams &sp, const std::string &name) {
         s.setValues(sp, name);
     }
-    shellPython(const wows_shell::shellParams &sp,
-                const wows_shell::dispersionParams &dp,
+    shellPython(const shellParams &sp, const dispersionParams &dp,
                 const std::string &name) {
         s.setValues(sp, dp, name);
     }
@@ -62,11 +62,10 @@ class shellPython {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
-    void setValues(const wows_shell::shellParams &sp, const std::string &name) {
+    void setValues(const shellParams &sp, const std::string &name) {
         s.setValues(sp, name);
     }
-    void setValues(const wows_shell::shellParams &sp,
-                   const wows_shell::dispersionParams &dp,
+    void setValues(const shellParams &sp, const dispersionParams &dp,
                    const std::string &name) {
         s.setValues(sp, dp, name);
     }
@@ -110,8 +109,7 @@ class shellPython {
     pybind11::array_t<double> getImpact(bool owned = true) {
         if (s.completedImpact) {
             constexpr std::size_t sT = sizeof(double);
-            std::array<size_t, 2> shape = {wows_shell::impact::maxColumns,
-                                           s.impactSize},
+            std::array<size_t, 2> shape = {impact::maxColumns, s.impactSize},
                                   stride = {s.impactSizeAligned * sT, sT};
             double *tgt = s.get_impactPtr(0, 0);
             auto result =
@@ -128,8 +126,7 @@ class shellPython {
     pybind11::array_t<double> getAngles(bool owned = true) {
         if (s.completedAngles) {
             constexpr std::size_t sT = sizeof(double);
-            std::array<size_t, 2> shape = {wows_shell::angle::maxColumns,
-                                           s.impactSize},
+            std::array<size_t, 2> shape = {angle::maxColumns, s.impactSize},
                                   stride = {s.impactSizeAligned * sT, sT};
             double *tgt = s.get_anglePtr(0, 0);
             auto result =
@@ -146,7 +143,7 @@ class shellPython {
     pybind11::array_t<double> getDispersion(bool owned = true) {
         if (s.completedDispersion) {
             constexpr std::size_t sT = sizeof(double);
-            std::array<size_t, 2> shape = {wows_shell::dispersion::maxColumns,
+            std::array<size_t, 2> shape = {dispersion::maxColumns,
                                            s.impactSize},
                                   stride = {s.impactSizeAligned * sT, sT};
             double *tgt = s.get_dispersionPtr(0, 0);
@@ -165,8 +162,8 @@ class shellPython {
         if (s.completedPostPen) {
             constexpr std::size_t sT = sizeof(double);
             std::size_t numAngles = s.postPenSize / s.impactSize;
-            std::array<size_t, 3> shape = {wows_shell::post::maxColumns,
-                                           numAngles, s.impactSize},
+            std::array<size_t, 3> shape = {post::maxColumns, numAngles,
+                                           s.impactSize},
                                   stride = {s.postPenSize * sT,
                                             s.impactSize * sT, sT};
             double *tgt = s.get_postPenPtr(0, 0, 0);
@@ -183,10 +180,10 @@ class shellPython {
 };
 
 std::string generateShellPythonHash(const shellPython &s) {
-    return wows_shell::generateHash(s.s);
+    return generateHash(s.s);
 }
 
-class shellCalcPython : public wows_shell::shellCalc {
+class shellCalcPython : public shellCalc {
    public:
     shellCalcPython() = default;
 
@@ -200,7 +197,7 @@ class shellCalcPython : public wows_shell::shellCalc {
     void setYf0(const double yf0) { calc.set_yf0(yf0); }
     void setDtf(const double dtf) { calc.set_dtf(dtf); }*/
 
-    template <wows_shell::numerical Numerical>
+    template <numerical Numerical>
     void calcImpact(shellPython &sp) {
         calculateImpact<false, Numerical, false>(sp.s);
     }
@@ -223,8 +220,8 @@ class shellCalcPython : public wows_shell::shellCalc {
 // DEPRECATED
 class shellCombined {
    private:
-    wows_shell::shellCalc calc;
-    wows_shell::shell s;
+    shellCalc calc;
+    shell s;
 
    public:
     shellCombined(const double caliber, const double v0, const double cD,
@@ -261,23 +258,19 @@ class shellCombined {
     void setDtf(const double dtf) { calc.set_dtf(dtf); }
 
     void calcImpactForwardEuler() {
-        calc.calculateImpact<false, wows_shell::numerical::forwardEuler, false>(
-            s);
+        calc.calculateImpact<false, numerical::forwardEuler, false>(s);
     }
 
     void calcImpactAdamsBashforth5() {
-        calc.calculateImpact<false, wows_shell::numerical::adamsBashforth5,
-                             false>(s);
+        calc.calculateImpact<false, numerical::adamsBashforth5, false>(s);
     }
 
     void calcImpactRungeKutta2() {
-        calc.calculateImpact<false, wows_shell::numerical::rungeKutta2, false>(
-            s);
+        calc.calculateImpact<false, numerical::rungeKutta2, false>(s);
     }
 
     void calcImpactRungeKutta4() {
-        calc.calculateImpact<false, wows_shell::numerical::rungeKutta4, false>(
-            s);
+        calc.calculateImpact<false, numerical::rungeKutta4, false>(s);
     }
 
     void calcAngles(const double thickness, const double inclination) {
@@ -325,7 +318,7 @@ class shellCombined {
             auto result = pybind11::array(pybind11::buffer_info(
                 s.get_impactPtr(0, 0), sT,
                 pybind11::format_descriptor<double>::value, 2,
-                {wows_shell::impact::maxColumns, s.impactSize},
+                {impact::maxColumns, s.impactSize},
                 {s.impactSizeAligned * sT, sT}));
             return result;
         } else {
@@ -339,7 +332,7 @@ class shellCombined {
             auto result = pybind11::array(pybind11::buffer_info(
                 s.get_anglePtr(0, 0), sT,
                 pybind11::format_descriptor<double>::value, 2,
-                {wows_shell::angle::maxColumns, s.impactSize},
+                {angle::maxColumns, s.impactSize},
                 {s.impactSizeAligned * sT, sT}));
             return result;
         } else {
@@ -354,7 +347,7 @@ class shellCombined {
             auto result = pybind11::array(pybind11::buffer_info(
                 s.get_postPenPtr(0, 0, 0), sT,
                 pybind11::format_descriptor<double>::value, 3,
-                {wows_shell::post::maxColumns, numAngles, s.impactSize},
+                {post::maxColumns, numAngles, s.impactSize},
                 {s.postPenSize * sT, s.impactSize * sT, sT}));
             return result;
         } else {
@@ -380,7 +373,7 @@ void extractDictToArray(Input &input, Keys &keys, Output &output,
 }
 
 template <typename KV>
-std::unique_ptr<wows_shell::shellParams> makeShellParamsFromKV(KV &input) {
+std::unique_ptr<shellParams> makeShellParamsFromKV(KV &input) {
     constexpr std::size_t structSize = 11;
     constexpr std::array<char const *, structSize> doubleKeys = {
         "caliber",       "v0",       "cD",        "mass",      "krupp",
@@ -390,15 +383,14 @@ std::unique_ptr<wows_shell::shellParams> makeShellParamsFromKV(KV &input) {
     extractDictToArray(input, doubleKeys, doubleValues,
                        [](const char *in) { return pybind11::str(in); });
 
-    return std::make_unique<wows_shell::shellParams>(
+    return std::make_unique<shellParams>(
         doubleValues[0], doubleValues[1], doubleValues[2], doubleValues[3],
         doubleValues[4], doubleValues[5], doubleValues[6], doubleValues[7],
         doubleValues[8], doubleValues[9], doubleValues[10]);
 }
 
 template <typename KV>
-std::unique_ptr<wows_shell::dispersionParams> makeDispersionParamsKV(
-    KV &input) {
+std::unique_ptr<dispersionParams> makeDispersionParamsKV(KV &input) {
     constexpr std::size_t structSize = 10;
     constexpr std::array<char const *, structSize> doubleKeys = {
         "idealRadius", "minRadius",  "idealDistance", "taperDistance",
@@ -408,14 +400,14 @@ std::unique_ptr<wows_shell::dispersionParams> makeDispersionParamsKV(
     extractDictToArray(input, doubleKeys, doubleValues,
                        [](const char *in) { return pybind11::str(in); });
 
-    return std::make_unique<wows_shell::dispersionParams>(
+    return std::make_unique<dispersionParams>(
         doubleValues[0], doubleValues[1], doubleValues[2], doubleValues[3],
         doubleValues[4], doubleValues[5], doubleValues[6], doubleValues[7],
         doubleValues[8], doubleValues[9]);
 }
 
 PYBIND11_MODULE(pythonwrapper, m) {
-    pybind11::class_<wows_shell::shellParams>(m, "shellParams")
+    pybind11::class_<shellParams>(m, "shellParams")
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double, double>())
         .def(pybind11::init(
@@ -423,19 +415,19 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def(pybind11::init(
             [](pybind11::kwargs &i) { return makeShellParamsFromKV(i); }))
         .def(pybind11::init())
-        .def_readwrite("caliber", &wows_shell::shellParams::caliber)
-        .def_readwrite("v0", &wows_shell::shellParams::v0)
-        .def_readwrite("cD", &wows_shell::shellParams::cD)
-        .def_readwrite("mass", &wows_shell::shellParams::mass)
-        .def_readwrite("krupp", &wows_shell::shellParams::krupp)
-        .def_readwrite("normalization", &wows_shell::shellParams::normalization)
-        .def_readwrite("fuseTime", &wows_shell::shellParams::fuseTime)
-        .def_readwrite("threshold", &wows_shell::shellParams::threshold)
-        .def_readwrite("ricochet0", &wows_shell::shellParams::ricochet0)
-        .def_readwrite("ricochet1", &wows_shell::shellParams::ricochet1)
-        .def_readwrite("nonAP", &wows_shell::shellParams::nonAP);
+        .def_readwrite("caliber", &shellParams::caliber)
+        .def_readwrite("v0", &shellParams::v0)
+        .def_readwrite("cD", &shellParams::cD)
+        .def_readwrite("mass", &shellParams::mass)
+        .def_readwrite("krupp", &shellParams::krupp)
+        .def_readwrite("normalization", &shellParams::normalization)
+        .def_readwrite("fuseTime", &shellParams::fuseTime)
+        .def_readwrite("threshold", &shellParams::threshold)
+        .def_readwrite("ricochet0", &shellParams::ricochet0)
+        .def_readwrite("ricochet1", &shellParams::ricochet1)
+        .def_readwrite("nonAP", &shellParams::nonAP);
 
-    pybind11::class_<wows_shell::dispersionParams>(m, "dispersionParams")
+    pybind11::class_<dispersionParams>(m, "dispersionParams")
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double>())
         .def(pybind11::init(
@@ -443,21 +435,16 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def(pybind11::init(
             [](pybind11::kwargs &i) { return makeDispersionParamsKV(i); }))
         .def(pybind11::init())
-        .def_readwrite("idealRadius",
-                       &wows_shell::dispersionParams::idealRadius)
-        .def_readwrite("minRadius", &wows_shell::dispersionParams::minRadius)
-        .def_readwrite("idealDistance",
-                       &wows_shell::dispersionParams::idealDistance)
-        .def_readwrite("taperDistance",
-                       &wows_shell::dispersionParams::taperDistance)
-        .def_readwrite("delim", &wows_shell::dispersionParams::delim)
-        .def_readwrite("zeroRadius", &wows_shell::dispersionParams::zeroRadius)
-        .def_readwrite("delimRadius",
-                       &wows_shell::dispersionParams::delimRadius)
-        .def_readwrite("maxRadius", &wows_shell::dispersionParams::maxRadius)
-        .def_readwrite("maxDistance",
-                       &wows_shell::dispersionParams::maxDistance)
-        .def_readwrite("sigma", &wows_shell::dispersionParams::sigma);
+        .def_readwrite("idealRadius", &dispersionParams::idealRadius)
+        .def_readwrite("minRadius", &dispersionParams::minRadius)
+        .def_readwrite("idealDistance", &dispersionParams::idealDistance)
+        .def_readwrite("taperDistance", &dispersionParams::taperDistance)
+        .def_readwrite("delim", &dispersionParams::delim)
+        .def_readwrite("zeroRadius", &dispersionParams::zeroRadius)
+        .def_readwrite("delimRadius", &dispersionParams::delimRadius)
+        .def_readwrite("maxRadius", &dispersionParams::maxRadius)
+        .def_readwrite("maxDistance", &dispersionParams::maxDistance)
+        .def_readwrite("sigma", &dispersionParams::sigma);
 
     pybind11::class_<shellCombined>(m, "shellCombined",
                                     pybind11::buffer_protocol())
@@ -492,16 +479,15 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("printAngles", &shellCombined::printAngles)
         .def("printPostPen", &shellCombined::printPostPen);
 
-    m.def("generateHash", &wows_shell::generateShellParamHash);
+    m.def("generateHash", &generateShellParamHash);
     m.def("generateShellHash", &generateShellPythonHash);
 
     pybind11::class_<shellPython>(m, "shell", pybind11::buffer_protocol())
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double, double,
                             std::string &>())
-        .def(pybind11::init<wows_shell::shellParams &, std::string &>())
-        .def(pybind11::init<wows_shell::shellParams &,
-                            wows_shell::dispersionParams &, std::string &>())
+        .def(pybind11::init<shellParams &, std::string &>())
+        .def(pybind11::init<shellParams &, dispersionParams &, std::string &>())
         .def(
             "setValues",
             static_cast<void (shellPython::*)(
@@ -509,15 +495,12 @@ PYBIND11_MODULE(pythonwrapper, m) {
                 const double, const double, const double, const double,
                 const double, const double, const double, const std::string &)>(
                 &shellPython::setValues))
-        .def("setValues",
-             static_cast<void (shellPython::*)(const wows_shell::shellParams &,
-                                               const std::string &)>(
-                 &shellPython::setValues))
-        .def("setValues",
-             static_cast<void (shellPython::*)(
-                 const wows_shell::shellParams &,
-                 const wows_shell::dispersionParams &, const std::string &)>(
-                 &shellPython::setValues))
+        .def("setValues", static_cast<void (shellPython::*)(
+                              const shellParams &, const std::string &)>(
+                              &shellPython::setValues))
+        .def("setValues", static_cast<void (shellPython::*)(
+                              const shellParams &, const dispersionParams &,
+                              const std::string &)>(&shellPython::setValues))
         .def("interpolateDistanceImpact",
              &shellPython::interpolateDistanceImpact)
         .def("getImpact", &shellPython::getImpact,
@@ -546,72 +529,67 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("setYf0", &shellCalcPython::set_yf0)
         .def("setDtf", &shellCalcPython::set_dtf)
         .def("calcImpactForwardEuler",
-             &shellCalcPython::calcImpact<wows_shell::numerical::forwardEuler>)
+             &shellCalcPython::calcImpact<numerical::forwardEuler>)
         .def("calcImpactAdamsBashforth5",
-             &shellCalcPython::calcImpact<
-                 wows_shell::numerical::adamsBashforth5>)
+             &shellCalcPython::calcImpact<numerical::adamsBashforth5>)
         .def("calcImpactRungeKutta2",
-             &shellCalcPython::calcImpact<wows_shell::numerical::rungeKutta2>)
+             &shellCalcPython::calcImpact<numerical::rungeKutta2>)
         .def("calcImpactRungeKutta4",
-             &shellCalcPython::calcImpact<wows_shell::numerical::rungeKutta4>)
+             &shellCalcPython::calcImpact<numerical::rungeKutta4>)
         .def("calcAngles", &shellCalcPython::calcAngles)
         .def("calcDispersion", &shellCalcPython::calcDispersion)
         .def("calcPostPen", &shellCalcPython::calcPostPen);
     // Enums
-    pybind11::enum_<wows_shell::impact::impactIndices>(m, "impactIndices",
-                                                       pybind11::arithmetic())
-        .value("distance", wows_shell::impact::impactIndices::distance)
-        .value("launchAngle", wows_shell::impact::impactIndices::launchAngle)
+    pybind11::enum_<impact::impactIndices>(m, "impactIndices",
+                                           pybind11::arithmetic())
+        .value("distance", impact::impactIndices::distance)
+        .value("launchAngle", impact::impactIndices::launchAngle)
         .value("impactAngleHorizontalRadians",
-               wows_shell::impact::impactIndices::impactAngleHorizontalRadians)
+               impact::impactIndices::impactAngleHorizontalRadians)
         .value("impactAngleHorizontalDegrees",
-               wows_shell::impact::impactIndices::impactAngleHorizontalDegrees)
-        .value("impactVelocity",
-               wows_shell::impact::impactIndices::impactVelocity)
-        .value("rawPenetration",
-               wows_shell::impact::impactIndices::rawPenetration)
-        .value(
-            "effectivePenetrationHorizontal",
-            wows_shell::impact::impactIndices::effectivePenetrationHorizontal)
+               impact::impactIndices::impactAngleHorizontalDegrees)
+        .value("impactVelocity", impact::impactIndices::impactVelocity)
+        .value("rawPenetration", impact::impactIndices::rawPenetration)
+        .value("effectivePenetrationHorizontal",
+               impact::impactIndices::effectivePenetrationHorizontal)
         .value("effectivePenetrationHorizontalNormalized",
-               wows_shell::impact::impactIndices::
-                   effectivePenetrationHorizontalNormalized)
+               impact::impactIndices::effectivePenetrationHorizontalNormalized)
         .value("impactAngleDeckDegrees",
-               wows_shell::impact::impactIndices::impactAngleDeckDegrees)
+               impact::impactIndices::impactAngleDeckDegrees)
         .value("effectivePenetrationDeck",
-               wows_shell::impact::impactIndices::effectivePenetrationDeck)
+               impact::impactIndices::effectivePenetrationDeck)
         .value("effectivePenetrationDeckNormalized",
-               wows_shell::impact::impactIndices::
-                   effectivePenetrationDeckNormalized)
-        .value("timeToTarget", wows_shell::impact::impactIndices::timeToTarget)
+               impact::impactIndices::effectivePenetrationDeckNormalized)
+        .value("timeToTarget", impact::impactIndices::timeToTarget)
         .value("timeToTargetAdjusted",
-               wows_shell::impact::impactIndices::timeToTargetAdjusted)
+               impact::impactIndices::timeToTargetAdjusted)
         .export_values();
 
-    pybind11::enum_<wows_shell::angle::angleIndices>(m, "angleIndices",
-                                                     pybind11::arithmetic())
-        .value("distance", wows_shell::angle::angleIndices::distance)
+    pybind11::enum_<angle::angleIndices>(m, "angleIndices",
+                                         pybind11::arithmetic())
+        .value("distance", angle::angleIndices::distance)
         .value("ricochetAngle0Radians",
-               wows_shell::angle::angleIndices::ricochetAngle0Radians)
+               angle::angleIndices::ricochetAngle0Radians)
         .value("ricochetAngle0Degrees",
-               wows_shell::angle::angleIndices::ricochetAngle0Degrees)
+               angle::angleIndices::ricochetAngle0Degrees)
         .value("ricochetAngle1Radians",
-               wows_shell::angle::angleIndices::ricochetAngle1Radians)
+               angle::angleIndices::ricochetAngle1Radians)
         .value("ricochetAngle1Degrees",
-               wows_shell::angle::angleIndices::ricochetAngle1Degrees)
-        .value("armorRadians", wows_shell::angle::angleIndices::armorRadians)
-        .value("armorDegrees", wows_shell::angle::angleIndices::armorDegrees)
-        .value("fuseRadians", wows_shell::angle::angleIndices::fuseRadians)
-        .value("fuseDegrees", wows_shell::angle::angleIndices::fuseDegrees)
+               angle::angleIndices::ricochetAngle1Degrees)
+        .value("armorRadians", angle::angleIndices::armorRadians)
+        .value("armorDegrees", angle::angleIndices::armorDegrees)
+        .value("fuseRadians", angle::angleIndices::fuseRadians)
+        .value("fuseDegrees", angle::angleIndices::fuseDegrees)
         .export_values();
 
-    pybind11::enum_<wows_shell::post::postPenIndices>(m, "postPenIndices",
-                                                      pybind11::arithmetic())
-        .value("angle", wows_shell::post::postPenIndices::angle)
-        .value("distance", wows_shell::post::postPenIndices::distance)
-        .value("x", wows_shell::post::postPenIndices::x)
-        .value("y", wows_shell::post::postPenIndices::y)
-        .value("z", wows_shell::post::postPenIndices::z)
-        .value("xwf", wows_shell::post::postPenIndices::xwf)
+    pybind11::enum_<post::postPenIndices>(m, "postPenIndices",
+                                          pybind11::arithmetic())
+        .value("angle", post::postPenIndices::angle)
+        .value("distance", post::postPenIndices::distance)
+        .value("x", post::postPenIndices::x)
+        .value("y", post::postPenIndices::y)
+        .value("z", post::postPenIndices::z)
+        .value("xwf", post::postPenIndices::xwf)
         .export_values();
 };
+}  // namespace wows_shell

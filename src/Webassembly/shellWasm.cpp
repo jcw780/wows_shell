@@ -6,10 +6,10 @@
 
 #include "../shellCPP.hpp"
 
+namespace wows_shell {
 namespace pointArray {
 // These functions are for producing arrays suitable for chart.js scatter plots
-emscripten::val getImpactPointArray(wows_shell::shell &s,
-                                    const std::size_t xIndex,
+emscripten::val getImpactPointArray(shell &s, const std::size_t xIndex,
                                     const std::size_t yIndex) {
     if (s.completedImpact) {
         emscripten::val points = emscripten::val::array();
@@ -25,8 +25,7 @@ emscripten::val getImpactPointArray(wows_shell::shell &s,
     }
 }
 
-emscripten::val getAnglePointArray(wows_shell::shell &s,
-                                   const std::size_t xIndex,
+emscripten::val getAnglePointArray(shell &s, const std::size_t xIndex,
                                    const std::size_t yIndex) {
     if (s.completedAngles) {
         emscripten::val points = emscripten::val::array();
@@ -42,8 +41,7 @@ emscripten::val getAnglePointArray(wows_shell::shell &s,
     }
 }
 
-emscripten::val getPostPenPointArray(wows_shell::shell &s,
-                                     const std::size_t angle,
+emscripten::val getPostPenPointArray(shell &s, const std::size_t angle,
                                      const std::size_t xIndex,
                                      const std::size_t yIndex) {
     if (s.completedPostPen) {
@@ -60,7 +58,7 @@ emscripten::val getPostPenPointArray(wows_shell::shell &s,
     }
 }
 
-emscripten::val getPostPenPointArrayFuseStatus(wows_shell::shell &s,
+emscripten::val getPostPenPointArrayFuseStatus(shell &s,
                                                const bool addCondition,
                                                const std::size_t angle,
                                                const std::size_t xIndex,
@@ -69,8 +67,7 @@ emscripten::val getPostPenPointArrayFuseStatus(wows_shell::shell &s,
         emscripten::val points = emscripten::val::array();
         if (addCondition) {
             for (std::size_t i = 0; i < s.impactSize; i++) {
-                if (s.get_postPen(i, wows_shell::post::postPenIndices::xwf,
-                                  angle) >= 0) {
+                if (s.get_postPen(i, post::postPenIndices::xwf, angle) >= 0) {
                     emscripten::val point = emscripten::val::object();
                     point.set("x", s.get_postPen(i, xIndex, angle));
                     point.set("y", s.get_postPen(i, yIndex, angle));
@@ -79,8 +76,7 @@ emscripten::val getPostPenPointArrayFuseStatus(wows_shell::shell &s,
             }
         } else {
             for (std::size_t i = 0; i < s.impactSize; i++) {
-                if (s.get_postPen(i, wows_shell::post::postPenIndices::xwf,
-                                  angle) < 0) {
+                if (s.get_postPen(i, post::postPenIndices::xwf, angle) < 0) {
                     emscripten::val point = emscripten::val::object();
                     point.set("x", s.get_postPen(i, xIndex, angle));
                     point.set("y", s.get_postPen(i, yIndex, angle));
@@ -94,19 +90,17 @@ emscripten::val getPostPenPointArrayFuseStatus(wows_shell::shell &s,
     }
 }
 
-emscripten::val getImpactSizedPointArray(wows_shell::shell &s,
-                                         emscripten::val params1,
+emscripten::val getImpactSizedPointArray(shell &s, emscripten::val params1,
                                          emscripten::val params2) {
     emscripten::val points = emscripten::val::array();
     double *startX, *startY;
     auto setup = [&](emscripten::val &param, double *&tgt) {
         std::size_t index = param[0].as<std::size_t>();
         switch (index) {
-            case wows_shell::toUnderlying(
-                wows_shell::calculateType::calcIndices::impact):
+            case toUnderlying(calculateType::calcIndices::impact):
                 if (s.completedImpact) {
                     std::size_t index = param[1].as<std::size_t>();
-                    if (0 <= index && index < wows_shell::impact::maxColumns) {
+                    if (0 <= index && index < impact::maxColumns) {
                         tgt = s.get_impactPtr(0, index);
                     } else {
                         throw std::runtime_error("Invalid impact index");
@@ -115,11 +109,10 @@ emscripten::val getImpactSizedPointArray(wows_shell::shell &s,
                     throw std::runtime_error("Impact data not generated");
                 }
                 break;
-            case wows_shell::toUnderlying(
-                wows_shell::calculateType::calcIndices::angle):
+            case toUnderlying(calculateType::calcIndices::angle):
                 if (s.completedAngles) {
                     std::size_t index = param[1].as<std::size_t>();
-                    if (0 <= index && index < wows_shell::angle::maxColumns) {
+                    if (0 <= index && index < angle::maxColumns) {
                         tgt = s.get_anglePtr(0, index);
                     } else {
                         throw std::runtime_error("Invalid angle index");
@@ -128,12 +121,10 @@ emscripten::val getImpactSizedPointArray(wows_shell::shell &s,
                     throw std::runtime_error("Angle data not generated");
                 }
                 break;
-            case wows_shell::toUnderlying(
-                wows_shell::calculateType::calcIndices::dispersion):
+            case toUnderlying(calculateType::calcIndices::dispersion):
                 if (s.completedDispersion) {
                     std::size_t index = param[1].as<std::size_t>();
-                    if (0 <= index &&
-                        index < wows_shell::dispersion::maxColumns) {
+                    if (0 <= index && index < dispersion::maxColumns) {
                         tgt = s.get_dispersionPtr(0, index);
                     } else {
                         throw std::runtime_error("Invalid dispersion index");
@@ -142,11 +133,10 @@ emscripten::val getImpactSizedPointArray(wows_shell::shell &s,
                     throw std::runtime_error("Dispersion data not generated");
                 }
                 break;
-            case wows_shell::toUnderlying(
-                wows_shell::calculateType::calcIndices::post):
+            case toUnderlying(calculateType::calcIndices::post):
                 if (s.completedPostPen) {
                     std::size_t index = param[1].as<std::size_t>();
-                    if (0 <= index && index < wows_shell::post::maxColumns) {
+                    if (0 <= index && index < post::maxColumns) {
                         tgt = s.get_postPenPtr(0, index,
                                                param[2].as<std::size_t>());
                     } else {
@@ -179,7 +169,7 @@ emscripten::val getImpactSizedPointArray(wows_shell::shell &s,
 #ifdef ENABLE_SPLIT_SHELL
 class shellWasm {
    public:
-    wows_shell::shell s;
+    shell s;
     shellWasm(const double caliber, const double v0, const double cD,
               const double mass, const double krupp, const double normalization,
               const double fuseTime, const double threshold,
@@ -188,11 +178,11 @@ class shellWasm {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
-    shellWasm(const wows_shell::shellParams &sp, const std::string &name) {
+    shellWasm(const shellParams &sp, const std::string &name) {
         s.setValues(sp, name);
     }
-    shellWasm(const wows_shell::shellParams &sp,
-              const wows_shell::dispersionParams &dp, const std::string &name) {
+    shellWasm(const shellParams &sp, const dispersionParams &dp,
+              const std::string &name) {
         s.setValues(sp, dp, name);
     }
 
@@ -205,11 +195,10 @@ class shellWasm {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
-    void setValues(const wows_shell::shellParams &sp, const std::string &name) {
+    void setValues(const shellParams &sp, const std::string &name) {
         s.setValues(sp, name);
     }
-    void setValues(const wows_shell::shellParams &sp,
-                   const wows_shell::dispersionParams &dp,
+    void setValues(const shellParams &sp, const dispersionParams &dp,
                    const std::string &name) {
         s.setValues(sp, dp, name);
     }
@@ -317,7 +306,7 @@ class shellWasm {
 };
 
 std::string generateShellWasmHash(const shellWasm &s) {
-    return wows_shell::generateHash(s.s);
+    return generateHash(s.s);
 }
 
 emscripten::val getImpactSizedPointArray(shellWasm &s, emscripten::val params1,
@@ -325,7 +314,7 @@ emscripten::val getImpactSizedPointArray(shellWasm &s, emscripten::val params1,
     return pointArray::getImpactSizedPointArray(s.s, params1, params2);
 }
 
-class shellCalcWasm : public wows_shell::shellCalc {
+class shellCalcWasm : public shellCalc {
    public:
     shellCalcWasm() = default;
 
@@ -339,7 +328,7 @@ class shellCalcWasm : public wows_shell::shellCalc {
     void setYf0(const double yf0) { set_yf0(yf0); }
     void setDtf(const double dtf) { set_dtf(dtf); }
 
-    template <wows_shell::numerical Numerical>
+    template <numerical Numerical>
     void calcImpact(shellWasm &sp) {
 #ifdef __EMSCRIPTEN_PTHREADS__
         calculateImpact<false, Numerical, false>(sp.s);
@@ -385,9 +374,9 @@ class shellCalcWasm : public wows_shell::shellCalc {
 #ifdef ENABLE_SHELL_COMBINED
 class shellCombined {
    private:
-    wows_shell::shellCalc calc;
-    // wows_shell::shell s;
-    std::vector<wows_shell::shell> ships;
+    shellCalc calc;
+    // shell s;
+    std::vector<shell> ships;
 
    public:
     /*shellCombined(const double caliber, const double v0, const double cD,
@@ -425,7 +414,7 @@ class shellCombined {
     // Impact Wrappers
     // Default: Adams Bashforth 5
 
-    template <wows_shell::numerical Numerical>
+    template <numerical Numerical>
     void calcImpact() {
         for (auto &s : ships) {
 #ifdef __EMSCRIPTEN_PTHREADS__
@@ -595,38 +584,37 @@ class shellCombined {
 
 // Testline: s = shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76.0, .033 )
 EMSCRIPTEN_BINDINGS(shellWasm) {
-    emscripten::value_object<wows_shell::shellParams>("shellParams")
-        .field("caliber", &wows_shell::shellParams::caliber)
-        .field("v0", &wows_shell::shellParams::v0)
-        .field("cD", &wows_shell::shellParams::cD)
-        .field("mass", &wows_shell::shellParams::mass)
-        .field("krupp", &wows_shell::shellParams::krupp)
-        .field("normalization", &wows_shell::shellParams::normalization)
-        .field("fuseTime", &wows_shell::shellParams::fuseTime)
-        .field("threshold", &wows_shell::shellParams::threshold)
-        .field("ricochet0", &wows_shell::shellParams::ricochet0)
-        .field("ricochet1", &wows_shell::shellParams::ricochet1)
-        .field("nonAP", &wows_shell::shellParams::nonAP);
+    emscripten::value_object<shellParams>("shellParams")
+        .field("caliber", &shellParams::caliber)
+        .field("v0", &shellParams::v0)
+        .field("cD", &shellParams::cD)
+        .field("mass", &shellParams::mass)
+        .field("krupp", &shellParams::krupp)
+        .field("normalization", &shellParams::normalization)
+        .field("fuseTime", &shellParams::fuseTime)
+        .field("threshold", &shellParams::threshold)
+        .field("ricochet0", &shellParams::ricochet0)
+        .field("ricochet1", &shellParams::ricochet1)
+        .field("nonAP", &shellParams::nonAP);
 
-    emscripten::value_object<wows_shell::dispersionParams>("dispersionParams")
-        .field("idealRadius", &wows_shell::dispersionParams::idealRadius)
-        .field("minRadius", &wows_shell::dispersionParams::minRadius)
-        .field("idealDistance", &wows_shell::dispersionParams::idealDistance)
-        .field("taperDistance", &wows_shell::dispersionParams::taperDistance)
-        .field("delim", &wows_shell::dispersionParams::delim)
-        .field("zeroRadius", &wows_shell::dispersionParams::zeroRadius)
-        .field("delimRadius", &wows_shell::dispersionParams::delimRadius)
-        .field("maxRadius", &wows_shell::dispersionParams::maxRadius)
-        .field("maxDistance", &wows_shell::dispersionParams::maxDistance)
-        .field("sigma", &wows_shell::dispersionParams::sigma);
+    emscripten::value_object<dispersionParams>("dispersionParams")
+        .field("idealRadius", &dispersionParams::idealRadius)
+        .field("minRadius", &dispersionParams::minRadius)
+        .field("idealDistance", &dispersionParams::idealDistance)
+        .field("taperDistance", &dispersionParams::taperDistance)
+        .field("delim", &dispersionParams::delim)
+        .field("zeroRadius", &dispersionParams::zeroRadius)
+        .field("delimRadius", &dispersionParams::delimRadius)
+        .field("maxRadius", &dispersionParams::maxRadius)
+        .field("maxDistance", &dispersionParams::maxDistance)
+        .field("sigma", &dispersionParams::sigma);
 
 #ifdef ENABLE_SPLIT_SHELL
     emscripten::class_<shellWasm>("shell")
         .constructor<double, double, double, double, double, double, double,
                      double, double, double, double, std::string>()
-        .constructor<wows_shell::shellParams, std::string>()
-        .constructor<wows_shell::shellParams, wows_shell::dispersionParams,
-                     std::string>()
+        .constructor<shellParams, std::string>()
+        .constructor<shellParams, dispersionParams, std::string>()
         .function(
             "setValues",
             static_cast<void (shellWasm::*)(
@@ -634,16 +622,13 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
                 const double, const double, const double, const double,
                 const double, const double, const double, const std::string &)>(
                 &shellWasm::setValues))
+        .function("setValues", static_cast<void (shellWasm::*)(
+                                   const shellParams &, const std::string &)>(
+                                   &shellWasm::setValues))
         .function("setValues",
                   static_cast<void (shellWasm::*)(
-                      const wows_shell::shellParams &, const std::string &)>(
-                      &shellWasm::setValues))
-        .function(
-            "setValues",
-            static_cast<void (shellWasm::*)(
-                const wows_shell::shellParams &,
-                const wows_shell::dispersionParams &, const std::string &)>(
-                &shellWasm::setValues))
+                      const shellParams &, const dispersionParams &,
+                      const std::string &)>(&shellWasm::setValues))
         .function("getImpactPoint", &shellWasm::getImpactPoint)
         .function("getImpactPointArray", &shellWasm::getImpactPointArray)
         .function("impactData", &shellWasm::impactData)
@@ -662,7 +647,7 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("printAngles", &shellWasm::printAngles)
         .function("printPostPen", &shellWasm::printPostPen);
 
-    emscripten::function("generateHash", &wows_shell::generateShellParamHash);
+    emscripten::function("generateHash", &generateShellParamHash);
     emscripten::function("generateShellHash", &generateShellWasmHash);
     emscripten::function("getImpactSizedPointArray", &getImpactSizedPointArray);
 
@@ -677,21 +662,16 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("setXf0", &shellCalcWasm::setXf0)
         .function("setYf0", &shellCalcWasm::setYf0)
         .function("setDtf", &shellCalcWasm::setDtf)
-        .function(
-            "calcImpact",
-            &shellCalcWasm::calcImpact<wows_shell::numerical::forwardEuler>)
-        .function(
-            "calcImpactAdamsBashforth5",
-            &shellCalcWasm::calcImpact<wows_shell::numerical::adamsBashforth5>)
-        .function(
-            "calcImpactForwardEuler",
-            &shellCalcWasm::calcImpact<wows_shell::numerical::forwardEuler>)
-        .function(
-            "calcImpactRungeKutta2",
-            &shellCalcWasm::calcImpact<wows_shell::numerical::rungeKutta2>)
-        .function(
-            "calcImpactRungeKutta4",
-            &shellCalcWasm::calcImpact<wows_shell::numerical::rungeKutta4>)
+        .function("calcImpact",
+                  &shellCalcWasm::calcImpact<numerical::forwardEuler>)
+        .function("calcImpactAdamsBashforth5",
+                  &shellCalcWasm::calcImpact<numerical::adamsBashforth5>)
+        .function("calcImpactForwardEuler",
+                  &shellCalcWasm::calcImpact<numerical::forwardEuler>)
+        .function("calcImpactRungeKutta2",
+                  &shellCalcWasm::calcImpact<numerical::rungeKutta2>)
+        .function("calcImpactRungeKutta4",
+                  &shellCalcWasm::calcImpact<numerical::rungeKutta4>)
         .function("calcAngles", &shellCalcWasm::calcAngles)
         .function("calcDispersion", &shellCalcWasm::calcDispersion)
         .function("calcPostPen", &shellCalcWasm::calcPostPen);
@@ -711,21 +691,16 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("setYf0", &shellCombined::setYf0)
         .function("setDtf", &shellCombined::setDtf)
 
-        .function(
-            "calcImpact",
-            &shellCombined::calcImpact<wows_shell::numerical::adamsBashforth5>)
-        .function(
-            "calcImpactAdamsBashforth5",
-            &shellCombined::calcImpact<wows_shell::numerical::adamsBashforth5>)
-        .function(
-            "calcImpactForwardEuler",
-            &shellCombined::calcImpact<wows_shell::numerical::forwardEuler>)
-        .function(
-            "calcImpactRungeKutta2",
-            &shellCombined::calcImpact<wows_shell::numerical::rungeKutta2>)
-        .function(
-            "calcImpactRungeKutta4",
-            &shellCombined::calcImpact<wows_shell::numerical::rungeKutta4>)
+        .function("calcImpact",
+                  &shellCombined::calcImpact<numerical::adamsBashforth5>)
+        .function("calcImpactAdamsBashforth5",
+                  &shellCombined::calcImpact<numerical::adamsBashforth5>)
+        .function("calcImpactForwardEuler",
+                  &shellCombined::calcImpact<numerical::forwardEuler>)
+        .function("calcImpactRungeKutta2",
+                  &shellCombined::calcImpact<numerical::rungeKutta2>)
+        .function("calcImpactRungeKutta4",
+                  &shellCombined::calcImpact<numerical::rungeKutta4>)
 
         .function("getImpactPoint", &shellCombined::getImpactPoint)
         .function("impactData", &shellCombined::impactData)
@@ -753,71 +728,59 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
     emscripten::register_vector<double>("vector<double>");
 
     // Enums
-    emscripten::enum_<wows_shell::impact::impactIndices>("impactIndices")
-        .value("distance", wows_shell::impact::impactIndices::distance)
-        .value("launchA", wows_shell::impact::impactIndices::launchAngle)
-        .value("impactAHR",
-               wows_shell::impact::impactIndices::impactAngleHorizontalRadians)
-        .value("impactAHD",
-               wows_shell::impact::impactIndices::impactAngleHorizontalDegrees)
-        .value("impactV", wows_shell::impact::impactIndices::impactVelocity)
-        .value("rawPen", wows_shell::impact::impactIndices::rawPenetration)
-        .value(
-            "ePenH",
-            wows_shell::impact::impactIndices::effectivePenetrationHorizontal)
-        .value("ePenHN", wows_shell::impact::impactIndices::
-                             effectivePenetrationHorizontalNormalized)
-        .value("impactADD",
-               wows_shell::impact::impactIndices::impactAngleDeckDegrees)
-        .value("ePenD",
-               wows_shell::impact::impactIndices::effectivePenetrationDeck)
-        .value("ePenDN", wows_shell::impact::impactIndices::
-                             effectivePenetrationDeckNormalized)
-        .value("tToTarget", wows_shell::impact::impactIndices::timeToTarget)
-        .value("tToTargetA",
-               wows_shell::impact::impactIndices::timeToTargetAdjusted);
+    emscripten::enum_<impact::impactIndices>("impactIndices")
+        .value("distance", impact::impactIndices::distance)
+        .value("launchA", impact::impactIndices::launchAngle)
+        .value("impactAHR", impact::impactIndices::impactAngleHorizontalRadians)
+        .value("impactAHD", impact::impactIndices::impactAngleHorizontalDegrees)
+        .value("impactV", impact::impactIndices::impactVelocity)
+        .value("rawPen", impact::impactIndices::rawPenetration)
+        .value("ePenH", impact::impactIndices::effectivePenetrationHorizontal)
+        .value("ePenHN",
+               impact::impactIndices::effectivePenetrationHorizontalNormalized)
+        .value("impactADD", impact::impactIndices::impactAngleDeckDegrees)
+        .value("ePenD", impact::impactIndices::effectivePenetrationDeck)
+        .value("ePenDN",
+               impact::impactIndices::effectivePenetrationDeckNormalized)
+        .value("tToTarget", impact::impactIndices::timeToTarget)
+        .value("tToTargetA", impact::impactIndices::timeToTargetAdjusted);
 
-    emscripten::enum_<wows_shell::angle::angleIndices>("angleIndices")
-        .value("distance", wows_shell::angle::angleIndices::distance)
-        .value("ra0", wows_shell::angle::angleIndices::ricochetAngle0Radians)
-        .value("ra0D", wows_shell::angle::angleIndices::ricochetAngle0Degrees)
-        .value("ra1", wows_shell::angle::angleIndices::ricochetAngle1Radians)
-        .value("ra1D", wows_shell::angle::angleIndices::ricochetAngle1Degrees)
-        .value("armor", wows_shell::angle::angleIndices::armorRadians)
-        .value("armorD", wows_shell::angle::angleIndices::armorDegrees)
-        .value("fuse", wows_shell::angle::angleIndices::fuseRadians)
-        .value("fuseD", wows_shell::angle::angleIndices::fuseDegrees);
+    emscripten::enum_<angle::angleIndices>("angleIndices")
+        .value("distance", angle::angleIndices::distance)
+        .value("ra0", angle::angleIndices::ricochetAngle0Radians)
+        .value("ra0D", angle::angleIndices::ricochetAngle0Degrees)
+        .value("ra1", angle::angleIndices::ricochetAngle1Radians)
+        .value("ra1D", angle::angleIndices::ricochetAngle1Degrees)
+        .value("armor", angle::angleIndices::armorRadians)
+        .value("armorD", angle::angleIndices::armorDegrees)
+        .value("fuse", angle::angleIndices::fuseRadians)
+        .value("fuseD", angle::angleIndices::fuseDegrees);
 
-    emscripten::enum_<wows_shell::dispersion::dispersionIndices>(
-        "dispersionIndices")
-        .value("maxHorizontal",
-               wows_shell::dispersion::dispersionIndices::maxHorizontal)
+    emscripten::enum_<dispersion::dispersionIndices>("dispersionIndices")
+        .value("maxHorizontal", dispersion::dispersionIndices::maxHorizontal)
         .value("standardHorizontal",
-               wows_shell::dispersion::dispersionIndices::standardHorizontal)
-        .value("halfHorizontal",
-               wows_shell::dispersion::dispersionIndices::halfHorizontal)
-        .value("maxVertical",
-               wows_shell::dispersion::dispersionIndices::maxVertical)
+               dispersion::dispersionIndices::standardHorizontal)
+        .value("halfHorizontal", dispersion::dispersionIndices::halfHorizontal)
+        .value("maxVertical", dispersion::dispersionIndices::maxVertical)
         .value("standardVertical",
-               wows_shell::dispersion::dispersionIndices::standardVertical)
-        .value("halfVertical",
-               wows_shell::dispersion::dispersionIndices::halfVertical)
-        .value("maxArea", wows_shell::dispersion::dispersionIndices::maxArea)
-        .value("standardArea",
-               wows_shell::dispersion::dispersionIndices::standardArea)
-        .value("halfArea", wows_shell::dispersion::dispersionIndices::halfArea);
+               dispersion::dispersionIndices::standardVertical)
+        .value("halfVertical", dispersion::dispersionIndices::halfVertical)
+        .value("maxArea", dispersion::dispersionIndices::maxArea)
+        .value("standardArea", dispersion::dispersionIndices::standardArea)
+        .value("halfArea", dispersion::dispersionIndices::halfArea);
 
-    emscripten::enum_<wows_shell::post::postPenIndices>("postPenIndices")
-        .value("angle", wows_shell::post::postPenIndices::angle)
-        .value("distance", wows_shell::post::postPenIndices::distance)
-        .value("x", wows_shell::post::postPenIndices::x)
-        .value("y", wows_shell::post::postPenIndices::y)
-        .value("z", wows_shell::post::postPenIndices::z)
-        .value("xwf", wows_shell::post::postPenIndices::xwf);
+    emscripten::enum_<post::postPenIndices>("postPenIndices")
+        .value("angle", post::postPenIndices::angle)
+        .value("distance", post::postPenIndices::distance)
+        .value("x", post::postPenIndices::x)
+        .value("y", post::postPenIndices::y)
+        .value("z", post::postPenIndices::z)
+        .value("xwf", post::postPenIndices::xwf);
 
-    emscripten::enum_<wows_shell::calculateType::calcIndices>("calcIndices")
-        .value("impact", wows_shell::calculateType::calcIndices::impact)
-        .value("angle", wows_shell::calculateType::calcIndices::angle)
-        .value("dispersion", wows_shell::calculateType::calcIndices::dispersion)
-        .value("post", wows_shell::calculateType::calcIndices::post);
+    emscripten::enum_<calculateType::calcIndices>("calcIndices")
+        .value("impact", calculateType::calcIndices::impact)
+        .value("angle", calculateType::calcIndices::angle)
+        .value("dispersion", calculateType::calcIndices::dispersion)
+        .value("post", calculateType::calcIndices::post);
 };
+}  // namespace wows_shell
