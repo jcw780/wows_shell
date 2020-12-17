@@ -21,6 +21,7 @@ https://github.com/pybind/pybind11/issues/1212
 #include <pybind11/stl.h>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <string>
 #include <utility>
@@ -98,11 +99,11 @@ class shellPython {
     }
 
     pybind11::array_t<double> getImpact(bool owned = true) {
-        constexpr std::size_t sT = sizeof(double);
         if (s.completedImpact) {
-            std::vector<size_t> shape = {wows_shell::impact::maxColumns,
-                                         s.impactSize};
-            std::vector<size_t> stride = {s.impactSizeAligned * sT, sT};
+            constexpr std::size_t sT = sizeof(double);
+            std::array<size_t, 2> shape = {wows_shell::impact::maxColumns,
+                                           s.impactSize},
+                                  stride = {s.impactSizeAligned * sT, sT};
             double *tgt = s.get_impactPtr(0, 0);
             auto result =
                 owned ? pybind11::array_t<double>(pybind11::buffer_info(
@@ -118,9 +119,9 @@ class shellPython {
     pybind11::array_t<double> getAngles(bool owned = true) {
         if (s.completedAngles) {
             constexpr std::size_t sT = sizeof(double);
-            std::vector<size_t> shape = {wows_shell::angle::maxColumns,
-                                         s.impactSize};
-            std::vector<size_t> stride = {s.impactSizeAligned * sT, sT};
+            std::array<size_t, 2> shape = {wows_shell::angle::maxColumns,
+                                           s.impactSize},
+                                  stride = {s.impactSizeAligned * sT, sT};
             double *tgt = s.get_anglePtr(0, 0);
             auto result =
                 owned ? pybind11::array_t<double>(pybind11::buffer_info(
@@ -136,9 +137,9 @@ class shellPython {
     pybind11::array_t<double> getDispersion(bool owned = true) {
         if (s.completedDispersion) {
             constexpr std::size_t sT = sizeof(double);
-            std::vector<size_t> shape = {wows_shell::dispersion::maxColumns,
-                                         s.impactSize};
-            std::vector<size_t> stride = {s.impactSizeAligned * sT, sT};
+            std::array<size_t, 2> shape = {wows_shell::dispersion::maxColumns,
+                                           s.impactSize},
+                                  stride = {s.impactSizeAligned * sT, sT};
             double *tgt = s.get_dispersionPtr(0, 0);
             auto result =
                 owned ? pybind11::array_t<double>(pybind11::buffer_info(
@@ -155,10 +156,10 @@ class shellPython {
         if (s.completedPostPen) {
             constexpr std::size_t sT = sizeof(double);
             std::size_t numAngles = s.postPenSize / s.impactSize;
-            std::vector<size_t> shape = {wows_shell::post::maxColumns,
-                                         numAngles, s.impactSize};
-            std::vector<size_t> stride = {s.postPenSize * sT, s.impactSize * sT,
-                                          sT};
+            std::array<size_t, 3> shape = {wows_shell::post::maxColumns,
+                                           numAngles, s.impactSize},
+                                  stride = {s.postPenSize * sT,
+                                            s.impactSize * sT, sT};
             double *tgt = s.get_postPenPtr(0, 0, 0);
             auto result =
                 owned ? pybind11::array_t<double>(pybind11::buffer_info(
@@ -353,11 +354,45 @@ class shellCombined {
     }
 };
 
+template <typename Input, typename Keys, typename Output, typename KeyGenerator>
+void extractDictToArray(Input &input, Keys &keys, Output &output,
+                        KeyGenerator keyGenerator) {
+    using V = typename Output::value_type;
+    for (std::size_t i = 0; i < keys.size(); ++i) {
+        if (input.contains(keyGenerator(keys[i]))) {
+            output[i] = input[keyGenerator(keys[i])].template cast<V>();
+            std::cout << "Key: " << keys[i] << " Value: " << output[i]
+                      << " Added\n";
+        } else {
+            std::cout << "Key: " << keys[i] << "Not Found\n";
+        }
+    }
+}
+
 PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::class_<wows_shell::shellParams>(m, "shellParams")
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double, double>())
         .def(pybind11::init())
+        .def(pybind11::init([](pybind11::dict &input) {
+            constexpr std::size_t structSize = 11;
+            constexpr std::array<char const *, structSize> doubleKeys = {
+                "caliber",   "v0",        "cD",
+                "mass",      "krupp",     "normalization",
+                "fuseTime",  "threshold", "ricochet0",
+                "ricochet1", "nonAP"};
+            std::array<double, structSize> doubleValues{};
+            extractDictToArray(
+                input, doubleKeys, doubleValues,
+                [](const char *in) { return pybind11::str(in); });
+
+            return std::make_unique<wows_shell::shellParams>(
+                doubleValues[0], doubleValues[1], doubleValues[2],
+                doubleValues[3], doubleValues[4], doubleValues[5],
+                doubleValues[6], doubleValues[7], doubleValues[8],
+                doubleValues[9], doubleValues[10]);
+        }))
+
         .def_readwrite("caliber", &wows_shell::shellParams::caliber)
         .def_readwrite("v0", &wows_shell::shellParams::v0)
         .def_readwrite("cD", &wows_shell::shellParams::cD)
@@ -373,6 +408,23 @@ PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::class_<wows_shell::dispersionParams>(m, "dispersionParams")
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double>())
+        .def(pybind11::init([](pybind11::dict &input) {
+            constexpr std::size_t structSize = 10;
+            constexpr std::array<char const *, structSize> doubleKeys = {
+                "idealRadius", "minRadius",  "idealDistance", "taperDistance",
+                "delim",       "zeroRadius", "delimRadius",   "maxRadius",
+                "maxDistance", "sigma"};
+            std::array<double, structSize> doubleValues{};
+            extractDictToArray(
+                input, doubleKeys, doubleValues,
+                [](const char *in) { return pybind11::str(in); });
+
+            return std::make_unique<wows_shell::dispersionParams>(
+                doubleValues[0], doubleValues[1], doubleValues[2],
+                doubleValues[3], doubleValues[4], doubleValues[5],
+                doubleValues[6], doubleValues[7], doubleValues[8],
+                doubleValues[9]);
+        }))
         .def(pybind11::init())
         .def_readwrite("idealRadius",
                        &wows_shell::dispersionParams::idealRadius)
