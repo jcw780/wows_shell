@@ -205,6 +205,15 @@ class shellWasm {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
+    void setValues(const wows_shell::shellParams &sp, const std::string &name) {
+        s.setValues(sp, name);
+    }
+    void setValues(const wows_shell::shellParams &sp,
+                   const wows_shell::dispersionParams &dp,
+                   const std::string &name) {
+        s.setValues(sp, dp, name);
+    }
+
     std::size_t impactSize() { return s.impactSize; }
     std::size_t impactSizeAligned() { return s.impactSizeAligned; }
 
@@ -618,7 +627,23 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .constructor<wows_shell::shellParams, std::string>()
         .constructor<wows_shell::shellParams, wows_shell::dispersionParams,
                      std::string>()
-        .function("setValues", &shellWasm::setValues)
+        .function(
+            "setValues",
+            static_cast<void (shellWasm::*)(
+                const double, const double, const double, const double,
+                const double, const double, const double, const double,
+                const double, const double, const double, const std::string &)>(
+                &shellWasm::setValues))
+        .function("setValues",
+                  static_cast<void (shellWasm::*)(
+                      const wows_shell::shellParams &, const std::string &)>(
+                      &shellWasm::setValues))
+        .function(
+            "setValues",
+            static_cast<void (shellWasm::*)(
+                const wows_shell::shellParams &,
+                const wows_shell::dispersionParams &, const std::string &)>(
+                &shellWasm::setValues))
         .function("getImpactPoint", &shellWasm::getImpactPoint)
         .function("getImpactPointArray", &shellWasm::getImpactPointArray)
         .function("impactData", &shellWasm::impactData)

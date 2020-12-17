@@ -62,6 +62,15 @@ class shellPython {
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
+    void setValues(const wows_shell::shellParams &sp, const std::string &name) {
+        s.setValues(sp, name);
+    }
+    void setValues(const wows_shell::shellParams &sp,
+                   const wows_shell::dispersionParams &dp,
+                   const std::string &name) {
+        s.setValues(sp, dp, name);
+    }
+
     void printImpact() {
         if (s.completedImpact) {
             s.printImpactData();
@@ -404,6 +413,7 @@ std::unique_ptr<wows_shell::dispersionParams> makeDispersionParamsKV(
         doubleValues[4], doubleValues[5], doubleValues[6], doubleValues[7],
         doubleValues[8], doubleValues[9]);
 }
+
 PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::class_<wows_shell::shellParams>(m, "shellParams")
         .def(pybind11::init<double, double, double, double, double, double,
@@ -476,10 +486,8 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("interpolateDistanceImpact",
              &shellCombined::interpolateDistanceImpact)
         .def("getImpact", &shellCombined::getImpact)
-        // pybind11::return_value_policy::reference)
         .def("getAngles", &shellCombined::getAngles)
         .def("getPostPen", &shellCombined::getPostPen)
-        // pybind11::return_value_policy::reference)
         .def("printImpact", &shellCombined::printImpact)
         .def("printAngles", &shellCombined::printAngles)
         .def("printPostPen", &shellCombined::printPostPen);
@@ -494,19 +502,32 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def(pybind11::init<wows_shell::shellParams &, std::string &>())
         .def(pybind11::init<wows_shell::shellParams &,
                             wows_shell::dispersionParams &, std::string &>())
-        .def("setValues", &shellPython::setValues)
+        .def(
+            "setValues",
+            static_cast<void (shellPython::*)(
+                const double, const double, const double, const double,
+                const double, const double, const double, const double,
+                const double, const double, const double, const std::string &)>(
+                &shellPython::setValues))
+        .def("setValues",
+             static_cast<void (shellPython::*)(const wows_shell::shellParams &,
+                                               const std::string &)>(
+                 &shellPython::setValues))
+        .def("setValues",
+             static_cast<void (shellPython::*)(
+                 const wows_shell::shellParams &,
+                 const wows_shell::dispersionParams &, const std::string &)>(
+                 &shellPython::setValues))
         .def("interpolateDistanceImpact",
              &shellPython::interpolateDistanceImpact)
         .def("getImpact", &shellPython::getImpact,
              pybind11::arg("owned") = true)
-        // pybind11::return_value_policy::reference)
         .def("getAngles", &shellPython::getAngles,
              pybind11::arg("owned") = true)
         .def("getDispersion", &shellPython::getDispersion,
              pybind11::arg("owned") = true)
         .def("getPostPen", &shellPython::getPostPen,
              pybind11::arg("owned") = true)
-        // pybind11::return_value_policy::reference)
         .def("printImpact", &shellPython::printImpact)
         .def("printAngles", &shellPython::printAngles)
         .def("printDispersion", &shellPython::printDispersion)
