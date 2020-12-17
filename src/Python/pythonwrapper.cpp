@@ -23,6 +23,7 @@ https://github.com/pybind/pybind11/issues/1212
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -364,10 +365,10 @@ void extractDictToArray(Input &input, Keys &keys, Output &output,
         auto adjKey = keyGenerator(keys[i]);
         if (input.contains(adjKey)) {
             output[i] = input[adjKey].template cast<V>();
-            std::cout << "Key: " << keys[i] << " Value: " << output[i]
-                      << " Added\n";
         } else {
-            std::cout << "Key: " << keys[i] << "Not Found\n";
+            std::stringstream ss;
+            ss << keys[i] << " Not Found";
+            throw pybind11::key_error(ss.str());
         }
     }
 }
