@@ -150,7 +150,11 @@ const runFuncSplit = () => {
     }*/
 
     for (const data of shellDataStruct) {
-        shells.push(new Module.shell(data[0], data[1], ''));
+        const sp = new Module.shellParams();
+        sp.setValues(data[0]);
+        const dp = new Module.dispersionParams(data[1]);
+        dp.setValues(data[1]);
+        shells.push(new Module.shell(sp, dp, ''));
     }
 
     for (const shell of shells) {
