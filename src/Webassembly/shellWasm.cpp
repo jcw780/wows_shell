@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <sstream>
 #include <utility>
 
 #include "../shellCPP.hpp"
@@ -90,74 +91,97 @@ emscripten::val getPostPenPointArrayFuseStatus(shell &s,
     }
 }
 
+void setPointers(shell &s, emscripten::val &param, double *&tgt) {
+    std::size_t type = param[0].as<std::size_t>();
+    std::size_t index = param[1].as<std::size_t>();
+    switch (type) {
+        case toUnderlying(calculateType::calcIndices::impact):
+            if (s.completedImpact) {
+                std::size_t index = param[1].as<std::size_t>();
+                if (0 <= index && index < impact::maxColumns) {
+                    tgt = s.get_impactPtr(0, index);
+                } else {
+                    throw std::runtime_error("Invalid impact index");
+                }
+            } else {
+                throw std::runtime_error("Impact data not generated");
+            }
+            break;
+        case toUnderlying(calculateType::calcIndices::angle):
+            if (s.completedAngles) {
+                std::size_t index = param[1].as<std::size_t>();
+                if (0 <= index && index < angle::maxColumns) {
+                    tgt = s.get_anglePtr(0, index);
+                } else {
+                    throw std::runtime_error("Invalid angle index");
+                }
+            } else {
+                throw std::runtime_error("Angle data not generated");
+            }
+            break;
+        case toUnderlying(calculateType::calcIndices::dispersion):
+            if (s.completedDispersion) {
+                std::size_t index = param[1].as<std::size_t>();
+                if (0 <= index && index < dispersion::maxColumns) {
+                    tgt = s.get_dispersionPtr(0, index);
+                } else {
+                    throw std::runtime_error("Invalid dispersion index");
+                }
+            } else {
+                throw std::runtime_error("Dispersion data not generated");
+            }
+            break;
+        case toUnderlying(calculateType::calcIndices::post):
+            if (s.completedPostPen) {
+                if (0 <= index && index < post::maxColumns) {
+                    tgt =
+                        s.get_postPenPtr(0, index, param[2].as<std::size_t>());
+                } else {
+                    throw std::runtime_error("Invalid post index");
+                }
+            } else {
+                throw std::runtime_error("Post data not generated");
+            }
+            break;
+        default:
+            throw std::runtime_error("Invalid selection");
+    }
+}
+
 emscripten::val getImpactSizedPointArray(shell &s, emscripten::val params1,
                                          emscripten::val params2) {
     emscripten::val points = emscripten::val::array();
     double *startX, *startY;
-    auto setup = [&](emscripten::val &param, double *&tgt) {
-        std::size_t index = param[0].as<std::size_t>();
-        switch (index) {
-            case toUnderlying(calculateType::calcIndices::impact):
-                if (s.completedImpact) {
-                    std::size_t index = param[1].as<std::size_t>();
-                    if (0 <= index && index < impact::maxColumns) {
-                        tgt = s.get_impactPtr(0, index);
-                    } else {
-                        throw std::runtime_error("Invalid impact index");
-                    }
-                } else {
-                    throw std::runtime_error("Impact data not generated");
-                }
-                break;
-            case toUnderlying(calculateType::calcIndices::angle):
-                if (s.completedAngles) {
-                    std::size_t index = param[1].as<std::size_t>();
-                    if (0 <= index && index < angle::maxColumns) {
-                        tgt = s.get_anglePtr(0, index);
-                    } else {
-                        throw std::runtime_error("Invalid angle index");
-                    }
-                } else {
-                    throw std::runtime_error("Angle data not generated");
-                }
-                break;
-            case toUnderlying(calculateType::calcIndices::dispersion):
-                if (s.completedDispersion) {
-                    std::size_t index = param[1].as<std::size_t>();
-                    if (0 <= index && index < dispersion::maxColumns) {
-                        tgt = s.get_dispersionPtr(0, index);
-                    } else {
-                        throw std::runtime_error("Invalid dispersion index");
-                    }
-                } else {
-                    throw std::runtime_error("Dispersion data not generated");
-                }
-                break;
-            case toUnderlying(calculateType::calcIndices::post):
-                if (s.completedPostPen) {
-                    std::size_t index = param[1].as<std::size_t>();
-                    if (0 <= index && index < post::maxColumns) {
-                        tgt = s.get_postPenPtr(0, index,
-                                               param[2].as<std::size_t>());
-                    } else {
-                        throw std::runtime_error("Invalid post index");
-                    }
-                } else {
-                    throw std::runtime_error("Post data not generated");
-                }
-                break;
-            default:
-                throw std::runtime_error("Invalid selection");
-        }
-    };
-    setup(params1, startX);
-    setup(params2, startY);
+    setPointers(s, params1, startX);
+    setPointers(s, params2, startY);
 
     for (std::size_t i = 0; i < s.impactSize; ++i) {
         emscripten::val point = emscripten::val::object();
         point.set("x", *(startX + i));
         point.set("y", *(startY + i));
         points.call<void>("push", point);
+    }
+
+    return points;
+}
+
+emscripten::val getImpactSizedPointArrayFuseStatus(shell &s,
+                                                   emscripten::val params1,
+                                                   emscripten::val params2,
+                                                   const std::size_t angle,
+                                                   const bool fuseStatus) {
+    emscripten::val points = emscripten::val::array();
+    double *startX, *startY;
+    setPointers(s, params1, startX);
+    setPointers(s, params2, startY);
+    for (std::size_t i = 0; i < s.impactSize; ++i) {
+        if (!fuseStatus ^
+            (s.get_postPen(i, post::postPenIndices::xwf, angle) < 0)) {
+            emscripten::val point = emscripten::val::object();
+            point.set("x", *(startX + i));
+            point.set("y", *(startY + i));
+            points.call<void>("push", point);
+        }
     }
 
     return points;
@@ -564,6 +588,55 @@ class shellCombined {
 };
 #endif
 
+template <typename Input, typename Keys, typename Output, typename KeyGenerator>
+void extractDictToArray(Input &input, Keys &keys, Output &output,
+                        KeyGenerator keyGenerator) {
+    using V = typename Output::value_type;
+    for (std::size_t i = 0; i < keys.size(); ++i) {
+        auto adjKey = keyGenerator(keys[i]);
+        if (input.hasOwnProperty(adjKey)) {
+            output[i] = input[adjKey].template as<V>();
+        } else {
+            std::stringstream ss;
+            ss << keys[i] << " Not Found";
+            throw std::runtime_error(ss.str());
+        }
+    }
+}
+
+std::unique_ptr<shellParams> makeShellParamsFromKV(emscripten::val input) {
+    constexpr std::size_t structSize = 11;
+    constexpr std::array<char const *, structSize> doubleKeys = {
+        "caliber",       "v0",       "cD",        "mass",      "krupp",
+        "normalization", "fuseTime", "threshold", "ricochet0", "ricochet1",
+        "nonAP"};
+    std::array<double, structSize> doubleValues{};
+    extractDictToArray(input, doubleKeys, doubleValues,
+                       [](const char *in) { return in; });
+
+    return std::make_unique<shellParams>(
+        doubleValues[0], doubleValues[1], doubleValues[2], doubleValues[3],
+        doubleValues[4], doubleValues[5], doubleValues[6], doubleValues[7],
+        doubleValues[8], doubleValues[9], doubleValues[10]);
+}
+
+std::unique_ptr<dispersionParams> makeDispersionParamsKV(
+    emscripten::val input) {
+    constexpr std::size_t structSize = 10;
+    constexpr std::array<char const *, structSize> doubleKeys = {
+        "idealRadius", "minRadius",  "idealDistance", "taperDistance",
+        "delim",       "zeroRadius", "delimRadius",   "maxRadius",
+        "maxDistance", "sigma"};
+    std::array<double, structSize> doubleValues{};
+    extractDictToArray(input, doubleKeys, doubleValues,
+                       [](const char *in) { return in; });
+
+    return std::make_unique<dispersionParams>(
+        doubleValues[0], doubleValues[1], doubleValues[2], doubleValues[3],
+        doubleValues[4], doubleValues[5], doubleValues[6], doubleValues[7],
+        doubleValues[8], doubleValues[9]);
+}
+
 // Compile option
 // emcc --bind -o shellWasm.wasm.js shellWasm.cpp --std=c++17 -O3 -s
 // ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1 emcc --bind -o shellWasm.js
@@ -584,30 +657,42 @@ class shellCombined {
 
 // Testline: s = shell(780, .460, 2574, 1460, 6, .292, "Yamato", 76.0, .033 )
 EMSCRIPTEN_BINDINGS(shellWasm) {
-    emscripten::value_object<shellParams>("shellParams")
-        .field("caliber", &shellParams::caliber)
-        .field("v0", &shellParams::v0)
-        .field("cD", &shellParams::cD)
-        .field("mass", &shellParams::mass)
-        .field("krupp", &shellParams::krupp)
-        .field("normalization", &shellParams::normalization)
-        .field("fuseTime", &shellParams::fuseTime)
-        .field("threshold", &shellParams::threshold)
-        .field("ricochet0", &shellParams::ricochet0)
-        .field("ricochet1", &shellParams::ricochet1)
-        .field("nonAP", &shellParams::nonAP);
+    emscripten::class_<shellParams>("shellParams")
+        .constructor<const double, const double, const double, const double,
+                     const double, const double, const double, const double,
+                     const double, const double, const double>()
+        .constructor(&makeShellParamsFromKV)
+        .constructor()
+        .function("setValues", &shellParams::setValues)
+        .property("caliber", &shellParams::caliber)
+        .property("v0", &shellParams::v0)
+        .property("cD", &shellParams::cD)
+        .property("mass", &shellParams::mass)
+        .property("krupp", &shellParams::krupp)
+        .property("normalization", &shellParams::normalization)
+        .property("fuseTime", &shellParams::fuseTime)
+        .property("threshold", &shellParams::threshold)
+        .property("ricochet0", &shellParams::ricochet0)
+        .property("ricochet1", &shellParams::ricochet1)
+        .property("nonAP", &shellParams::nonAP);
 
-    emscripten::value_object<dispersionParams>("dispersionParams")
-        .field("idealRadius", &dispersionParams::idealRadius)
-        .field("minRadius", &dispersionParams::minRadius)
-        .field("idealDistance", &dispersionParams::idealDistance)
-        .field("taperDistance", &dispersionParams::taperDistance)
-        .field("delim", &dispersionParams::delim)
-        .field("zeroRadius", &dispersionParams::zeroRadius)
-        .field("delimRadius", &dispersionParams::delimRadius)
-        .field("maxRadius", &dispersionParams::maxRadius)
-        .field("maxDistance", &dispersionParams::maxDistance)
-        .field("sigma", &dispersionParams::sigma);
+    emscripten::class_<dispersionParams>("dispersionParams")
+        .constructor<const double, const double, const double, const double,
+                     const double, const double, const double, const double,
+                     const double, const double>()
+        .constructor(&makeDispersionParamsKV)
+        .constructor()
+        .function("setValues", &dispersionParams::setValues)
+        .property("idealRadius", &dispersionParams::idealRadius)
+        .property("minRadius", &dispersionParams::minRadius)
+        .property("idealDistance", &dispersionParams::idealDistance)
+        .property("taperDistance", &dispersionParams::taperDistance)
+        .property("delim", &dispersionParams::delim)
+        .property("zeroRadius", &dispersionParams::zeroRadius)
+        .property("delimRadius", &dispersionParams::delimRadius)
+        .property("maxRadius", &dispersionParams::maxRadius)
+        .property("maxDistance", &dispersionParams::maxDistance)
+        .property("sigma", &dispersionParams::sigma);
 
 #ifdef ENABLE_SPLIT_SHELL
     emscripten::class_<shellWasm>("shell")

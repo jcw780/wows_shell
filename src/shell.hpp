@@ -29,11 +29,20 @@ struct shellParams {
     double nonAP;  // probably change this to int or something
 
     shellParams() = default;
+
     shellParams(const double caliber_, const double v0_, const double cD_,
                 const double mass_, const double krupp_,
                 const double normalization_, const double fuseTime_,
                 const double threshold_, const double ricochet0_,
                 const double ricochet1_, const double nonAP_) {
+        setValues(caliber_, v0_, cD_, mass_, krupp_, normalization_, fuseTime_,
+                  threshold_, ricochet0_, ricochet1_, nonAP_);
+    }
+    void setValues(const double caliber_, const double v0_, const double cD_,
+                   const double mass_, const double krupp_,
+                   const double normalization_, const double fuseTime_,
+                   const double threshold_, const double ricochet0_,
+                   const double ricochet1_, const double nonAP_) {
         caliber = caliber_;
         v0 = v0_;
         cD = cD_;
@@ -66,6 +75,15 @@ struct dispersionParams {
                      const double delim_, const double zeroRadius_,
                      const double delimRadius_, const double maxRadius_,
                      const double maxDistance_, const double sigma_) {
+        setValues(idealRadius_, minRadius_, idealDistance_, taperDistance_,
+                  delim_, zeroRadius_, delimRadius_, maxRadius_, maxDistance_,
+                  sigma_);
+    }
+    void setValues(const double idealRadius_, const double minRadius_,
+                   const double idealDistance_, const double taperDistance_,
+                   const double delim_, const double zeroRadius_,
+                   const double delimRadius_, const double maxRadius_,
+                   const double maxDistance_, const double sigma_) {
         idealRadius = idealRadius_;
         minRadius = minRadius_;
         idealDistance = idealDistance_;
