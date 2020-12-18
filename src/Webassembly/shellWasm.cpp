@@ -604,7 +604,8 @@ void extractDictToArray(Input &input, Keys &keys, Output &output,
     }
 }
 
-std::unique_ptr<shellParams> makeShellParamsFromKV(emscripten::val input) {
+template <typename RF>
+auto callShellParamsFromKV(emscripten::val input, RF returnFunction) {
     constexpr std::size_t structSize = 11;
     constexpr std::array<char const *, structSize> doubleKeys = {
         "caliber",       "v0",       "cD",        "mass",      "krupp",
@@ -613,15 +614,25 @@ std::unique_ptr<shellParams> makeShellParamsFromKV(emscripten::val input) {
     std::array<double, structSize> doubleValues{};
     extractDictToArray(input, doubleKeys, doubleValues,
                        [](const char *in) { return in; });
-
-    return std::make_unique<shellParams>(
-        doubleValues[0], doubleValues[1], doubleValues[2], doubleValues[3],
-        doubleValues[4], doubleValues[5], doubleValues[6], doubleValues[7],
-        doubleValues[8], doubleValues[9], doubleValues[10]);
+    return returnFunction(doubleValues[0], doubleValues[1], doubleValues[2],
+                          doubleValues[3], doubleValues[4], doubleValues[5],
+                          doubleValues[6], doubleValues[7], doubleValues[8],
+                          doubleValues[9], doubleValues[10]);
 }
 
-std::unique_ptr<dispersionParams> makeDispersionParamsKV(
-    emscripten::val input) {
+std::unique_ptr<shellParams> makeShellParamsFromKV(emscripten::val input) {
+    return callShellParamsFromKV(input, [](auto... args) {
+        return std::make_unique<shellParams>(args...);
+    });
+}
+
+void setShellParamsFromVal(shellParams &sp, emscripten::val input) {
+    return callShellParamsFromKV(input,
+                                 [&](auto... args) { sp.setValues(args...); });
+}
+
+template <typename RF>
+auto callDispersionParamsFromKV(emscripten::val input, RF returnFunction) {
     constexpr std::size_t structSize = 10;
     constexpr std::array<char const *, structSize> doubleKeys = {
         "idealRadius", "minRadius",  "idealDistance", "taperDistance",
@@ -631,10 +642,22 @@ std::unique_ptr<dispersionParams> makeDispersionParamsKV(
     extractDictToArray(input, doubleKeys, doubleValues,
                        [](const char *in) { return in; });
 
-    return std::make_unique<dispersionParams>(
-        doubleValues[0], doubleValues[1], doubleValues[2], doubleValues[3],
-        doubleValues[4], doubleValues[5], doubleValues[6], doubleValues[7],
-        doubleValues[8], doubleValues[9]);
+    return returnFunction(doubleValues[0], doubleValues[1], doubleValues[2],
+                          doubleValues[3], doubleValues[4], doubleValues[5],
+                          doubleValues[6], doubleValues[7], doubleValues[8],
+                          doubleValues[9]);
+}
+
+std::unique_ptr<dispersionParams> makeDispersionParamsKV(
+    emscripten::val input) {
+    return callDispersionParamsFromKV(input, [](auto... args) {
+        return std::make_unique<dispersionParams>(args...);
+    });
+}
+
+void setDispersionParamsFromVal(dispersionParams &dp, emscripten::val input) {
+    return callDispersionParamsFromKV(
+        input, [&](auto... args) { dp.setValues(args...); });
 }
 
 // Compile option
@@ -664,6 +687,7 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .constructor(&makeShellParamsFromKV)
         .constructor()
         .function("setValues", &shellParams::setValues)
+        .function("setValues", &setShellParamsFromVal)
         .property("caliber", &shellParams::caliber)
         .property("v0", &shellParams::v0)
         .property("cD", &shellParams::cD)
@@ -683,6 +707,7 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .constructor(&makeDispersionParamsKV)
         .constructor()
         .function("setValues", &dispersionParams::setValues)
+        .function("setValues", &setDispersionParamsFromVal)
         .property("idealRadius", &dispersionParams::idealRadius)
         .property("minRadius", &dispersionParams::minRadius)
         .property("idealDistance", &dispersionParams::idealDistance)
