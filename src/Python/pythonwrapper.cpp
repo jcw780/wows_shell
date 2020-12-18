@@ -377,8 +377,8 @@ void extractDictToArray(Input &input, Keys &keys, Output &output,
     }
 }
 
-template <typename KV>
-std::unique_ptr<shellParams> makeShellParamsFromKV(KV &input) {
+template <typename KV, typename RF>
+auto callShellParamsFromKV(KV &input, RF returnFunction) {
     constexpr std::size_t structSize = 11;
     constexpr std::array<char const *, structSize> doubleKeys = {
         "caliber",       "v0",       "cD",        "mass",      "krupp",
@@ -388,14 +388,28 @@ std::unique_ptr<shellParams> makeShellParamsFromKV(KV &input) {
     extractDictToArray(input, doubleKeys, doubleValues,
                        [](const char *in) { return pybind11::str(in); });
 
-    return std::make_unique<shellParams>(
-        doubleValues[0], doubleValues[1], doubleValues[2], doubleValues[3],
-        doubleValues[4], doubleValues[5], doubleValues[6], doubleValues[7],
-        doubleValues[8], doubleValues[9], doubleValues[10]);
+    return returnFunction(doubleValues[0], doubleValues[1], doubleValues[2],
+                          doubleValues[3], doubleValues[4], doubleValues[5],
+                          doubleValues[6], doubleValues[7], doubleValues[8],
+                          doubleValues[9], doubleValues[10]);
 }
 
 template <typename KV>
-std::unique_ptr<dispersionParams> makeDispersionParamsKV(KV &input) {
+std::unique_ptr<shellParams> makeShellParamsFromKV(KV &input) {
+    if constexpr (std::is_same_v<KV, pybind11::kwargs>)
+        if (input.empty()) return std::make_unique<shellParams>();
+    return callShellParamsFromKV(input, [](auto... args) {
+        return std::make_unique<shellParams>(args...);
+    });
+}
+
+template <typename KV>
+void setShellParamsFromKV(shellParams &sp, KV &input) {
+    callShellParamsFromKV(input, [&](auto... args) { sp.setValues(args...); });
+}
+
+template <typename KV, typename RF>
+auto callDispersionParamsKV(KV &input, RF returnFunction) {
     constexpr std::size_t structSize = 10;
     constexpr std::array<char const *, structSize> doubleKeys = {
         "idealRadius", "minRadius",  "idealDistance", "taperDistance",
@@ -405,21 +419,35 @@ std::unique_ptr<dispersionParams> makeDispersionParamsKV(KV &input) {
     extractDictToArray(input, doubleKeys, doubleValues,
                        [](const char *in) { return pybind11::str(in); });
 
-    return std::make_unique<dispersionParams>(
-        doubleValues[0], doubleValues[1], doubleValues[2], doubleValues[3],
-        doubleValues[4], doubleValues[5], doubleValues[6], doubleValues[7],
-        doubleValues[8], doubleValues[9]);
+    return returnFunction(doubleValues[0], doubleValues[1], doubleValues[2],
+                          doubleValues[3], doubleValues[4], doubleValues[5],
+                          doubleValues[6], doubleValues[7], doubleValues[8],
+                          doubleValues[9]);
+}
+
+template <typename KV>
+std::unique_ptr<dispersionParams> makeDispersionParamsKV(KV &input) {
+    if constexpr (std::is_same_v<KV, pybind11::kwargs>)
+        if (input.empty()) return std::make_unique<dispersionParams>();
+    return callDispersionParamsKV(input, [](auto... args) {
+        return std::make_unique<dispersionParams>(args...);
+    });
+}
+
+template <typename KV>
+void setDispersionParamsFromKV(dispersionParams &dp, KV &input) {
+    callDispersionParamsKV(input, [&](auto... args) { dp.setValues(args...); });
 }
 
 PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::class_<shellParams>(m, "shellParams")
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double, double>())
-        .def(pybind11::init(
-            [](pybind11::dict &i) { return makeShellParamsFromKV(i); }))
-        .def(pybind11::init(
-            [](pybind11::kwargs &i) { return makeShellParamsFromKV(i); }))
-        .def(pybind11::init())
+        .def(pybind11::init(&makeShellParamsFromKV<pybind11::dict>))
+        .def(pybind11::init(&makeShellParamsFromKV<pybind11::kwargs>))
+        .def("setValues", &shellParams::setValues)
+        .def("setValues", &setShellParamsFromKV<pybind11::dict>)
+        .def("setValues", &setShellParamsFromKV<pybind11::kwargs>)
         .def_readwrite("caliber", &shellParams::caliber)
         .def_readwrite("v0", &shellParams::v0)
         .def_readwrite("cD", &shellParams::cD)
@@ -435,11 +463,11 @@ PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::class_<dispersionParams>(m, "dispersionParams")
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double>())
-        .def(pybind11::init(
-            [](pybind11::dict &i) { return makeDispersionParamsKV(i); }))
-        .def(pybind11::init(
-            [](pybind11::kwargs &i) { return makeDispersionParamsKV(i); }))
-        .def(pybind11::init())
+        .def(pybind11::init(&makeDispersionParamsKV<pybind11::dict>))
+        .def(pybind11::init(&makeDispersionParamsKV<pybind11::kwargs>))
+        .def("setValues", &dispersionParams::setValues)
+        .def("setValues", &setDispersionParamsFromKV<pybind11::dict>)
+        .def("setValues", &setDispersionParamsFromKV<pybind11::kwargs>)
         .def_readwrite("idealRadius", &dispersionParams::idealRadius)
         .def_readwrite("minRadius", &dispersionParams::minRadius)
         .def_readwrite("idealDistance", &dispersionParams::idealDistance)
