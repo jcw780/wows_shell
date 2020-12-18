@@ -627,8 +627,7 @@ std::unique_ptr<shellParams> makeShellParamsFromKV(emscripten::val input) {
 }
 
 void setShellParamsFromVal(shellParams &sp, emscripten::val input) {
-    return callShellParamsFromKV(input,
-                                 [&](auto... args) { sp.setValues(args...); });
+    callShellParamsFromKV(input, [&](auto... args) { sp.setValues(args...); });
 }
 
 template <typename RF>
@@ -656,8 +655,8 @@ std::unique_ptr<dispersionParams> makeDispersionParamsKV(
 }
 
 void setDispersionParamsFromVal(dispersionParams &dp, emscripten::val input) {
-    return callDispersionParamsFromKV(
-        input, [&](auto... args) { dp.setValues(args...); });
+    callDispersionParamsFromKV(input,
+                               [&](auto... args) { dp.setValues(args...); });
 }
 
 // Compile option
