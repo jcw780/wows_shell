@@ -188,7 +188,7 @@ class shell {
         const double DsQ = (phiL - phiR) / Z;
         standardRatio =
             sqrt(1 + ((left * phiL - right * phiR) / Z) - (DsQ * DsQ)) / sigma;
-        halfRatio = utility::invCDF(.25 * Z + phiL) * -1;
+        halfRatio = utility::invCDF(.25 * Z + utility::cdf(left)) / left;
     }
 
     // Not 100% necessary - sizes adjusted to fulfill alignment
