@@ -880,7 +880,7 @@ class shellCalc {
 
             double vertical =
                 horizontal * verticalRatio / sin(impactAngle * -1);
-            double area = M_PI * horizontal / 2 * vertical / 2;
+            double area = M_PI * horizontal * vertical;
 
             s.get_dispersion(i, dispersion::dispersionIndices::maxHorizontal) =
                 horizontal;
