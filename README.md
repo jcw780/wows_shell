@@ -40,6 +40,18 @@ Outputs:
   - Minimum Lateral Angle for Fusing 
   - Ricochet Lateral Angles <br/>
 
+### Dispersion
+Computes dispersion approximations based on experimental data. <br/>
+Outputs:
+  - Dispersion Types:
+    - Horizontal Dispersion 
+    - Vertical Dispersion
+    - Area Dispersion
+  - Statistical Types
+    - Max Dispersion
+    - Standard Deviation of Dispersion
+    - 50% Error Radius
+
 ### Post-Penetration:
 Shell detonation distance after penetration while adjusting for ship angling, and vertical armor inclinations. <br/>
 
@@ -62,7 +74,7 @@ Capability to fit shells to real world data using gradient descent.
 - Used in https://github.com/jcw780/wows_ballistics
 ## Future Goals:
 - Wiki / Tutorial
-- Packages (maybe even going for PyPI), more refined build tools
+- Packages (maybe go for PyPI), more refined build tools
 - Will continue to update the model when new information is acquired
 
 
