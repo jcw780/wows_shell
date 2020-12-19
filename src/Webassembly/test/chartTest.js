@@ -261,7 +261,7 @@ const testFunction = () => {
                 ) 
             },{
                 label: 'Half Horizontal Dispersion',
-                yAxisID: 'B',
+                yAxisID: 'A',
                 data: Module.getImpactSizedPointArray(shell,
                     [
                         Module.calcIndices.impact.value,
@@ -307,7 +307,7 @@ const testFunction = () => {
                 ) 
             },{
                 label: 'Half Horizontal Dispersion',
-                yAxisID: 'B',
+                yAxisID: 'A',
                 data: Module.getImpactSizedPointArray(shell,
                     [
                         Module.calcIndices.impact.value,
@@ -353,7 +353,7 @@ const testFunction = () => {
                 ) 
             },{
                 label: 'Half Dispersion Area',
-                yAxisID: 'B',
+                yAxisID: 'A',
                 data: Module.getImpactSizedPointArray(shell,
                     [
                         Module.calcIndices.impact.value,
