@@ -1,6 +1,6 @@
 let Module, calculator;
 const chartIds = [
-    'chart0', 'chart1', 'chart2', 'chart3', 'chart4', 'chart5', 'chart6'
+    'chart0', 'chart1', 'chart2', 'chart3', 'chart4', 'chart5', 'chart6', 'chart7', 'chart8'
 ];
 let charts = chartIds.map(v => {
     let ctx = document.getElementById(v).getContext('2d'); 
@@ -31,6 +31,10 @@ let charts = chartIds.map(v => {
     );
 });
 
+let angles = [0, 10, 20];
+let armor = 70;
+let inclination = -20;
+
 const testFunction = () => {
     const shellDataStruct = [
         [{
@@ -52,7 +56,9 @@ const testFunction = () => {
 
     shells.forEach(shell => {
         calculator.calcImpact(shell);
-        calculator.calcDispersion(shell);        
+        calculator.calcDispersion(shell);
+        calculator.calcAngles(shell, armor, inclination);
+        calculator.calcPostPen(shell, armor, inclination, angles, false, true);        
         let datasets = [];
         datasets.push(
             {
@@ -362,6 +368,128 @@ const testFunction = () => {
         );
         charts[6].data.datasets = datasets;
         charts[6].update();
+
+        datasets = [];
+        datasets.push(
+            {
+                label: 'Ricochet 0',
+                yAxisID: 'A',
+                data: Module.getImpactSizedPointArray(shell,
+                    [
+                        Module.calcIndices.impact.value,
+                        Module.impactIndices.distance.value
+                    ], 
+                    [
+                        Module.calcIndices.angle.value,
+                        Module.angleIndices.ra0D.value
+                    ]
+                ) 
+            },{
+                label: 'Ricochet 1',
+                yAxisID: 'A',
+                data: Module.getImpactSizedPointArray(shell,
+                    [
+                        Module.calcIndices.impact.value,
+                        Module.impactIndices.distance.value
+                    ], 
+                    [
+                        Module.calcIndices.angle.value,
+                        Module.angleIndices.ra1D.value
+                    ]
+                ) 
+            },{
+                label: 'Minimum Angle for Fusing',
+                yAxisID: 'A',
+                data: Module.getImpactSizedPointArray(shell,
+                    [
+                        Module.calcIndices.impact.value,
+                        Module.impactIndices.distance.value
+                    ], 
+                    [
+                        Module.calcIndices.angle.value,
+                        Module.angleIndices.fuseD.value
+                    ]
+                ) 
+            },{
+                label: 'Maximum Angle for Perforation',
+                yAxisID: 'A',
+                data: Module.getImpactSizedPointArray(shell,
+                    [
+                        Module.calcIndices.impact.value,
+                        Module.impactIndices.distance.value
+                    ], 
+                    [
+                        Module.calcIndices.angle.value,
+                        Module.angleIndices.armorD.value
+                    ]
+                ) 
+            }
+        );
+        charts[7].data.datasets = datasets;
+        charts[7].update();
+
+        datasets = [];
+        datasets.push(
+            {
+                label: 'Ricochet 0',
+                yAxisID: 'A',
+                data: Module.getImpactSizedPointArray(shell,
+                    [
+                        Module.calcIndices.impact.value,
+                        Module.impactIndices.distance.value
+                    ], 
+                    [
+                        Module.calcIndices.post.value,
+                        Module.postPenIndices.x.value,
+                        2
+                    ]
+                ) 
+            },{
+                label: 'Ricochet 1',
+                yAxisID: 'A',
+                data: Module.getImpactSizedPointArray(shell,
+                    [
+                        Module.calcIndices.impact.value,
+                        Module.impactIndices.distance.value
+                    ], 
+                    [
+                        Module.calcIndices.post.value,
+                        Module.postPenIndices.y.value,
+                        2
+                    ]
+                ) 
+            },{
+                label: 'Minimum Angle for Fusing',
+                yAxisID: 'A',
+                data: Module.getImpactSizedPointArray(shell,
+                    [
+                        Module.calcIndices.impact.value,
+                        Module.impactIndices.distance.value
+                    ], 
+                    [
+                        Module.calcIndices.post.value,
+                        Module.postPenIndices.z.value,
+                        2
+                    ]
+                ) 
+            },{
+                label: 'Maximum Angle for Perforation',
+                yAxisID: 'A',
+                data: Module.getImpactSizedPointArray(shell,
+                    [
+                        Module.calcIndices.impact.value,
+                        Module.impactIndices.distance.value
+                    ], 
+                    [
+                        Module.calcIndices.post.value,
+                        Module.postPenIndices.xwf.value,
+                        2
+                    ]
+                ) 
+            }
+        );
+        charts[8].data.datasets = datasets;
+        charts[8].update();
     })
 }
 
