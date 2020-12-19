@@ -1,5 +1,4 @@
-from pythonwrapper import shell, shellCalc
-from pythonwrapper import impactIndices, angleIndices, postPenIndices
+from pythonwrapper import *
 
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -24,7 +23,8 @@ ships = [
     #(.356, 757, .3142, 721, 2295, 6, .015, 59, 45, 60.0, 0, "King George V"),
     (.457, 762, .2897, 1506, 2485, 6, .033, 76, 45, 60.0, 0, "Thunderer"),
     (.33, 870, .2801, 560, 2428, 6, .033, 55, 45, 60.0, 0, "Dunkerque"),
-    (.305, 762, .4595, 470.9, 2627, 6, 0.01, 51, 45, 60.0, 0, "Oktyabrskaya Revolutsiya"),
+    (.305, 762, .4595, 470.9, 2627, 6, 0.01, 51,
+     45, 60.0, 0, "Oktyabrskaya Revolutsiya"),
     #(.32, 830, .4098, 525, 2600, 6, 0.033, 53, 45, 60.0, 0, "Giulio Cesare"),
     (.356, 792, .31, 635, 1603, 6, 0.033, 59, 45, 60, 0, "New York")
 ]
@@ -51,7 +51,7 @@ referenceDistancePenetration = {
     "Oktyabrskaya Revolutsiya": {5000: 458, 10000: 338, 15000: 251},
     "Giulio Cesare":            {5000: 439, 10000: 416, 15000: 320},
     "New York":                 {5000: 337, 15000: 224, 18000: 204},
-    #{5000: , 10000:, 15000: },
+    # {5000: , 10000:, 15000: },
 }
 
 angles = []
@@ -61,32 +61,36 @@ mass = []
 krupp = []
 referenceData = []
 
+
 def normalization(angle, normalization):
     return max(angle - normalization, 0)
+
 
 c = shellCalc()
 c.setDtMin(.01)
 for i, ship in enumerate(ships):
     print(ship[-1])
-    s = shell(*ship)
+    s = shell(shellParams(*(ship[:-1])), ship[-1])
     c.calcImpactForwardEuler(s)
     normal = ship[5]
     shipRef = referenceDistancePenetration[ship[-1]]
     for dist, penetration in shipRef.items():
         referenceData.append(penetration)
 
-        adjAngle = normalization(s.interpolateDistanceImpact(dist, int(impactIndices.impactAngleHorizontalDegrees)), normal)
+        adjAngle = normalization(s.interpolateDistanceImpact(
+            dist, int(impactIndices.impactAngleHorizontalDegrees)), normal)
         angles.append(adjAngle)
 
-        impactVelocity = s.interpolateDistanceImpact(dist, int(impactIndices.impactVelocity))
+        impactVelocity = s.interpolateDistanceImpact(
+            dist, int(impactIndices.impactVelocity))
         velocities.append(impactVelocity)
-        
+
         print(impactVelocity, adjAngle)
 
         diameter.append(ship[0])
         mass.append(ship[3])
         krupp.append(ship[4] / 2400)
-    
+
 referenceData = np.array(referenceData)
 angles = np.array(angles)
 velocities = np.array(velocities)
@@ -96,7 +100,8 @@ krupp = np.array(krupp)
 
 
 def regressV():
-    Y = referenceData / np.cos(np.radians(angles)) / krupp / np.power(mass, 0.5506) / np.power(diameter, -0.6521)
+    Y = referenceData / np.cos(np.radians(angles)) / krupp / \
+        np.power(mass, 0.5506) / np.power(diameter, -0.6521)
 
     lY = np.log(Y)
     lV = np.log(velocities)
@@ -110,17 +115,19 @@ def regressV():
     regCoeffs = reg.coef_
     regIntercept = reg.intercept_
     regInterceptE = np.exp(regIntercept)
-    print(F'Penetration = {regInterceptE} * V^{regCoeffs[0]} * D^-0.6521 * M^0.5506')
+    print(
+        F'Penetration = {regInterceptE} * V^{regCoeffs[0]} * D^-0.6521 * M^0.5506')
 
     return regInterceptE * np.cos(np.radians(angles)) * (
-                np.power(velocities, regCoeffs[0]) * 
-                np.power(diameter, -0.6521) *
-                np.power(mass, 0.5506) * 
-                np.power(krupp, 1)
-            )
+        np.power(velocities, regCoeffs[0]) *
+        np.power(diameter, -0.6521) *
+        np.power(mass, 0.5506) *
+        np.power(krupp, 1)
+    )
+
 
 def regressVDM():
-    Y = referenceData / np.cos(np.radians(angles)) / krupp 
+    Y = referenceData / np.cos(np.radians(angles)) / krupp
 
     lY = np.log(Y)
     lV = np.log(velocities)
@@ -137,14 +144,16 @@ def regressVDM():
     regCoeffs = reg.coef_
     regIntercept = reg.intercept_
     regInterceptE = np.exp(regIntercept)
-    print(F'Penetration = {regInterceptE} * V^{regCoeffs[0]} * D^{regCoeffs[1]} * M^{regCoeffs[2]}')
+    print(
+        F'Penetration = {regInterceptE} * V^{regCoeffs[0]} * D^{regCoeffs[1]} * M^{regCoeffs[2]}')
 
     return regInterceptE * np.cos(np.radians(angles)) * (
-                np.power(velocities, regCoeffs[0]) * 
-                np.power(diameter, regCoeffs[1]) * 
-                np.power(mass, regCoeffs[2]) *
-                np.power(krupp, 1)
-            )
+        np.power(velocities, regCoeffs[0]) *
+        np.power(diameter, regCoeffs[1]) *
+        np.power(mass, regCoeffs[2]) *
+        np.power(krupp, 1)
+    )
+
 
 def regressVDMK():
     Y = referenceData / np.cos(np.radians(angles))
@@ -164,14 +173,16 @@ def regressVDMK():
     regCoeffs = reg.coef_
     regIntercept = reg.intercept_
     regInterceptE = np.exp(regIntercept)
-    print(F'Penetration = {regInterceptE} * V^{regCoeffs[0]} * D^{regCoeffs[1]} * M^{regCoeffs[2]} * (K/2400)^{regCoeffs[3]}')
+    print(
+        F'Penetration = {regInterceptE} * V^{regCoeffs[0]} * D^{regCoeffs[1]} * M^{regCoeffs[2]} * (K/2400)^{regCoeffs[3]}')
 
     return regInterceptE * np.cos(np.radians(angles)) * (
-                np.power(velocities, regCoeffs[0]) * 
-                np.power(diameter, regCoeffs[1]) * 
-                np.power(mass, regCoeffs[2]) *
-                np.power(krupp, regCoeffs[3])
-            )
+        np.power(velocities, regCoeffs[0]) *
+        np.power(diameter, regCoeffs[1]) *
+        np.power(mass, regCoeffs[2]) *
+        np.power(krupp, regCoeffs[3])
+    )
+
 
 predictions = regressV()
 

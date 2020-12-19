@@ -107,8 +107,9 @@ class shellCalc {
     // mini 'threadpool' used to kick off multithreaded functions
 
     template <typename O, typename F, typename... Args>
-    void mtFunctionRunner(const std::size_t assigned, const std::size_t length, const std::size_t size, O object,
-                          F function, Args... args) {
+    void mtFunctionRunner(const std::size_t assigned, const std::size_t length,
+                          const std::size_t size, O object, F function,
+                          Args... args) {
         if (assigned > 1) {
             mtFunctionRunnerSelected<true>(assigned, length, size, object,
                                            function, args...);
@@ -119,7 +120,8 @@ class shellCalc {
     }
 
     template <bool multiThreaded, typename O, typename F, typename... Args>
-    void mtFunctionRunnerSelected(const std::size_t assigned, const std::size_t length,
+    void mtFunctionRunnerSelected(const std::size_t assigned,
+                                  const std::size_t length,
                                   const std::size_t size, O object, F function,
                                   Args... args) {
         if constexpr (multiThreaded) {
@@ -535,10 +537,6 @@ class shellCalc {
                                      effectivePenetrationDeckNormalized) =
                         s.nonAP;
                 } else {
-                    // double rawPenetration = pPPC * pow(IV, 1.1001);
-                    // double rawPenetration = pPPC * pow(IV, 1.38);
-                    // double rawPenetration = pPPC * pow(IV, 1.53803192);
-                    // double rawPenetration = pPPC * pow(IV, 1.54562941);
                     double rawPenetration = pPPC * pow(IV, velocityPower);
                     s.get_impact(i + j, impact::impactIndices::rawPenetration) =
                         rawPenetration;
@@ -833,6 +831,81 @@ class shellCalc {
         s.completedAngles = true;
     }
 
+    // Dispersion Section
+    void calculateDispersion(
+        shell &s, std::size_t nThreads = std::thread::hardware_concurrency()) {
+        s.dispersionData.resize(dispersion::maxColumns * s.impactSizeAligned);
+        if (nThreads > std::thread::hardware_concurrency()) {
+            nThreads = std::thread::hardware_concurrency();
+        }
+        std::size_t length = ceil(static_cast<double>(s.impactSize) / vSize);
+        std::size_t assigned = assignThreadNum(length, nThreads);
+        if (s.convex) {
+            mtFunctionRunner(assigned, length, s.impactSize, this,
+                             &shellCalc::dispersionGroup<true>, std::ref(s));
+        } else {
+            mtFunctionRunner(assigned, length, s.impactSize, this,
+                             &shellCalc::dispersionGroup<false>, std::ref(s));
+        }
+        s.completedDispersion = true;
+    }
+
+    template <bool convex>
+    void dispersionGroup(const std::size_t startIndex, shell &s) {
+        for (uint8_t j = 0; j < vSize; ++j) {
+            const uint8_t i = startIndex + j;
+            double distance = s.get_impact(i, impact::impactIndices::distance);
+            double impactAngle = s.get_impact(
+                i, impact::impactIndices::impactAngleHorizontalRadians);
+            double horizontal =
+                std::min(s.horizontalSlope * distance + s.horizontalIntercept,
+                         s.taperSlope * distance);
+            // Continuous piecewise linear [2] function
+            // Will always be convex - pick the lower of the two
+
+            double verticalRatioUncapped;
+            if constexpr (convex) {
+                verticalRatioUncapped = std::min(
+                    s.delimMaxSlope * distance + s.delimMaxIntercept,
+                    s.zeroDelimSlope * distance + s.zeroDelimIntercept);
+            } else {
+                verticalRatioUncapped = std::max(
+                    s.delimMaxSlope * distance + s.delimMaxIntercept,
+                    s.zeroDelimSlope * distance + s.zeroDelimIntercept);
+            }
+            // Continuous piecewise linear [2] function
+            // Will pick based on convexity
+            double verticalRatio = std::min(verticalRatioUncapped, s.maxRadius);
+            // Results will never be higher than s.maxRadius
+
+            double vertical =
+                horizontal * verticalRatio / sin(impactAngle * -1);
+            double area = M_PI * horizontal * vertical;
+
+            s.get_dispersion(i, dispersion::dispersionIndices::maxHorizontal) =
+                horizontal;
+            s.get_dispersion(
+                i, dispersion::dispersionIndices::standardHorizontal) =
+                horizontal * s.standardRatio;
+            s.get_dispersion(i, dispersion::dispersionIndices::halfHorizontal) =
+                horizontal * s.halfRatio;
+
+            s.get_dispersion(i, dispersion::dispersionIndices::maxVertical) =
+                vertical;
+            s.get_dispersion(i,
+                             dispersion::dispersionIndices::standardVertical) =
+                vertical * s.standardRatio;
+            s.get_dispersion(i, dispersion::dispersionIndices::halfVertical) =
+                vertical * s.halfRatio;
+
+            s.get_dispersion(i, dispersion::dispersionIndices::maxArea) = area;
+            s.get_dispersion(i, dispersion::dispersionIndices::standardArea) =
+                area * s.standardRatio * s.standardRatio;
+            s.get_dispersion(i, dispersion::dispersionIndices::halfArea) =
+                area * s.halfRatio * s.halfRatio;
+        }
+    }
+
     // Post-Penetration Section
 
    private:
@@ -1013,7 +1086,7 @@ class shellCalc {
     // Again templates to reduce branching
     void calculatePostPen(
         const double thickness, const double inclination, shell &s,
-        std::vector<double> &angles, const bool changeDirection = true,
+        std::vector<double> &angles, const bool changeDirection = false,
         const bool fast = false,
         const std::size_t nThreads = std::thread::hardware_concurrency()) {
         // Specifies whether normalization alters the trajectory of the

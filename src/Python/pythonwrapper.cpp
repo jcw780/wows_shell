@@ -10,6 +10,8 @@ setup_pybind11(cfg)
 strdup not defined in windows
 https://github.com/pybind/pybind11/issues/1212
 */
+#include <cstdlib>
+#include <iterator>
 #ifdef _WIN32
 #define strdup _strdup
 #endif
@@ -19,32 +21,60 @@ https://github.com/pybind/pybind11/issues/1212
 #include <pybind11/stl.h>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
+#include <sstream>
+#include <string>
 #include <utility>
 
 #include "../shellCPP.hpp"
 
+namespace wows_shell {
 class shellPython {
    public:
-    wows_shell::shell s;
+    shell s;
     shellPython(const double caliber, const double v0, const double cD,
                 const double mass, const double krupp,
                 const double normalization, const double fuseTime,
                 const double threshold, const double ricochet0,
                 const double ricochet1, const double nonAP,
                 const std::string &name) {
+        PyErr_WarnEx(PyExc_DeprecationWarning,
+                     "shell(args...) is deprecated, use "
+                     "shell(shellParams(args...), name) instead.",
+                     1);
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
+    shellPython(const shellParams &sp, const std::string &name) {
+        s.setValues(sp, name);
+    }
+    shellPython(const shellParams &sp, const dispersionParams &dp,
+                const std::string &name) {
+        s.setValues(sp, dp, name);
+    }
+
     void setValues(const double caliber, const double v0, const double cD,
                    const double mass, const double krupp,
                    const double normalization, const double fuseTime,
                    const double threshold, const double ricochet0,
                    const double ricochet1, const double nonAP,
                    const std::string &name) {
+        PyErr_WarnEx(PyExc_DeprecationWarning,
+                     "shell.setValues(args...) is deprecated, use "
+                     "shell.setValues(shellParams(args...), name) instead.",
+                     1);
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
+    void setValues(const shellParams &sp, const std::string &name) {
+        s.setValues(sp, name);
+    }
+    void setValues(const shellParams &sp, const dispersionParams &dp,
+                   const std::string &name) {
+        s.setValues(sp, dp, name);
+    }
+
     void printImpact() {
         if (s.completedImpact) {
             s.printImpactData();
@@ -61,6 +91,14 @@ class shellPython {
         }
     }
 
+    void printDispersion() {
+        if (s.completedDispersion) {
+            s.printDispersionData();
+        } else {
+            throw std::runtime_error("Dispersion data not generated");
+        }
+    }
+
     void printPostPen() {
         if (s.completedPostPen) {
             s.printPostPenData();
@@ -73,59 +111,72 @@ class shellPython {
         return s.interpolateDistanceImpact(distance, impact);
     }
 
-    pybind11::array_t<double> getImpact() {
+    pybind11::array_t<double> getImpact(bool owned = true) {
         if (s.completedImpact) {
             constexpr std::size_t sT = sizeof(double);
-            auto result = pybind11::array(pybind11::buffer_info(
-                s.get_impactPtr(0, 0), /* Pointer to data (nullptr -> ask NumPy
-                                         to allocate!) */
-                sT,                    /* Size of one item */
-                pybind11::format_descriptor<double>::value, /* Buffer format */
-                2, /* How many dimensions? */
-                std::vector<std::size_t>{
-                    wows_shell::impact::maxColumns,
-                    s.impactSize}, /* Number of elements for each dimension */
-                std::vector<std::size_t>{s.impactSizeAligned * sT, sT}
-                /* Strides for each dimension */
-                ));
+            std::array<size_t, 2> shape = {impact::maxColumns, s.impactSize},
+                                  stride = {s.impactSizeAligned * sT, sT};
+            double *tgt = s.get_impactPtr(0, 0);
+            auto result =
+                owned ? pybind11::array_t<double>(pybind11::buffer_info(
+                            tgt, sT, pybind11::format_descriptor<double>::value,
+                            2, shape, stride))
+                      : pybind11::array_t<double>(shape, stride, tgt);
             return result;
         } else {
             throw std::runtime_error("Impact data not generated");
         }
     }
 
-    pybind11::array_t<double> getAngles() {
-        if (s.completedImpact) {
+    pybind11::array_t<double> getAngles(bool owned = true) {
+        if (s.completedAngles) {
             constexpr std::size_t sT = sizeof(double);
-            auto result = pybind11::array(pybind11::buffer_info(
-                s.get_anglePtr(0, 0), /* Pointer to data (nullptr -> ask NumPy
-                                         to allocate!) */
-                sT,                   /* Size of one item */
-                pybind11::format_descriptor<double>::value, /* Buffer format */
-                2, /* How many dimensions? */
-                std::vector<std::size_t>{
-                    wows_shell::angle::maxColumns,
-                    s.impactSize}, /* Number of elements for each dimension */
-                std::vector<std::size_t>{s.impactSizeAligned * sT, sT}
-                /* Strides for each dimension */
-                ));
+            std::array<size_t, 2> shape = {angle::maxColumns, s.impactSize},
+                                  stride = {s.impactSizeAligned * sT, sT};
+            double *tgt = s.get_anglePtr(0, 0);
+            auto result =
+                owned ? pybind11::array_t<double>(pybind11::buffer_info(
+                            tgt, sT, pybind11::format_descriptor<double>::value,
+                            2, shape, stride))
+                      : pybind11::array_t<double>(shape, stride, tgt);
             return result;
         } else {
             throw std::runtime_error("Impact data not generated");
         }
     }
 
-    pybind11::array_t<double> getPostPen() {
+    pybind11::array_t<double> getDispersion(bool owned = true) {
+        if (s.completedDispersion) {
+            constexpr std::size_t sT = sizeof(double);
+            std::array<size_t, 2> shape = {dispersion::maxColumns,
+                                           s.impactSize},
+                                  stride = {s.impactSizeAligned * sT, sT};
+            double *tgt = s.get_dispersionPtr(0, 0);
+            auto result =
+                owned ? pybind11::array_t<double>(pybind11::buffer_info(
+                            tgt, sT, pybind11::format_descriptor<double>::value,
+                            2, shape, stride))
+                      : pybind11::array_t<double>(shape, stride, tgt);
+            return result;
+        } else {
+            throw std::runtime_error("Impact data not generated");
+        }
+    }
+
+    pybind11::array_t<double> getPostPen(bool owned = true) {
         if (s.completedPostPen) {
             constexpr std::size_t sT = sizeof(double);
-            auto result = pybind11::array(pybind11::buffer_info(
-                s.get_postPenPtr(0, 0, 0), sT,
-                pybind11::format_descriptor<double>::value, 3,
-                std::vector<std::size_t>{wows_shell::post::maxColumns,
-                                         (int)s.postPenSize / s.impactSize,
-                                         s.impactSize},
-                std::vector<std::size_t>{s.postPenSize * sT, s.impactSize * sT,
-                                         sT}));
+            std::size_t numAngles = s.postPenSize / s.impactSize;
+            std::array<size_t, 3> shape = {post::maxColumns, numAngles,
+                                           s.impactSize},
+                                  stride = {s.postPenSize * sT,
+                                            s.impactSize * sT, sT};
+            double *tgt = s.get_postPenPtr(0, 0, 0);
+            auto result =
+                owned ? pybind11::array_t<double>(pybind11::buffer_info(
+                            tgt, sT, pybind11::format_descriptor<double>::value,
+                            3, shape, stride))
+                      : pybind11::array_t<double>(shape, stride, tgt);
             return result;
         } else {
             throw std::runtime_error("PostPen data not generated");
@@ -133,11 +184,11 @@ class shellPython {
     }
 };
 
-std::string generateShellPythonHash (const shellPython& s){
-    return wows_shell::generateHash(s.s);
+std::string generateShellPythonHash(const shellPython &s) {
+    return generateHash(s.s);
 }
 
-class shellCalcPython : public wows_shell::shellCalc {
+class shellCalcPython : public shellCalc {
    public:
     shellCalcPython() = default;
 
@@ -150,9 +201,9 @@ class shellCalcPython : public wows_shell::shellCalc {
     void setXf0(const double xf0) { calc.set_xf0(xf0); }
     void setYf0(const double yf0) { calc.set_yf0(yf0); }
     void setDtf(const double dtf) { calc.set_dtf(dtf); }*/
-    
-    template <wows_shell::numerical Numerical>
-    void calcImpact(shellPython &sp){
+
+    template <numerical Numerical>
+    void calcImpact(shellPython &sp) {
         calculateImpact<false, Numerical, false>(sp.s);
     }
 
@@ -160,6 +211,8 @@ class shellCalcPython : public wows_shell::shellCalc {
                     const double inclination) {
         calculateAngles(thickness, inclination, sp.s);
     }
+
+    void calcDispersion(shellPython &sp) { calculateDispersion(sp.s); }
 
     void calcPostPen(shellPython &sp, const double thickness,
                      const double inclination, std::vector<double> angles,
@@ -172,8 +225,8 @@ class shellCalcPython : public wows_shell::shellCalc {
 // DEPRECATED
 class shellCombined {
    private:
-    wows_shell::shellCalc calc;
-    wows_shell::shell s;
+    shellCalc calc;
+    shell s;
 
    public:
     shellCombined(const double caliber, const double v0, const double cD,
@@ -182,6 +235,9 @@ class shellCombined {
                   const double threshold, const double ricochet0,
                   const double ricochet1, const double nonAP,
                   const std::string &name) {
+        PyErr_WarnEx(
+            PyExc_DeprecationWarning,
+            "shellCombined is deprecated, use shell and shellCalc instead.", 1);
         s.setValues(caliber, v0, cD, mass, krupp, normalization, fuseTime,
                     threshold, ricochet0, ricochet1, nonAP, name);
     }
@@ -207,20 +263,19 @@ class shellCombined {
     void setDtf(const double dtf) { calc.set_dtf(dtf); }
 
     void calcImpactForwardEuler() {
-        calc.calculateImpact<false, wows_shell::numerical::forwardEuler, false>(s);
+        calc.calculateImpact<false, numerical::forwardEuler, false>(s);
     }
 
     void calcImpactAdamsBashforth5() {
-        calc.calculateImpact<false, wows_shell::numerical::adamsBashforth5, false>(
-            s);
+        calc.calculateImpact<false, numerical::adamsBashforth5, false>(s);
     }
 
     void calcImpactRungeKutta2() {
-        calc.calculateImpact<false, wows_shell::numerical::rungeKutta2, false>(s);
+        calc.calculateImpact<false, numerical::rungeKutta2, false>(s);
     }
 
     void calcImpactRungeKutta4() {
-        calc.calculateImpact<false, wows_shell::numerical::rungeKutta4, false>(s);
+        calc.calculateImpact<false, numerical::rungeKutta4, false>(s);
     }
 
     void calcAngles(const double thickness, const double inclination) {
@@ -266,17 +321,10 @@ class shellCombined {
         if (s.completedImpact) {
             constexpr std::size_t sT = sizeof(double);
             auto result = pybind11::array(pybind11::buffer_info(
-                s.get_impactPtr(0, 0), /* Pointer to data (nullptr -> ask NumPy
-                                         to allocate!) */
-                sT,                    /* Size of one item */
-                pybind11::format_descriptor<double>::value, /* Buffer format */
-                2, /* How many dimensions? */
-                std::vector<std::size_t>{
-                    wows_shell::impact::maxColumns,
-                    s.impactSize}, /* Number of elements for each dimension */
-                std::vector<std::size_t>{s.impactSizeAligned * sT, sT}
-                /* Strides for each dimension */
-                ));
+                s.get_impactPtr(0, 0), sT,
+                pybind11::format_descriptor<double>::value, 2,
+                {impact::maxColumns, s.impactSize},
+                {s.impactSizeAligned * sT, sT}));
             return result;
         } else {
             throw std::runtime_error("Impact data not generated");
@@ -284,20 +332,13 @@ class shellCombined {
     }
 
     pybind11::array_t<double> getAngles() {
-        if (s.completedImpact) {
+        if (s.completedAngles) {
             constexpr std::size_t sT = sizeof(double);
             auto result = pybind11::array(pybind11::buffer_info(
-                s.get_anglePtr(0, 0), /* Pointer to data (nullptr -> ask NumPy
-                                         to allocate!) */
-                sT,                   /* Size of one item */
-                pybind11::format_descriptor<double>::value, /* Buffer format */
-                2, /* How many dimensions? */
-                std::vector<std::size_t>{
-                    wows_shell::angle::maxColumns,
-                    s.impactSize}, /* Number of elements for each dimension */
-                std::vector<std::size_t>{s.impactSizeAligned * sT, sT}
-                /* Strides for each dimension */
-                ));
+                s.get_anglePtr(0, 0), sT,
+                pybind11::format_descriptor<double>::value, 2,
+                {angle::maxColumns, s.impactSize},
+                {s.impactSizeAligned * sT, sT}));
             return result;
         } else {
             throw std::runtime_error("Impact data not generated");
@@ -307,14 +348,12 @@ class shellCombined {
     pybind11::array_t<double> getPostPen() {
         if (s.completedPostPen) {
             constexpr std::size_t sT = sizeof(double);
+            std::size_t numAngles = s.postPenSize / s.impactSize;
             auto result = pybind11::array(pybind11::buffer_info(
                 s.get_postPenPtr(0, 0, 0), sT,
                 pybind11::format_descriptor<double>::value, 3,
-                std::vector<std::size_t>{wows_shell::post::maxColumns,
-                                         (int)s.postPenSize / s.impactSize,
-                                         s.impactSize},
-                std::vector<std::size_t>{s.postPenSize * sT, s.impactSize * sT,
-                                         sT}));
+                {post::maxColumns, numAngles, s.impactSize},
+                {s.postPenSize * sT, s.impactSize * sT, sT}));
             return result;
         } else {
             throw std::runtime_error("PostPen data not generated");
@@ -322,7 +361,124 @@ class shellCombined {
     }
 };
 
+template <typename Input, typename Keys, typename Output, typename KeyGenerator>
+void extractDictToArray(Input &input, Keys &keys, Output &output,
+                        KeyGenerator keyGenerator) {
+    using V = typename Output::value_type;
+    for (std::size_t i = 0; i < keys.size(); ++i) {
+        auto adjKey = keyGenerator(keys[i]);
+        if (input.contains(adjKey)) {
+            output[i] = input[adjKey].template cast<V>();
+        } else {
+            std::stringstream ss;
+            ss << keys[i] << " Not Found";
+            throw pybind11::key_error(ss.str());
+        }
+    }
+}
+
+template <typename KV, typename RF>
+auto callShellParamsFromKV(KV &input, RF returnFunction) {
+    constexpr std::size_t structSize = 11;
+    constexpr std::array<char const *, structSize> doubleKeys = {
+        "caliber",       "v0",       "cD",        "mass",      "krupp",
+        "normalization", "fuseTime", "threshold", "ricochet0", "ricochet1",
+        "nonAP"};
+    std::array<double, structSize> doubleValues{};
+    extractDictToArray(input, doubleKeys, doubleValues,
+                       [](const char *in) { return pybind11::str(in); });
+
+    return returnFunction(doubleValues[0], doubleValues[1], doubleValues[2],
+                          doubleValues[3], doubleValues[4], doubleValues[5],
+                          doubleValues[6], doubleValues[7], doubleValues[8],
+                          doubleValues[9], doubleValues[10]);
+}
+
+template <typename KV>
+std::unique_ptr<shellParams> makeShellParamsFromKV(KV &input) {
+    if constexpr (std::is_same_v<KV, pybind11::kwargs>)
+        if (input.empty()) return std::make_unique<shellParams>();
+    return callShellParamsFromKV(input, [](auto... args) {
+        return std::make_unique<shellParams>(args...);
+    });
+}
+
+template <typename KV>
+void setShellParamsFromKV(shellParams &sp, KV &input) {
+    callShellParamsFromKV(input, [&](auto... args) { sp.setValues(args...); });
+}
+
+template <typename KV, typename RF>
+auto callDispersionParamsKV(KV &input, RF returnFunction) {
+    constexpr std::size_t structSize = 10;
+    constexpr std::array<char const *, structSize> doubleKeys = {
+        "idealRadius", "minRadius",  "idealDistance", "taperDistance",
+        "delim",       "zeroRadius", "delimRadius",   "maxRadius",
+        "maxDistance", "sigma"};
+    std::array<double, structSize> doubleValues{};
+    extractDictToArray(input, doubleKeys, doubleValues,
+                       [](const char *in) { return pybind11::str(in); });
+
+    return returnFunction(doubleValues[0], doubleValues[1], doubleValues[2],
+                          doubleValues[3], doubleValues[4], doubleValues[5],
+                          doubleValues[6], doubleValues[7], doubleValues[8],
+                          doubleValues[9]);
+}
+
+template <typename KV>
+std::unique_ptr<dispersionParams> makeDispersionParamsKV(KV &input) {
+    if constexpr (std::is_same_v<KV, pybind11::kwargs>)
+        if (input.empty()) return std::make_unique<dispersionParams>();
+    return callDispersionParamsKV(input, [](auto... args) {
+        return std::make_unique<dispersionParams>(args...);
+    });
+}
+
+template <typename KV>
+void setDispersionParamsFromKV(dispersionParams &dp, KV &input) {
+    callDispersionParamsKV(input, [&](auto... args) { dp.setValues(args...); });
+}
+
 PYBIND11_MODULE(pythonwrapper, m) {
+    pybind11::class_<shellParams>(m, "shellParams")
+        .def(pybind11::init<double, double, double, double, double, double,
+                            double, double, double, double, double>())
+        .def(pybind11::init(&makeShellParamsFromKV<pybind11::dict>))
+        .def(pybind11::init(&makeShellParamsFromKV<pybind11::kwargs>))
+        .def("setValues", &shellParams::setValues)
+        .def("setValues", &setShellParamsFromKV<pybind11::dict>)
+        .def("setValues", &setShellParamsFromKV<pybind11::kwargs>)
+        .def_readwrite("caliber", &shellParams::caliber)
+        .def_readwrite("v0", &shellParams::v0)
+        .def_readwrite("cD", &shellParams::cD)
+        .def_readwrite("mass", &shellParams::mass)
+        .def_readwrite("krupp", &shellParams::krupp)
+        .def_readwrite("normalization", &shellParams::normalization)
+        .def_readwrite("fuseTime", &shellParams::fuseTime)
+        .def_readwrite("threshold", &shellParams::threshold)
+        .def_readwrite("ricochet0", &shellParams::ricochet0)
+        .def_readwrite("ricochet1", &shellParams::ricochet1)
+        .def_readwrite("nonAP", &shellParams::nonAP);
+
+    pybind11::class_<dispersionParams>(m, "dispersionParams")
+        .def(pybind11::init<double, double, double, double, double, double,
+                            double, double, double, double>())
+        .def(pybind11::init(&makeDispersionParamsKV<pybind11::dict>))
+        .def(pybind11::init(&makeDispersionParamsKV<pybind11::kwargs>))
+        .def("setValues", &dispersionParams::setValues)
+        .def("setValues", &setDispersionParamsFromKV<pybind11::dict>)
+        .def("setValues", &setDispersionParamsFromKV<pybind11::kwargs>)
+        .def_readwrite("idealRadius", &dispersionParams::idealRadius)
+        .def_readwrite("minRadius", &dispersionParams::minRadius)
+        .def_readwrite("idealDistance", &dispersionParams::idealDistance)
+        .def_readwrite("taperDistance", &dispersionParams::taperDistance)
+        .def_readwrite("delim", &dispersionParams::delim)
+        .def_readwrite("zeroRadius", &dispersionParams::zeroRadius)
+        .def_readwrite("delimRadius", &dispersionParams::delimRadius)
+        .def_readwrite("maxRadius", &dispersionParams::maxRadius)
+        .def_readwrite("maxDistance", &dispersionParams::maxDistance)
+        .def_readwrite("sigma", &dispersionParams::sigma);
+
     pybind11::class_<shellCombined>(m, "shellCombined",
                                     pybind11::buffer_protocol())
         .def(pybind11::init<double, double, double, double, double, double,
@@ -350,31 +506,48 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("interpolateDistanceImpact",
              &shellCombined::interpolateDistanceImpact)
         .def("getImpact", &shellCombined::getImpact)
-        // pybind11::return_value_policy::reference)
         .def("getAngles", &shellCombined::getAngles)
         .def("getPostPen", &shellCombined::getPostPen)
-        // pybind11::return_value_policy::reference)
         .def("printImpact", &shellCombined::printImpact)
         .def("printAngles", &shellCombined::printAngles)
         .def("printPostPen", &shellCombined::printPostPen);
-    
-    m.def("generateHash", &wows_shell::generateShellParamHash);
+
+    m.def("generateHash", &generateShellParamHash);
     m.def("generateShellHash", &generateShellPythonHash);
 
     pybind11::class_<shellPython>(m, "shell", pybind11::buffer_protocol())
-        .def(pybind11::init<double, double, double, double, double, double,
-                            double, double, double, double, double,
-                            std::string &>())
-        .def("setValues", &shellPython::setValues)
+        .def(pybind11::init<const double, const double, const double,
+                            const double, const double, const double,
+                            const double, const double, const double,
+                            const double, const double, std::string &>())
+        .def(pybind11::init<shellParams &, std::string &>())
+        .def(pybind11::init<shellParams &, dispersionParams &, std::string &>())
+        .def(
+            "setValues",
+            static_cast<void (shellPython::*)(
+                const double, const double, const double, const double,
+                const double, const double, const double, const double,
+                const double, const double, const double, const std::string &)>(
+                &shellPython::setValues))
+        .def("setValues", static_cast<void (shellPython::*)(
+                              const shellParams &, const std::string &)>(
+                              &shellPython::setValues))
+        .def("setValues", static_cast<void (shellPython::*)(
+                              const shellParams &, const dispersionParams &,
+                              const std::string &)>(&shellPython::setValues))
         .def("interpolateDistanceImpact",
              &shellPython::interpolateDistanceImpact)
-        .def("getImpact", &shellPython::getImpact)
-        // pybind11::return_value_policy::reference)
-        .def("getAngles", &shellPython::getAngles)
-        .def("getPostPen", &shellPython::getPostPen)
-        // pybind11::return_value_policy::reference)
+        .def("getImpact", &shellPython::getImpact,
+             pybind11::arg("owned") = true)
+        .def("getAngles", &shellPython::getAngles,
+             pybind11::arg("owned") = true)
+        .def("getDispersion", &shellPython::getDispersion,
+             pybind11::arg("owned") = true)
+        .def("getPostPen", &shellPython::getPostPen,
+             pybind11::arg("owned") = true)
         .def("printImpact", &shellPython::printImpact)
         .def("printAngles", &shellPython::printAngles)
+        .def("printDispersion", &shellPython::printDispersion)
         .def("printPostPen", &shellPython::printPostPen);
 
     pybind11::class_<shellCalcPython>(m, "shellCalc",
@@ -389,64 +562,68 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("setXf0", &shellCalcPython::set_xf0)
         .def("setYf0", &shellCalcPython::set_yf0)
         .def("setDtf", &shellCalcPython::set_dtf)
-        .def("calcImpactForwardEuler", &shellCalcPython::calcImpact<wows_shell::numerical::forwardEuler>)
+        .def("calcImpactForwardEuler",
+             &shellCalcPython::calcImpact<numerical::forwardEuler>)
         .def("calcImpactAdamsBashforth5",
-             &shellCalcPython::calcImpact<wows_shell::numerical::adamsBashforth5>)
-        .def("calcImpactRungeKutta2", &shellCalcPython::calcImpact<wows_shell::numerical::rungeKutta2>)
-        .def("calcImpactRungeKutta4", &shellCalcPython::calcImpact<wows_shell::numerical::rungeKutta4>)
+             &shellCalcPython::calcImpact<numerical::adamsBashforth5>)
+        .def("calcImpactRungeKutta2",
+             &shellCalcPython::calcImpact<numerical::rungeKutta2>)
+        .def("calcImpactRungeKutta4",
+             &shellCalcPython::calcImpact<numerical::rungeKutta4>)
         .def("calcAngles", &shellCalcPython::calcAngles)
+        .def("calcDispersion", &shellCalcPython::calcDispersion)
         .def("calcPostPen", &shellCalcPython::calcPostPen);
     // Enums
-    pybind11::enum_<wows_shell::impact::impactIndices>(m, "impactIndices",
-                                                  pybind11::arithmetic())
-        .value("distance", wows_shell::impact::impactIndices::distance)
-        .value("launchAngle", wows_shell::impact::impactIndices::launchAngle)
+    pybind11::enum_<impact::impactIndices>(m, "impactIndices",
+                                           pybind11::arithmetic())
+        .value("distance", impact::impactIndices::distance)
+        .value("launchAngle", impact::impactIndices::launchAngle)
         .value("impactAngleHorizontalRadians",
-               wows_shell::impact::impactIndices::impactAngleHorizontalRadians)
+               impact::impactIndices::impactAngleHorizontalRadians)
         .value("impactAngleHorizontalDegrees",
-               wows_shell::impact::impactIndices::impactAngleHorizontalDegrees)
-        .value("impactVelocity", wows_shell::impact::impactIndices::impactVelocity)
-        .value("rawPenetration", wows_shell::impact::impactIndices::rawPenetration)
+               impact::impactIndices::impactAngleHorizontalDegrees)
+        .value("impactVelocity", impact::impactIndices::impactVelocity)
+        .value("rawPenetration", impact::impactIndices::rawPenetration)
         .value("effectivePenetrationHorizontal",
-               wows_shell::impact::impactIndices::effectivePenetrationHorizontal)
+               impact::impactIndices::effectivePenetrationHorizontal)
         .value("effectivePenetrationHorizontalNormalized",
-               wows_shell::impact::impactIndices::
-                   effectivePenetrationHorizontalNormalized)
+               impact::impactIndices::effectivePenetrationHorizontalNormalized)
         .value("impactAngleDeckDegrees",
-               wows_shell::impact::impactIndices::impactAngleDeckDegrees)
+               impact::impactIndices::impactAngleDeckDegrees)
         .value("effectivePenetrationDeck",
-               wows_shell::impact::impactIndices::effectivePenetrationDeck)
+               impact::impactIndices::effectivePenetrationDeck)
         .value("effectivePenetrationDeckNormalized",
-               wows_shell::impact::impactIndices::effectivePenetrationDeckNormalized)
-        .value("timeToTarget", wows_shell::impact::impactIndices::timeToTarget)
+               impact::impactIndices::effectivePenetrationDeckNormalized)
+        .value("timeToTarget", impact::impactIndices::timeToTarget)
         .value("timeToTargetAdjusted",
-               wows_shell::impact::impactIndices::timeToTargetAdjusted)
+               impact::impactIndices::timeToTargetAdjusted)
         .export_values();
 
-    pybind11::enum_<wows_shell::angle::angleIndices>(m, "angleIndices",
-                                                pybind11::arithmetic())
-        .value("distance", wows_shell::angle::angleIndices::distance)
+    pybind11::enum_<angle::angleIndices>(m, "angleIndices",
+                                         pybind11::arithmetic())
+        .value("distance", angle::angleIndices::distance)
         .value("ricochetAngle0Radians",
-               wows_shell::angle::angleIndices::ricochetAngle0Radians)
+               angle::angleIndices::ricochetAngle0Radians)
         .value("ricochetAngle0Degrees",
-               wows_shell::angle::angleIndices::ricochetAngle0Degrees)
+               angle::angleIndices::ricochetAngle0Degrees)
         .value("ricochetAngle1Radians",
-               wows_shell::angle::angleIndices::ricochetAngle1Radians)
+               angle::angleIndices::ricochetAngle1Radians)
         .value("ricochetAngle1Degrees",
-               wows_shell::angle::angleIndices::ricochetAngle1Degrees)
-        .value("armorRadians", wows_shell::angle::angleIndices::armorRadians)
-        .value("armorDegrees", wows_shell::angle::angleIndices::armorDegrees)
-        .value("fuseRadians", wows_shell::angle::angleIndices::fuseRadians)
-        .value("fuseDegrees", wows_shell::angle::angleIndices::fuseDegrees)
+               angle::angleIndices::ricochetAngle1Degrees)
+        .value("armorRadians", angle::angleIndices::armorRadians)
+        .value("armorDegrees", angle::angleIndices::armorDegrees)
+        .value("fuseRadians", angle::angleIndices::fuseRadians)
+        .value("fuseDegrees", angle::angleIndices::fuseDegrees)
         .export_values();
 
-    pybind11::enum_<wows_shell::post::postPenIndices>(m, "postPenIndices",
-                                                 pybind11::arithmetic())
-        .value("angle", wows_shell::post::postPenIndices::angle)
-        .value("distance", wows_shell::post::postPenIndices::distance)
-        .value("x", wows_shell::post::postPenIndices::x)
-        .value("y", wows_shell::post::postPenIndices::y)
-        .value("z", wows_shell::post::postPenIndices::z)
-        .value("xwf", wows_shell::post::postPenIndices::xwf)
+    pybind11::enum_<post::postPenIndices>(m, "postPenIndices",
+                                          pybind11::arithmetic())
+        .value("angle", post::postPenIndices::angle)
+        .value("distance", post::postPenIndices::distance)
+        .value("x", post::postPenIndices::x)
+        .value("y", post::postPenIndices::y)
+        .value("z", post::postPenIndices::z)
+        .value("xwf", post::postPenIndices::xwf)
         .export_values();
 };
+}  // namespace wows_shell

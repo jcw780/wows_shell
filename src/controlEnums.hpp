@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <cstdlib>
 #include <type_traits>
 
 namespace wows_shell {
@@ -52,6 +53,23 @@ static_assert(toUnderlying(angleIndices::fuseDegrees) == (maxColumns - 1),
               "Invalid angle columns");
 }  // namespace angle
 
+namespace dispersion {
+static constexpr std::size_t maxColumns = 9;
+enum class dispersionIndices {
+    maxHorizontal,
+    standardHorizontal,
+    halfHorizontal,
+    maxVertical,
+    standardVertical,
+    halfVertical,
+    maxArea,
+    standardArea,
+    halfArea,
+};
+static_assert(toUnderlying(dispersionIndices::halfArea) == (maxColumns - 1),
+              "Invalid dispersion columns");
+};  // namespace dispersion
+
 namespace post {
 static constexpr std::size_t maxColumns = 6;
 enum class postPenIndices { angle, distance, x, y, z, xwf };
@@ -59,6 +77,11 @@ using indexT = typename std::underlying_type<postPenIndices>::type;
 static_assert(toUnderlying(postPenIndices::xwf) == (maxColumns - 1),
               "Invaild postpen columns");
 }  // namespace post
+
+namespace calculateType {
+enum class calcIndices { impact, angle, dispersion, post };
+static_assert(toUnderlying(calcIndices::post) == 3, "Invalid data indices");
+}  // namespace calculateType
 
 enum class numerical {
     forwardEuler,
