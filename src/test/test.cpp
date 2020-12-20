@@ -11,7 +11,7 @@ void runtime() {
     // wows_shell::shell *test;
     std::unique_ptr<wows_shell::shell> test;
     wows_shell::shellCalc sc;
-    sc.set_max(25.0);
+    sc.set_max(90.0);
     unsigned int runs = 1;
     /*test = std::make_unique<wows_shell::shell>(.460, 780, .292, 1460, 2574, 6,
                                                .033, 76, 45, 60, 0, "Yamato");*/
@@ -44,14 +44,12 @@ void runtime() {
     sc.calculateAngles(76, 0, *test);
 
     test->printImpactData();
-    std::size_t maxIndex = test->maxDist();
-    if (maxIndex != std::numeric_limits<std::size_t>::max()) {
-        std::cout << maxIndex << " "
-                  << test->get_impact(
-                         maxIndex, wows_shell::impact::impactIndices::distance)
+    auto maxDist = test->maxDist();
+    if (std::get<0>(maxDist) != std::numeric_limits<std::size_t>::max()) {
+        std::cout << std::get<0>(maxDist) << " " << std::get<1>(maxDist)
                   << "\n";
     } else {
-        std::cout << maxIndex << " Error\n";
+        std::cout << std::get<0>(maxDist) << " Error\n";
     }
     std::cout << test->interpolateDistanceImpact(
                      30000, wows_shell::impact::impactIndices::rawPenetration)

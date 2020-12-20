@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <vector>
 
@@ -409,39 +410,15 @@ class shell {
                impact * impactSize;
     }
 
-    std::size_t maxDist() {
+    std::tuple<std::size_t, double> maxDist() {
         std::size_t errorCode = std::numeric_limits<std::size_t>::max();
-        if (impactSize == 0) return errorCode;
-        if (impactSize == 1) return 0;
-        if (impactSize == 2)
-            return get_impact(1, impact::impactIndices::distance) >
-                           get_impact(0, impact::impactIndices::distance)
-                       ? 1
-                       : 0;
-
-        std::size_t start = 0, end = impactSize - 1;
-        if (get_impact(end, impact::impactIndices::distance) >=
-            get_impact(end - 1, impact::impactIndices::distance))
-            return end;
-
-        using T = typename std::decay<decltype(*impactData.begin())>::type;
-        while (start <= end) {
-            std::size_t mid = start + (end - start) / 2;
-            T midValue = get_impact(mid, impact::impactIndices::distance),
-              leftValue = get_impact(mid - 1, impact::impactIndices::distance),
-              rightValue = get_impact(mid + 1, impact::impactIndices::distance);
-            // std::cout << mid << " " << leftValue << " " << midValue << " "
-            //          << rightValue << "\n";
-            if (leftValue <= midValue && midValue >= rightValue) {
-                return mid;
-            }
-            if (leftValue < midValue && midValue < rightValue) {
-                start = ++mid;
-            } else if (leftValue > midValue && midValue > rightValue) {
-                end = --mid;
-            }
+        if (impactSize == 0) return {errorCode, 0};
+        std::tuple<std::size_t, double> t = {0, 0};
+        for (std::size_t i = 1; i < impactSize; i++) {
+            double distance = get_impact(i, impact::impactIndices::distance);
+            t = std::get<1>(t) < distance ? std::make_tuple(i, distance) : t;
         }
-        return errorCode;
+        return t;
     }
 
     double interpolateDistanceImpact(double distance,
@@ -449,7 +426,7 @@ class shell {
         return interpolateDistanceImpact(distance, toUnderlying(data));
     }
     double interpolateDistanceImpact(double distance, uint32_t impact) {
-        std::size_t maxIndex = maxDist(),
+        std::size_t maxIndex = std::get<0>(maxDist()),
                     maxErrorCode = std::numeric_limits<std::size_t>::max();
         double errorCode = std::numeric_limits<double>::max();
         if (maxIndex == maxErrorCode) return errorCode;
