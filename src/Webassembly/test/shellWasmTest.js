@@ -165,6 +165,7 @@ const runFuncSplit = () => {
 
         const hash = Module.generateShellHash(shell)
         console.log(hash, typeof hash);
+        console.log(shell.maxDist());
     }
 
     const testPoints = (shell) => {
