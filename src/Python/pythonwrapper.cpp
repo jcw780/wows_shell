@@ -75,6 +75,12 @@ class shellPython {
         s.setValues(sp, dp, name);
     }
 
+    pybind11::dict maxDist() {
+        auto res = s.maxDist();
+        return pybind11::dict(pybind11::arg("index") = std::get<0>(res),
+                              pybind11::arg("distance") = std::get<1>(res));
+    }
+
     void printImpact() {
         if (s.completedImpact) {
             s.printImpactData();
@@ -535,6 +541,7 @@ PYBIND11_MODULE(pythonwrapper, m) {
         .def("setValues", static_cast<void (shellPython::*)(
                               const shellParams &, const dispersionParams &,
                               const std::string &)>(&shellPython::setValues))
+        .def("maxDist", &shellPython::maxDist)
         .def("interpolateDistanceImpact",
              &shellPython::interpolateDistanceImpact)
         .def("getImpact", &shellPython::getImpact,

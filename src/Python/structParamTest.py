@@ -39,6 +39,7 @@ for i, s in enumerate(shellList):
     c.calcAngles(s, 70, 0)
     c.calcDispersion(s)
     c.calcPostPen(s, 70, 0, angles, True, False)
+    print(s.maxDist())
 
 for s in shellList:
     # s.printImpact()
