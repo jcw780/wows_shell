@@ -229,6 +229,13 @@ class shellWasm {
 
     std::size_t impactSize() { return s.impactSize; }
     std::size_t impactSizeAligned() { return s.impactSizeAligned; }
+    emscripten::val maxDist() {
+        emscripten::val arr = emscripten::val::object();
+        auto res = s.maxDist();
+        arr.set("index", std::get<0>(res));
+        arr.set("distance", std::get<1>(res));
+        return arr;
+    }
 
     std::vector<double> impactData() {
         if (s.completedImpact) {
@@ -738,6 +745,7 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
                   static_cast<void (shellWasm::*)(
                       const shellParams &, const dispersionParams &,
                       const std::string &)>(&shellWasm::setValues))
+        .function("maxDist", &shellWasm::maxDist)
         .function("getImpactPoint", &shellWasm::getImpactPoint)
         .function("getImpactPointArray", &shellWasm::getImpactPointArray)
         .function("impactData", &shellWasm::impactData)
