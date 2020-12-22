@@ -853,7 +853,7 @@ class shellCalc {
     template <bool convex>
     void dispersionGroup(const std::size_t startIndex, shell &s) {
         for (uint8_t j = 0; j < vSize; ++j) {
-            const uint8_t i = startIndex + j;
+            const std::size_t i = startIndex + j;
             double distance = s.get_impact(i, impact::impactIndices::distance);
             double impactAngle = s.get_impact(
                 i, impact::impactIndices::impactAngleHorizontalRadians);
