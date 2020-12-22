@@ -174,13 +174,23 @@ emscripten::val getImpactSizedPointArrayFuseStatus(shell &s,
     double *startX, *startY;
     setPointers(s, params1, startX);
     setPointers(s, params2, startY);
-    for (std::size_t i = 0; i < s.impactSize; ++i) {
-        if (!fuseStatus ^
-            (s.get_postPen(i, post::postPenIndices::xwf, angle) < 0)) {
-            emscripten::val point = emscripten::val::object();
-            point.set("x", *(startX + i));
-            point.set("y", *(startY + i));
-            points.call<void>("push", point);
+    if (fuseStatus) {
+        for (std::size_t i = 0; i < s.impactSize; ++i) {
+            if (s.get_postPen(i, post::postPenIndices::xwf, angle) >= 0) {
+                emscripten::val point = emscripten::val::object();
+                point.set("x", *(startX + i));
+                point.set("y", *(startY + i));
+                points.call<void>("push", point);
+            }
+        }
+    } else {
+        for (std::size_t i = 0; i < s.impactSize; ++i) {
+            if (s.get_postPen(i, post::postPenIndices::xwf, angle) < 0) {
+                emscripten::val point = emscripten::val::object();
+                point.set("x", *(startX + i));
+                point.set("y", *(startY + i));
+                points.call<void>("push", point);
+            }
         }
     }
 
@@ -209,6 +219,7 @@ class shellWasm {
               const std::string &name) {
         s.setValues(sp, dp, name);
     }
+    shellWasm() = default;
 
     void setValues(const double caliber, const double v0, const double cD,
                    const double mass, const double krupp,
@@ -343,6 +354,15 @@ std::string generateShellWasmHash(const shellWasm &s) {
 emscripten::val getImpactSizedPointArray(shellWasm &s, emscripten::val params1,
                                          emscripten::val params2) {
     return pointArray::getImpactSizedPointArray(s.s, params1, params2);
+}
+
+emscripten::val getImpactSizedPointArrayFuseStatus(shellWasm &s,
+                                                   emscripten::val params1,
+                                                   emscripten::val params2,
+                                                   const std::size_t angle,
+                                                   const bool fuseStatus) {
+    return pointArray::getImpactSizedPointArrayFuseStatus(s.s, params1, params2,
+                                                          angle, fuseStatus);
 }
 
 class shellCalcWasm : public shellCalc {
@@ -731,6 +751,7 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
                      double, double, double, double, std::string>()
         .constructor<shellParams, std::string>()
         .constructor<shellParams, dispersionParams, std::string>()
+        .constructor()
         .function(
             "setValues",
             static_cast<void (shellWasm::*)(
@@ -767,6 +788,8 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
     emscripten::function("generateHash", &generateShellParamHash);
     emscripten::function("generateShellHash", &generateShellWasmHash);
     emscripten::function("getImpactSizedPointArray", &getImpactSizedPointArray);
+    emscripten::function("getImpactSizedPointArrayFuseStatus",
+                         &getImpactSizedPointArrayFuseStatus);
 
     emscripten::class_<shellCalcWasm>("shellCalc")
         .constructor()
