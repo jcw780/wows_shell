@@ -16,6 +16,7 @@
 
 #include "controlEnums.hpp"
 #include "shell.hpp"
+#include "threadpool.hpp"
 #include "utility.hpp"
 
 namespace wows_shell {
@@ -63,6 +64,7 @@ class shellCalc {
     // 128bit because compilers cannot seem to generate 256bit instructions
     static constexpr std::size_t vSize = (128 / 8) / sizeof(double);
     static constexpr std::size_t minTasksPerThread = vSize;
+    utility::threadPool tp;
 
    public:
     double calcNormalizationR(
@@ -126,7 +128,10 @@ class shellCalc {
                                   Args... args) {
         if constexpr (multiThreaded) {
             std::atomic<std::size_t> counter{0};
-            std::vector<std::thread> threads;
+            tp.start([&](std::size_t i) {
+                mtWorker(counter, length, i, object, function, args...);
+            });
+            /*std::vector<std::thread> threads;
             for (std::size_t i = 0; i < assigned - 1; i++) {
                 threads.emplace_back([&, i] {
                     mtWorker(counter, length, i, object, function, args...);
@@ -137,7 +142,8 @@ class shellCalc {
 
             for (std::size_t i = 0; i < assigned - 1; i++) {
                 threads[i].join();
-            }
+            }*/
+
         } else {
             for (std::size_t i = 0; i < size; i += vSize) {
                 (object->*function)(i, args...);

@@ -64,7 +64,7 @@ class threadPool {
     }
 };
 
-void testFunction(std::atomic<int>& counter) {
+/*void testFunction(std::atomic<int>& counter) {
     // std::cout << "Entered \n";
     constexpr int target = 100;
     while (counter < target) {
@@ -97,7 +97,7 @@ int main() {
 
     std::cout << counter << "\n";
     return 0;
-}
+}*/
 
 }  // namespace utility
 }  // namespace wows_shell
