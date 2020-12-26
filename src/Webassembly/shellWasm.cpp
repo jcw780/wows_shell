@@ -367,7 +367,11 @@ emscripten::val getImpactSizedPointArrayFuseStatus(shellWasm &s,
 
 class shellCalcWasm : public shellCalc {
    public:
+#ifdef __EMSCRIPTEN_PTHREADS__
     shellCalcWasm() = default;
+#else
+    shellCalcWasm() : shellCalc(1){};
+#endif
 
     void setMax(const double max) { set_max(max); }
     void setMin(const double min) { set_min(min); }
@@ -381,42 +385,23 @@ class shellCalcWasm : public shellCalc {
 
     template <numerical Numerical>
     void calcImpact(shellWasm &sp) {
-#ifdef __EMSCRIPTEN_PTHREADS__
         calculateImpact<false, Numerical, false>(sp.s);
-#else
-        calculateImpact<false, Numerical, false>(sp.s, 1);
-#endif
     }
 
     void calcAngles(shellWasm &sp, const double thickness,
                     const double inclination) {
-#ifdef __EMSCRIPTEN_PTHREADS__
         calculateAngles(thickness, inclination, sp.s);
-#else
-        calculateAngles(thickness, inclination, sp.s, 1);
-#endif
     }
 
-    void calcDispersion(shellWasm &sp) {
-#ifdef __EMSCRIPTEN_PTHREADS__
-        calculateDispersion(sp.s);
-#else
-        calculateDispersion(sp.s, 1);
-#endif
-    }
+    void calcDispersion(shellWasm &sp) { calculateDispersion(sp.s); }
 
     void calcPostPen(shellWasm &sp, const double thickness,
                      const double inclination, emscripten::val anglesVal,
                      const bool changeDirection, const bool fast) {
         std::vector<double> input =
             emscripten::convertJSArrayToNumberVector<double>(anglesVal);
-#ifdef __EMSCRIPTEN_PTHREADS__
         calculatePostPen(thickness, inclination, sp.s, input, changeDirection,
                          fast);
-#else
-        calculatePostPen(thickness, inclination, sp.s, input, changeDirection,
-                         fast, 1);
-#endif
     }
 };
 #endif
