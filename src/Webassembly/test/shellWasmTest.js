@@ -138,7 +138,8 @@ function runFunc() {
 }
 const runFuncSplit = () => {
     const shells = [];
-    const calc = new Module.shellCalc();
+    const calc = new Module.shellCalc(); 
+    //WARNING: DO NOT DELETE IF MULTI-THREADED, WILL DEADLOCK
     calc.setMax(30);
     calc.setMin(0);
     calc.setPrecision(0.1);
