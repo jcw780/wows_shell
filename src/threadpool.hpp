@@ -1,4 +1,5 @@
 #include <atomic>
+#include <cassert>
 #include <condition_variable>
 #include <functional>
 #include <iostream>
@@ -13,28 +14,32 @@ namespace utility {
 class threadPool {
    private:
     std::vector<std::thread> threads;
-    std::function<void(std::size_t)> f;
+    std::function<void(std::size_t)> f = [](const std::size_t i) {};
 
     std::condition_variable cv;
     std::mutex m_;
+    std::atomic<std::size_t> finished{0};
     bool ready, stop = false;
-
-    void workerFunction(std::size_t i) {
-        for (;;) {
-            {
-                std::unique_lock<std::mutex> lk(m_);
-                cv.wait(lk, [&] { return ready || stop; });
-            }
-            if (stop) break;
-            f(i);
-        }
-    }
 
    public:
     threadPool(std::size_t numThreads = std::thread::hardware_concurrency()) {
+        // assert(numThreads < 13);
         threads.reserve(numThreads - 1);
         for (std::size_t i = 1; i < numThreads; ++i)
-            threads.emplace_back([&, i]() { workerFunction(i); });
+            threads.emplace_back([&, i]() {
+                // std::function<void(std::size_t)> temp;
+                // std::size_t counter = 0;
+                for (;;) {
+                    {
+                        std::unique_lock<std::mutex> lk(m_);
+                        cv.wait(lk, [&] { return ready || stop; });
+                    }
+                    if (stop) return;
+                    if (f) f(i);
+                    // counter++;
+                }
+            });
+        std::cout << threads.size() << "\n";
     }
 
     template <typename ThreadFunction>
@@ -42,14 +47,21 @@ class threadPool {
         static_assert(std::is_invocable_v<ThreadFunction, std::size_t>,
                       "Function has an incorrect signature - requires "
                       "void(std::size_t).");
-        f = tf;
         {
             std::lock_guard<std::mutex> lk(m_);
+            finished = 0;
+            f = tf;
             ready = true;
         }
         cv.notify_all();
         tf(0);
-        ready = false;
+        {
+            std::lock_guard<std::mutex> lk(m_);
+            f = [](const std::size_t i) {};
+            ready = false;
+        }
+        // ready = false;
+        // f = [](const std::size_t i) {};
     }
 
     ~threadPool() {

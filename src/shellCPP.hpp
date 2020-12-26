@@ -65,6 +65,8 @@ class shellCalc {
     static constexpr std::size_t vSize = (128 / 8) / sizeof(double);
     static constexpr std::size_t minTasksPerThread = vSize;
     utility::threadPool tp;
+    bool enableMultiThreading = false;
+    std::atomic<std::size_t> counter{0}, finished{0};
 
    public:
     double calcNormalizationR(
@@ -76,7 +78,10 @@ class shellCalc {
 
     inline int signum(double x) noexcept { return ((0.0) < x) - (x < (0.0)); }
 
-    shellCalc() = default;
+    shellCalc(std::size_t numThreads = std::thread::hardware_concurrency())
+        : tp(numThreads) {
+        enableMultiThreading = numThreads > 1;
+    }
     // Replace with setter in the future
     void editTestParameters(const double max, const double min,
                             const double precision, const double x0,
@@ -108,61 +113,64 @@ class shellCalc {
     // Utility functions
     // mini 'threadpool' used to kick off multithreaded functions
 
-    template <typename O, typename F, typename... Args>
+    template <typename F, typename... Args>
     void mtFunctionRunner(const std::size_t assigned, const std::size_t length,
-                          const std::size_t size, O object, F function,
-                          Args... args) {
-        if (assigned > 1) {
-            mtFunctionRunnerSelected<true>(assigned, length, size, object,
-                                           function, args...);
+                          const std::size_t size, F function, Args... args) {
+        if (enableMultiThreading) {
+            mtFunctionRunnerSelected<true>(assigned, length, size, function,
+                                           args...);
         } else {
-            mtFunctionRunnerSelected<false>(assigned, length, size, object,
-                                            function, args...);
+            mtFunctionRunnerSelected<false>(assigned, length, size, function,
+                                            args...);
         }
     }
 
-    template <bool multiThreaded, typename O, typename F, typename... Args>
+    template <bool multiThreaded, typename F, typename... Args>
     void mtFunctionRunnerSelected(const std::size_t assigned,
                                   const std::size_t length,
-                                  const std::size_t size, O object, F function,
+                                  const std::size_t size, F function,
                                   Args... args) {
         if constexpr (multiThreaded) {
-            std::atomic<std::size_t> counter{0};
-            tp.start([&](std::size_t i) {
-                mtWorker(counter, length, i, object, function, args...);
+            //{
+            //    std::mutex m;
+            //    std::lock_guard<std::mutex> lk(m);
+            counter = 0, finished = 0;
+            // std::cout << assigned << " " << length << "\n";
+            tp.start([&, length](const std::size_t id) {
+                mtWorker(length, id, function, args...);
             });
-            /*std::vector<std::thread> threads;
-            for (std::size_t i = 0; i < assigned - 1; i++) {
-                threads.emplace_back([&, i] {
-                    mtWorker(counter, length, i, object, function, args...);
-                });
-            }
-
-            mtWorker(counter, length, assigned - 1, object, function, args...);
-
-            for (std::size_t i = 0; i < assigned - 1; i++) {
-                threads[i].join();
-            }*/
-
+            //}
+            /*counter = 0, finished = 0;
+            // std::cout << assigned << " " << length << "\n";
+            tp.start([=](const std::size_t id) {
+                mtWorker(length, id, function, args...);
+            });*/
         } else {
             for (std::size_t i = 0; i < size; i += vSize) {
-                (object->*function)(i, args...);
+                //(object->*function)(i, args...);
+                function(i, args...);
             }
         }
     }
 
-    template <typename O, typename F, typename... Args>
-    void mtWorker(std::atomic<std::size_t> &counter, const std::size_t length,
-                  const std::size_t threadID, O object, F function,
-                  Args... args) {
+    template <typename F, typename... Args>
+    void mtWorker(const std::size_t length, const std::size_t threadID,
+                  F function, Args... args) {
         // threadID is largely there for debugging
+        // std::cout << threadID << "\n";
+        // std::cout << length << "\n";
         while (counter < length) {
-            std::size_t index = counter.fetch_add(1, std::memory_order_relaxed);
+            std::size_t index = counter.fetch_add(1, std::memory_order_acquire);
             if (index < length) {
+                // assert(index * vSize < 900);
                 // std::cout<<index<<"\n";
-                (object->*function)(index * vSize, args...);
+                //(object->*function)(index * vSize, args...);
+                function(index * vSize, args...);
+                finished.fetch_add(1, std::memory_order_release);
             }
         }
+        while (finished < length)
+            ;
     }
 
     std::size_t assignThreadNum(std::size_t length,
@@ -620,10 +628,14 @@ class shellCalc {
         }
         std::size_t length = ceil(static_cast<double>(s.impactSize) / vSize);
         std::size_t assigned = assignThreadNum(length, nThreads);
+        // mtFunctionRunner(
+        //    assigned, length, s.impactSize,
+        //    &shellCalc::impactGroup<AddTraj, Numerical, false, nonAP>,
+        //    std::ref(s));
         mtFunctionRunner(
-            assigned, length, s.impactSize, this,
-            &shellCalc::impactGroup<AddTraj, Numerical, false, nonAP>,
-            std::ref(s));
+            assigned, length, s.impactSize, [&](const std::size_t i) {
+                impactGroup<AddTraj, Numerical, false, nonAP>(i, s);
+            });
 
         s.completedImpact = true;
     }
@@ -814,24 +826,42 @@ class shellCalc {
                 acos(thickness / s.threshold) + s.get_normalizationR();
         }
         if (thickness > s.threshold) {
-            mtFunctionRunner(
-                assigned, length, s.impactSize, this,
+            /*mtFunctionRunner(
+                assigned, length, s.impactSize,
                 &shellCalc::multiAngles<fuseStatus::always, nonAP,
                                         nonAPPerforated, disableRicochet>,
-                thickness, inclination_R, fusingAngle, std::ref(s));
+                thickness, inclination_R, fusingAngle, std::ref(s));*/
+            mtFunctionRunner(
+                assigned, length, s.impactSize, [&](const std::size_t i) {
+                    multiAngles<fuseStatus::always, nonAP, nonAPPerforated,
+                                disableRicochet>(i, thickness, inclination_R,
+                                                 fusingAngle, s);
+                });
         } else {
             if (fusingAngle > M_PI_2) {
-                mtFunctionRunner(
-                    assigned, length, s.impactSize, this,
+                /*mtFunctionRunner(
+                    assigned, length, s.impactSize,
                     &shellCalc::multiAngles<fuseStatus::never, nonAP,
                                             nonAPPerforated, disableRicochet>,
-                    thickness, inclination_R, fusingAngle, std::ref(s));
-            } else {
+                    thickness, inclination_R, fusingAngle, std::ref(s));*/
                 mtFunctionRunner(
-                    assigned, length, s.impactSize, this,
+                    assigned, length, s.impactSize, [&](const std::size_t i) {
+                        multiAngles<fuseStatus::never, nonAP, nonAPPerforated,
+                                    disableRicochet>(
+                            i, thickness, inclination_R, fusingAngle, s);
+                    });
+            } else {
+                /*mtFunctionRunner(
+                    assigned, length, s.impactSize,
                     &shellCalc::multiAngles<fuseStatus::check, nonAP,
                                             nonAPPerforated, disableRicochet>,
-                    thickness, inclination_R, fusingAngle, std::ref(s));
+                    thickness, inclination_R, fusingAngle, std::ref(s));*/
+                mtFunctionRunner(
+                    assigned, length, s.impactSize, [&](const std::size_t i) {
+                        multiAngles<fuseStatus::check, nonAP, nonAPPerforated,
+                                    disableRicochet>(
+                            i, thickness, inclination_R, fusingAngle, s);
+                    });
             }
         }
         s.completedAngles = true;
@@ -840,6 +870,7 @@ class shellCalc {
     // Dispersion Section
     void calculateDispersion(
         shell &s, std::size_t nThreads = std::thread::hardware_concurrency()) {
+        checkRunImpact(s);
         s.dispersionData.resize(dispersion::maxColumns * s.impactSizeAligned);
         if (nThreads > std::thread::hardware_concurrency()) {
             nThreads = std::thread::hardware_concurrency();
@@ -847,11 +878,19 @@ class shellCalc {
         std::size_t length = ceil(static_cast<double>(s.impactSize) / vSize);
         std::size_t assigned = assignThreadNum(length, nThreads);
         if (s.convex) {
-            mtFunctionRunner(assigned, length, s.impactSize, this,
-                             &shellCalc::dispersionGroup<true>, std::ref(s));
+            /*mtFunctionRunner(assigned, length, s.impactSize,
+                             &shellCalc::dispersionGroup<true>, std::ref(s));*/
+            mtFunctionRunner(assigned, length, s.impactSize,
+                             [&](const std::size_t i) {
+                                 shellCalc::dispersionGroup<true>(i, s);
+                             });
         } else {
-            mtFunctionRunner(assigned, length, s.impactSize, this,
-                             &shellCalc::dispersionGroup<false>, std::ref(s));
+            /*mtFunctionRunner(assigned, length, s.impactSize,
+                             &shellCalc::dispersionGroup<false>, std::ref(s));*/
+            mtFunctionRunner(assigned, length, s.impactSize,
+                             [&](const std::size_t i) {
+                                 shellCalc::dispersionGroup<false>(i, s);
+                             });
         }
         s.completedDispersion = true;
     }
@@ -1132,7 +1171,7 @@ class shellCalc {
         s.postPenSize = s.impactSize * angles.size();
         s.postPenData.resize(6 * s.postPenSize);
 
-        parallelFillCopy(s, angles, nThreads);
+        parallelFillCopy(s, angles, 1);
         // copies vSize - 1 from front - to avoid branching in hot loop
         std::copy_n(s.get_impactPtr(
                         0, impact::impactIndices::impactAngleHorizontalRadians),
@@ -1158,9 +1197,14 @@ class shellCalc {
         double inclination_R = M_PI / 180 * inclination;
         std::size_t length = ceil(static_cast<double>(s.postPenSize) / vSize);
         std::size_t assigned = assignThreadNum(length, nThreads);
-        mtFunctionRunner(assigned, length, s.postPenSize, this,
+        /*mtFunctionRunner(assigned, length, s.postPenSize,
                          &shellCalc::multiPostPen<changeDirection, fast>,
-                         thickness, inclination_R, std::ref(s));
+                         thickness, inclination_R, std::ref(s));*/
+        mtFunctionRunner(assigned, length, s.postPenSize,
+                         [&](const std::size_t i) {
+                             shellCalc::multiPostPen<changeDirection, fast>(
+                                 i, thickness, inclination_R, s);
+                         });
 
         s.completedPostPen = true;
     }
