@@ -131,23 +131,14 @@ class shellCalc {
                                   const std::size_t size, F function,
                                   Args... args) {
         if constexpr (multiThreaded) {
-            //{
-            //    std::mutex m;
-            //    std::lock_guard<std::mutex> lk(m);
-            counter = 0, finished = 0;
+            counter.store(0, std::memory_order_relaxed);
+            finished.store(0, std::memory_order_release);
             // std::cout << assigned << " " << length << "\n";
             tp.start([&, length](const std::size_t id) {
                 mtWorker(length, id, function, args...);
             });
-            //}
-            /*counter = 0, finished = 0;
-            // std::cout << assigned << " " << length << "\n";
-            tp.start([=](const std::size_t id) {
-                mtWorker(length, id, function, args...);
-            });*/
         } else {
             for (std::size_t i = 0; i < size; i += vSize) {
-                //(object->*function)(i, args...);
                 function(i, args...);
             }
         }
@@ -157,19 +148,16 @@ class shellCalc {
     void mtWorker(const std::size_t length, const std::size_t threadID,
                   F function, Args... args) {
         // threadID is largely there for debugging
-        // std::cout << threadID << "\n";
-        // std::cout << length << "\n";
-        while (counter < length) {
-            std::size_t index = counter.fetch_add(1, std::memory_order_acquire);
+        // std::cout << threadID << " " << length << "\n";
+        while (counter.load(std::memory_order_relaxed) < length) {
+            std::size_t index = counter.fetch_add(1, std::memory_order_acq_rel);
             if (index < length) {
-                // assert(index * vSize < 900);
                 // std::cout<<index<<"\n";
-                //(object->*function)(index * vSize, args...);
                 function(index * vSize, args...);
-                finished.fetch_add(1, std::memory_order_release);
+                finished.fetch_add(1, std::memory_order_acq_rel);
             }
         }
-        while (finished < length)
+        while (finished.load(std::memory_order_acquire) < length)
             ;
     }
 
