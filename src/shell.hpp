@@ -470,6 +470,8 @@ class shell {
 
     void printAngleData() {
         for (std::size_t i = 0; i < impactSize; i++) {
+            std::cout << std::fixed << std::setprecision(4)
+                      << get_impact(i, impact::impactIndices::distance) << " ";
             for (std::size_t j = 0; j < angle::maxColumns; j++) {
                 std::cout << std::fixed << std::setprecision(4)
                           << get_angle(i, j) << " ";
@@ -494,7 +496,12 @@ class shell {
 
     void printPostPenData() {
         for (std::size_t i = 0; i < postPenSize; i++) {
-            for (std::size_t j = 0; j < post::maxColumns; j++) {
+            std::cout << std::fixed << std::setprecision(4)
+                      << get_postPen(i, 0, 0) << " "
+                      << get_impact(i % impactSize,
+                                    impact::impactIndices::distance)
+                      << " ";
+            for (std::size_t j = 1; j < post::maxColumns; j++) {
                 std::cout << std::fixed << std::setprecision(4)
                           << get_postPen(i, j, 0) << " ";
             }

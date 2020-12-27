@@ -797,9 +797,9 @@ class shellCalc {
         checkRunImpact(s);
 
         s.angleData.resize(angle::maxColumns * s.impactSizeAligned);
-        std::copy_n(s.get_impactPtr(0, impact::impactIndices::distance),
-                    s.impactSize,
-                    s.get_anglePtr(0, angle::angleIndices::distance));
+        // std::copy_n(s.get_impactPtr(0, impact::impactIndices::distance),
+        //            s.impactSize,
+        //            s.get_anglePtr(0, angle::angleIndices::distance));
 
         std::size_t length = static_cast<std::size_t>(
             ceil(static_cast<double>(s.impactSize) / vSize));
@@ -1094,10 +1094,6 @@ class shellCalc {
              i < angles.size() * (id + 1) / assigned; i++) {
             std::fill_n(s.get_postPenPtr(0, post::postPenIndices::angle, i),
                         s.impactSize, static_cast<double>(angles[i]));
-            std::copy_n(
-                s.get_impactPtr(0, impact::impactIndices::distance),
-                s.impactSize,
-                s.postPenData.begin() + s.postPenSize + i * s.impactSize);
         }
     }
 
