@@ -1,16 +1,10 @@
 console.log('Started');
 let Module;
 
-function testFunction() {
-    //testFull();
-    //runFunc();
-    runFuncSplit();
-}
-
 function instantiateModule(M) {
     console.log('Ready', M);
     Module = M;
-    testFunction();
+    runFunc();
 }
 
 
@@ -63,82 +57,10 @@ const shellDataStruct = [
 ];
 const angles = [10];
 
-
-function runFunc() {
-    console.log('Entered');
-    const numShells = shellData.length;
-    const instance = new Module.shellCombined(numShells);
-    for (const [i, shell] of shellData.entries()) {
-        instance.setValues(...shell, i);
-    }
-
-    //console.log(instance);
-    instance.calcImpact();
-    //instance.printImpact();
-    console.log("ran");
-    instance.calcAngles(70, -20);
-    instance.calcPostPen(70, -20, angles, true, false);
-
-    console.log("ran");
-    //instance.printPostPen();
-
-    const testPoints = (instance, num) => {
-        for (let i = 0; i < instance.getImpactSize(); i++) {
-            console.log(i, instance.getAnglePoint(num, i, Module.angleIndices.distance.value),
-                instance.getAnglePoint(num, i, Module.angleIndices.ra0.value)
-            );
-        }
-
-        for (let i = 0; i < instance.getImpactSize(); i++) {
-            //console.log(i);
-            console.log(i, instance.getPostPenPoint(num, i, Module.postPenIndices.distance.value, 0),
-                instance.getPostPenPoint(num, i, Module.postPenIndices.x.value, 0),
-                instance.getPostPenPoint(num, i, Module.postPenIndices.xwf.value, 0)
-            );
-        }
-    }
-
-    const testPointArrays = (instance, num) => {
-        console.log(instance.getImpactPointArray(
-            num,
-            Module.impactIndices.distance.value,
-            Module.impactIndices.rawPen.value
-        ));
-
-        console.log(instance.getAnglePointArray(
-            num,
-            Module.angleIndices.distance.value,
-            Module.angleIndices.ra0D.value
-        ));
-
-        console.log(instance.getPostPenPointArray(
-            num, 0,
-            Module.postPenIndices.distance.value,
-            Module.postPenIndices.x.value
-        ));
-
-        console.log(instance.getPostPenPointArrayFuseStatus(
-            num, true, 0,
-            Module.postPenIndices.distance.value,
-            Module.postPenIndices.x.value
-        ));
-
-        console.log(instance.getPostPenPointArrayFuseStatus(
-            num, false, 0,
-            Module.postPenIndices.distance.value,
-            Module.postPenIndices.x.value
-        ));
-    }
-
-    for (let num = 0; num < numShells; num++) {
-        testPoints(instance, num);
-        //testPointArrays(instance, num);
-    }
-    instance.delete();
-}
-const runFuncSplit = () => {
+const runFunc = () => {
     const shells = [];
-    const calc = new Module.shellCalc();
+    const calc = new Module.shellCalc(); 
+    //WARNING: DO NOT DELETE IF MULTI-THREADED, WILL DEADLOCK
     calc.setMax(30);
     calc.setMin(0);
     calc.setPrecision(0.1);

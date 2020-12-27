@@ -36,9 +36,8 @@ static_assert(toUnderlying(impactIndices::effectivePenetrationDeckNormalized) ==
 }  // namespace impact
 
 namespace angle {
-static constexpr std::size_t maxColumns = 9;
+static constexpr std::size_t maxColumns = 8;
 enum class angleIndices {
-    distance,
     ricochetAngle0Radians,
     ricochetAngle0Degrees,
     ricochetAngle1Radians,
@@ -71,8 +70,8 @@ static_assert(toUnderlying(dispersionIndices::halfArea) == (maxColumns - 1),
 };  // namespace dispersion
 
 namespace post {
-static constexpr std::size_t maxColumns = 6;
-enum class postPenIndices { angle, distance, x, y, z, xwf };
+static constexpr std::size_t maxColumns = 5;
+enum class postPenIndices { angle, x, y, z, xwf };
 using indexT = typename std::underlying_type<postPenIndices>::type;
 static_assert(toUnderlying(postPenIndices::xwf) == (maxColumns - 1),
               "Invaild postpen columns");

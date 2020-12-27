@@ -7,14 +7,10 @@
 // Sample Test / Benchmark Function
 void runtime() {
     double total = 0.0;
-
-    // wows_shell::shell *test;
     std::unique_ptr<wows_shell::shell> test;
     wows_shell::shellCalc sc;
     sc.set_max(90.0);
     unsigned int runs = 1;
-    /*test = std::make_unique<wows_shell::shell>(.460, 780, .292, 1460, 2574, 6,
-                                               .033, 76, 45, 60, 0, "Yamato");*/
     wows_shell::shellParams sp = {.460, 780, .292, 1460, 2574, 6,
                                   .033, 76,  45,   60,   0};
     wows_shell::dispersionParams dp = {10,  2.8, 1000, 5000,  0.5,
@@ -22,6 +18,7 @@ void runtime() {
     test = std::make_unique<wows_shell::shell>(sp, dp, "Yamato");
 
     std::cout << wows_shell::generateHash(*test) << "\n";
+    // std::cout << "Started Impact\n";
     for (unsigned int i = 0; i < runs; i++) {
         auto t1 = std::chrono::high_resolution_clock::now();
         sc.calculateImpact<wows_shell::numerical::adamsBashforth5, false>(
@@ -31,18 +28,16 @@ void runtime() {
                      t2 - t1)
                      .count();
     }
-
     // std::cout << "completed" << std::endl;
-    // test.calculateStd();
 
     std::vector<double> angle = {0, 5, 10};
-    // std::cout<<"Started\n";
+    // std::cout << "Started Post\n";
     auto t1 = std::chrono::high_resolution_clock::now();
     sc.calculatePostPen(70, 0, *test, angle, true, true);
     auto t2 = std::chrono::high_resolution_clock::now();
-
+    // std::cout << "Started Angle\n";
     sc.calculateAngles(76, 0, *test);
-
+    // std::cout << "Started Dispersion\n";
     test->printImpactData();
     auto maxDist = test->maxDist();
     if (std::get<0>(maxDist) != std::numeric_limits<std::size_t>::max()) {
@@ -76,6 +71,9 @@ void runtime() {
 }
 
 int main() {
-    runtime();
+    for (int i = 0; i < 1; ++i) {
+        runtime();
+        std::cout << "Stage: " << i << " Finished \n";
+    }
     return 0;
 }

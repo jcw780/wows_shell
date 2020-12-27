@@ -16,6 +16,9 @@
 *.dylib
 *.dll
 
+# Debug Files
+*.pdb
+
 # Fortran module files
 *.mod
 *.smod
