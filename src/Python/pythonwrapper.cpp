@@ -436,7 +436,6 @@ PYBIND11_MODULE(pythonwrapper, m) {
 
     pybind11::enum_<angle::angleIndices>(m, "angleIndices",
                                          pybind11::arithmetic())
-        .value("distance", angle::angleIndices::distance)
         .value("ricochetAngle0Radians",
                angle::angleIndices::ricochetAngle0Radians)
         .value("ricochetAngle0Degrees",
@@ -454,7 +453,6 @@ PYBIND11_MODULE(pythonwrapper, m) {
     pybind11::enum_<post::postPenIndices>(m, "postPenIndices",
                                           pybind11::arithmetic())
         .value("angle", post::postPenIndices::angle)
-        .value("distance", post::postPenIndices::distance)
         .value("x", post::postPenIndices::x)
         .value("y", post::postPenIndices::y)
         .value("z", post::postPenIndices::z)

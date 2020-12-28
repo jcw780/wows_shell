@@ -66,11 +66,6 @@ const runFunc = () => {
     calc.setPrecision(0.1);
     calc.setDtMin(0.01);
 
-    /*for (const data of shellData) {
-        shells.push(new Module.shell(...data, ''));
-        console.log(Module.generateHash(...data));
-    }*/
-
     for (const data of shellDataStruct) {
         const sp = new Module.shellParams();
         sp.setValues(data[0]);
@@ -90,56 +85,32 @@ const runFunc = () => {
         console.log(shell.maxDist());
     }
 
-    const testPoints = (shell) => {
-        let impactSize = shell.getImpactSize();
-        let postpenSize = shell.getPostPenSize();
-        for (let i = 0; i < impactSize; i++) {
-            console.log(shell.getImpactPoint(i, Module.impactIndices.distance.value),
-                shell.getImpactPoint(i, Module.impactIndices.rawPen.value));
-        }
-        console.log('done');
-
-        for (let i = 0; i < impactSize; i++) {
-            console.log(shell.getAnglePoint(i, Module.angleIndices.distance.value),
-                shell.getAnglePoint(i, Module.angleIndices.ra0D.value));
-        }
-        console.log('done');
-
-        for (let i = 0; i < postpenSize; i++) {
-            console.log(shell.getPostPenPoint(i, Module.postPenIndices.distance.value, 0),
-                shell.getPostPenPoint(i, Module.postPenIndices.x.value, 0),
-                shell.getPostPenPoint(i, Module.postPenIndices.xwf.value, 0));
-        }
-        console.log('done');
-    }
-
     const testPointArrays = (shell) => {
-        console.log(shell.getImpactPointArray(
-            Module.impactIndices.distance.value,
-            Module.impactIndices.rawPen.value
+        console.log(Module.getImpactSizedPointArray(shell, 
+            [Module.calcIndices.impact.value, Module.impactIndices.distance.value], 
+            [Module.calcIndices.impact.value, Module.impactIndices.rawPen.value], 
+        ));
+        
+        console.log(Module.getImpactSizedPointArray(shell, 
+            [Module.calcIndices.impact.value, Module.impactIndices.distance.value], 
+            [Module.calcIndices.angle.value, Module.angleIndices.ra0D.value, 0], 
         ));
 
-        console.log(shell.getAnglePointArray(
-            Module.angleIndices.distance.value,
-            Module.angleIndices.ra0D.value
+        console.log(Module.getImpactSizedPointArray(shell, 
+            [Module.calcIndices.impact.value, Module.impactIndices.distance.value], 
+            [Module.calcIndices.post.value, Module.postPenIndices.x.value, 0], 
         ));
 
-        console.log(shell.getPostPenPointArray(
-            0,
-            Module.postPenIndices.distance.value,
-            Module.postPenIndices.x.value
+        console.log(Module.getImpactSizedPointArrayFuseStatus(shell, 
+            [Module.calcIndices.impact.value, Module.impactIndices.distance.value], 
+            [Module.calcIndices.post.value, Module.postPenIndices.x.value, 0], 
+            0, true
         ));
 
-        console.log(shell.getPostPenPointArrayFuseStatus(
-            true, 0,
-            Module.postPenIndices.distance.value,
-            Module.postPenIndices.x.value
-        ));
-
-        console.log(shell.getPostPenPointArrayFuseStatus(
-            false, 0,
-            Module.postPenIndices.distance.value,
-            Module.postPenIndices.x.value
+        console.log(Module.getImpactSizedPointArrayFuseStatus(shell, 
+            [Module.calcIndices.impact.value, Module.impactIndices.distance.value], 
+            [Module.calcIndices.post.value, Module.postPenIndices.x.value, 0], 
+            0, false
         ));
 
         console.log(Module.getImpactSizedPointArray(shell,

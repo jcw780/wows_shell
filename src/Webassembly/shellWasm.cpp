@@ -623,7 +623,6 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .value("tToTargetA", impact::impactIndices::timeToTargetAdjusted);
 
     emscripten::enum_<angle::angleIndices>("angleIndices")
-        .value("distance", angle::angleIndices::distance)
         .value("ra0", angle::angleIndices::ricochetAngle0Radians)
         .value("ra0D", angle::angleIndices::ricochetAngle0Degrees)
         .value("ra1", angle::angleIndices::ricochetAngle1Radians)
@@ -648,7 +647,6 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
 
     emscripten::enum_<post::postPenIndices>("postPenIndices")
         .value("angle", post::postPenIndices::angle)
-        .value("distance", post::postPenIndices::distance)
         .value("x", post::postPenIndices::x)
         .value("y", post::postPenIndices::y)
         .value("z", post::postPenIndices::z)

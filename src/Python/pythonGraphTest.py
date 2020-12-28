@@ -1,7 +1,7 @@
 from pythonwrapper import *
 import numpy as np
 import matplotlib
-#matplotlib.use('TkAgg',warn=False, force=True)
+# matplotlib.use('TkAgg',warn=False, force=True)
 import matplotlib.pyplot as plt
 import os
 # os.environ['KMP_DUPLICATE_LIB_OK']='True'
@@ -23,8 +23,8 @@ s.printAngles()
 print(angle)
 
 ax1 = plt.subplot(311)
-#ax1.plot(impact[int(impactIndices.distance),:], impact[int(impactIndices.rawPenetration),:])
-#ax1.plot(impact[int(impactIndices.distance),:], impact[int(impactIndices.effectivePenetrationHorizontal),:])
+# ax1.plot(impact[int(impactIndices.distance),:], impact[int(impactIndices.rawPenetration),:])
+# ax1.plot(impact[int(impactIndices.distance),:], impact[int(impactIndices.effectivePenetrationHorizontal),:])
 ax1.plot(impact[int(impactIndices.distance), :], impact[int(
     impactIndices.effectivePenetrationHorizontalNormalized), :])
 
@@ -37,21 +37,21 @@ ax2.plot(impact[int(impactIndices.distance), :],
 ax2.grid(b=True)
 
 ax1 = plt.subplot(312)
-ax1.plot(angle[int(angleIndices.distance), :],
+ax1.plot(impact[int(impactIndices.distance), :],
          angle[int(angleIndices.fuseDegrees), :])
-ax1.plot(angle[int(angleIndices.distance), :],
+ax1.plot(impact[int(impactIndices.distance), :],
          angle[int(angleIndices.armorDegrees), :])
-ax1.plot(angle[int(angleIndices.distance), :],
+ax1.plot(impact[int(impactIndices.distance), :],
          angle[int(angleIndices.ricochetAngle0Degrees), :])
-ax1.plot(angle[int(angleIndices.distance), :],
+ax1.plot(impact[int(impactIndices.distance), :],
          angle[int(angleIndices.ricochetAngle1Degrees), :])
 plt.grid(b=True)
 
 ax1 = plt.subplot(313)
 for i in range(len(angles)):
-    ax1.plot(postPen[int(postPenIndices.distance), i, :],
+    ax1.plot(impact[int(impactIndices.distance), :],
              postPen[int(postPenIndices.xwf), i, :])
-    ax1.plot(postPen[int(postPenIndices.distance), i, :],
+    ax1.plot(impact[int(impactIndices.distance), :],
              postPen[int(postPenIndices.x), i, :])
 
 plt.grid(b=True)
