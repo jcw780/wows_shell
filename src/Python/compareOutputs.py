@@ -1,4 +1,4 @@
-from pythonwrapper import *
+from wows_shell import *
 import numpy as np
 import matplotlib
 #matplotlib.use('TkAgg',warn=False, force=True)

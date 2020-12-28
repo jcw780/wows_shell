@@ -1,4 +1,4 @@
-from pythonwrapper import *
+from wows_shell import *
 
 dataList = [
     (shellParams(.460, 780, .292, 1460, 2574, 6, .033, 76, 45, 60, 0),

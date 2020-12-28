@@ -1,4 +1,4 @@
-from pythonwrapper import *
+from wows_shell import *
 
 import numpy as np
 from sklearn.linear_model import LinearRegression

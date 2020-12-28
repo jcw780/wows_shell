@@ -1,3 +1,15 @@
-import cppimport, os
-target = 'pythonwrapper'
-cppimport.imp(target)
+from glob import glob
+from setuptools import setup
+from pybind11.setup_helpers import Pybind11Extension, build_ext
+
+ext_modules = [
+    Pybind11Extension(
+        "wows_shell",
+        sorted(glob("*.cpp")),
+    ),
+]
+
+setup(
+    cmdclass={"build_ext": build_ext},
+    ext_modules=ext_modules
+)
