@@ -69,7 +69,7 @@ Capability to fit shells to real world data using gradient descent.
 ### Python 
 - Requires Pybind11
 - Tested with Python 3.7.4 (Anaconda), 3.8.5
-- Available from PyPI 
+- Available from PyPI ```pip install wows-shell```
 ### WebAssembly 
 - Requires Emscripten
 - Used in https://github.com/jcw780/wows_ballistics
