@@ -306,7 +306,7 @@ void setDispersionParamsFromKV(dispersionParams &dp, KV &input) {
     callDispersionParamsKV(input, [&](auto... args) { dp.setValues(args...); });
 }
 
-PYBIND11_MODULE(pythonwrapper, m) {
+PYBIND11_MODULE(wows_shell, m) {
     pybind11::class_<shellParams>(m, "shellParams")
         .def(pybind11::init<double, double, double, double, double, double,
                             double, double, double, double, double>())
