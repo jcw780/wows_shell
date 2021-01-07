@@ -457,7 +457,7 @@ class shellCalc {
                         s.trajectories[2 * (j)].push_back(xy[i]);
                         s.trajectories[2 * (j) + 1].push_back(xy[i + vSize]);
                     }
-                };
+                }
             }
         }
         std::copy_n(xy.begin(), vSize,
@@ -565,11 +565,11 @@ class shellCalc {
     }
 
    public:
-    uint32_t calculateAlignmentSize(uint32_t unalignedSize) noexcept {
+    std::size_t calculateAlignmentSize(std::size_t unalignedSize) noexcept {
         // leave extra space to allow for copies into the region
         // ex: | 0, 1, 2, 3, 4, 5 | -> | 0, 1, 2, 3, 4, 5 |, 0, 1, 2 + padding
         // allows for easier vectorization of code that uses this data
-        int processedSize = unalignedSize;
+        std::size_t processedSize = unalignedSize;
         if (processedSize % vSize != 0) {
             processedSize += vSize - 1;
         }
@@ -601,7 +601,8 @@ class shellCalc {
     template <bool AddTraj, auto Numerical, bool Hybrid, bool nonAP>
     void calculateImpact(
         shell &s, std::size_t nThreads = std::thread::hardware_concurrency()) {
-        s.impactSize = ((max / precision - min / precision)) + 1;
+        s.impactSize =
+            static_cast<std::size_t>(max / precision - min / precision) + 1;
         s.impactSizeAligned = calculateAlignmentSize(s.impactSize);
         if constexpr (AddTraj) {
             s.trajectories.resize(2 * s.impactSize);

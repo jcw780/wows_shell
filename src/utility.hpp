@@ -87,7 +87,7 @@ std::string base85Encode(const T& in, const bool pad = false) {
 }
 
 double pdf(const double& x) {
-    return (1.0 / sqrt(2.0 * M_PI)) * exp(-0.5 * x * x);
+    return (1.0l / sqrt(2.0l * M_PI)) * exp(-0.5l * x * x);
 }
 
 double cdf(const double& x) { return (1 + erf(x / sqrt(2))) / 2; }
@@ -96,29 +96,29 @@ double cdf(const double& x) { return (1 + erf(x / sqrt(2))) / 2; }
 // This is only the single precision version but it's good enough
 double MBG_erfinv(double x) {
     double p;
-    double w = -log((1.0f - x) * (1.0f + x));
-    if (w < 5.000000f) {
-        w = w - 2.500000f;
-        p = 2.81022636e-08f;
-        p = 3.43273939e-07f + p * w;
-        p = -3.5233877e-06f + p * w;
-        p = -4.39150654e-06f + p * w;
-        p = 0.00021858087f + p * w;
-        p = -0.00125372503f + p * w;
-        p = -0.00417768164f + p * w;
-        p = 0.246640727f + p * w;
-        p = 1.50140941f + p * w;
+    double w = -log((1.0l - x) * (1.0l + x));
+    if (w < 5.000000l) {
+        w = w - 2.500000l;
+        p = 2.81022636e-08l;
+        p = 3.43273939e-07l + p * w;
+        p = -3.5233877e-06l + p * w;
+        p = -4.39150654e-06l + p * w;
+        p = 0.00021858087l + p * w;
+        p = -0.00125372503l + p * w;
+        p = -0.00417768164l + p * w;
+        p = 0.246640727l + p * w;
+        p = 1.50140941l + p * w;
     } else {
-        w = sqrtf(w) - 3.000000f;
-        p = -0.000200214257f;
-        p = 0.000100950558f + p * w;
-        p = 0.00134934322f + p * w;
-        p = -0.00367342844f + p * w;
-        p = 0.00573950773f + p * w;
-        p = -0.0076224613f + p * w;
-        p = 0.00943887047f + p * w;
-        p = 1.00167406f + p * w;
-        p = 2.83297682f + p * w;
+        w = sqrt(w) - 3.000000l;
+        p = -0.000200214257l;
+        p = 0.000100950558l + p * w;
+        p = 0.00134934322l + p * w;
+        p = -0.00367342844l + p * w;
+        p = 0.00573950773l + p * w;
+        p = -0.0076224613l + p * w;
+        p = 0.00943887047l + p * w;
+        p = 1.00167406l + p * w;
+        p = 2.83297682l + p * w;
     }
     return p * x;
 }
