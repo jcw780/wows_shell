@@ -113,47 +113,44 @@ class shellCalc {
     // Utility functions
     // mini 'threadpool' used to kick off multithreaded functions
 
-    template <typename F, typename... Args>
+    template <typename F>
     void mtFunctionRunner(const std::size_t assigned, const std::size_t length,
-                          const std::size_t size, F function, Args... args) {
+                          const std::size_t size, F function) {
         if (enableMultiThreading) {
-            mtFunctionRunnerSelected<true>(assigned, length, size, function,
-                                           args...);
+            mtFunctionRunnerSelected<true>(assigned, length, size, function);
         } else {
-            mtFunctionRunnerSelected<false>(assigned, length, size, function,
-                                            args...);
+            mtFunctionRunnerSelected<false>(assigned, length, size, function);
         }
     }
 
-    template <bool multiThreaded, typename F, typename... Args>
+    template <bool multiThreaded, typename F>
     void mtFunctionRunnerSelected(const std::size_t assigned,
                                   const std::size_t length,
-                                  const std::size_t size, F function,
-                                  Args... args) {
+                                  const std::size_t size, F function) {
         if constexpr (multiThreaded) {
             counter.store(0, std::memory_order_relaxed);
             finished.store(0, std::memory_order_release);
             // std::cout << assigned << " " << length << "\n";
             tp.start([&, length](const std::size_t id) {
-                mtWorker(length, id, function, args...);
+                mtWorker(length, id, function);
             });
         } else {
             for (std::size_t i = 0; i < size; i += vSize) {
-                function(i, args...);
+                function(i);
             }
         }
     }
 
-    template <typename F, typename... Args>
+    template <typename F>
     void mtWorker(const std::size_t length, const std::size_t threadID,
-                  F function, Args... args) {
+                  F function) {
         // threadID is largely there for debugging
         // std::cout << threadID << " " << length << "\n";
         while (counter.load(std::memory_order_relaxed) < length) {
             std::size_t index = counter.fetch_add(1, std::memory_order_acq_rel);
             if (index < length) {
                 // std::cout<<index<<"\n";
-                function(index * vSize, args...);
+                function(index * vSize);
                 finished.fetch_add(1, std::memory_order_acq_rel);
             }
         }
@@ -728,12 +725,12 @@ class shellCalc {
                 int k = toUnderlying(angle::angleIndices::fuseRadians) / 2;
                 if constexpr (fusing == fuseStatus::never) {
                     out[k] = M_PI_2;
-                } else if (fusing == fuseStatus::check) {
+                } else if constexpr (fusing == fuseStatus::check) {
                     double quotient =
                         cos(criticalAngles[k]) / cos(fallAngleAdjusted);
                     out[k] = acos(quotient);
                     out[k] = fabs(quotient) > 1 ? 0 : out[k];
-                } else if (fusing == fuseStatus::always) {
+                } else if constexpr (fusing == fuseStatus::always) {
                     out[k] = 0;
                 }
             }
