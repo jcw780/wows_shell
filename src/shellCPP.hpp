@@ -135,8 +135,8 @@ class shellCalc {
                 mtWorker(length, id, function);
             });
         } else {
-            for (std::size_t i = 0; i < size; i += vSize) {
-                function(i);
+            for (std::size_t i = 0; i < length; ++i) {
+                function(i * vSize);
             }
         }
     }
@@ -188,7 +188,7 @@ class shellCalc {
             xy[i + vSize] = j < s.impactSize ? 0 : -1;
         }
 
-        auto checkContinue = [&]() -> bool {
+        const auto checkContinue = [&]() -> bool {
             bool any = false;
             for (uint32_t i = 0; i < vSize; ++i) {
                 any |= (xy[i + vSize] >= 0);
@@ -197,9 +197,9 @@ class shellCalc {
         };
 
         // Helpers
-        auto delta = [&](const double x, double &dx, double y, double &dy,
-                         const double v_x, double &ddx, const double v_y,
-                         double &ddy, bool update = false) {
+        const auto delta = [&](const double x, double &dx, double y, double &dy,
+                               const double v_x, double &ddx, const double v_y,
+                               double &ddy, bool update = false) {
             update |= (y >= 0);
             double T, p, rho, dt_update = update * dt_min;
             dx = dt_update * v_x;
@@ -207,7 +207,7 @@ class shellCalc {
             y += dy;  // x not needed
             // Air Density
             T = t0 - L * y;
-            p = p0 * pow(1 - L * y / t0, gMRL);
+            p = p0 * pow(T / t0, gMRL);
             rho = p * M / (R * T);
             double kRho = k * rho;
             // Calculate Drag Components
@@ -219,12 +219,12 @@ class shellCalc {
                                cw_2 * fabs(v_y) * signum(v_y)));
         };
 
-        auto getIntermediate = [](uint32_t index, uint32_t stage) {
+        const auto getIntermediate = [](uint32_t index, uint32_t stage) {
             return index + stage * vSize;
         };
 
-        auto RK4Final = [&](std::array<double, 4 * vSize> &d,
-                            uint32_t index) -> double {
+        const auto RK4Final = [&](std::array<double, 4 * vSize> &d,
+                                  uint32_t index) -> double {
             // Adds deltas in Runge Kutta 4 manner
             return (std::fma(2, d[getIntermediate(index, 1)],
                              d[getIntermediate(index, 0)]) +
@@ -233,8 +233,8 @@ class shellCalc {
                    6;
         };
 
-        auto RK2Final = [&](std::array<double, 2 * vSize> &d,
-                            uint32_t index) -> double {
+        const auto RK2Final = [&](std::array<double, 2 * vSize> &d,
+                                  uint32_t index) -> double {
             // Adds deltas in Runge Kutta 2 manner
             return (d[getIntermediate(index, 0)] +
                     d[getIntermediate(index, 1)]) /
@@ -254,7 +254,7 @@ class shellCalc {
                 // Fill in first 5 w/ RK2
                 std::array<double, 2 * vSize> rdx, rdy, rddx, rddy;
                 for (int stage = 0; (stage < 4) & checkContinue(); ++stage) {
-                    for (uint32_t i = 0; i < vSize; ++i) {
+                    for (std::size_t i = 0; i < vSize; ++i) {
                         double &x = xy[i], &y = xy[i + vSize],
                                &v_x = velocities[i],
                                &v_y = velocities[i + vSize],
@@ -263,19 +263,15 @@ class shellCalc {
                         // RK2
                         double dt_update = (y >= 0) * dt_min;
                         // std::array<double, 2> rdx, rdy, rddx, rddy;
-
-                        delta(x, rdx[getIntermediate(i, 0)], y,
-                              rdy[getIntermediate(i, 0)], v_x,
-                              rddx[getIntermediate(i, 0)], v_y,
-                              rddy[getIntermediate(i, 0)]);
-                        delta(x + rdx[getIntermediate(i, 0)],
-                              rdx[getIntermediate(i, 1)],
-                              y + rdy[getIntermediate(i, 0)],
-                              rdy[getIntermediate(i, 1)],
-                              v_x + rddx[getIntermediate(i, 0)],
-                              rddx[getIntermediate(i, 1)],
-                              v_y + rddy[getIntermediate(i, 0)],
-                              rddy[getIntermediate(i, 1)], y >= 0);
+                        auto intermediate0 = getIntermediate(i, 0),
+                             intermediate1 = getIntermediate(i, 1);
+                        delta(x, rdx[intermediate0], y, rdy[intermediate0], v_x,
+                              rddx[intermediate0], v_y, rddy[intermediate0]);
+                        delta(x + rdx[intermediate0], rdx[intermediate1],
+                              y + rdy[intermediate0], rdy[intermediate1],
+                              v_x + rddx[intermediate0], rddx[intermediate1],
+                              v_y + rddy[intermediate0], rddy[intermediate1],
+                              y >= 0);
                         // Force update even if it becomes zero
 
                         double fdx = RK2Final(rdx, i), fdy = RK2Final(rdy, i),
@@ -285,10 +281,11 @@ class shellCalc {
                         y += fdy;
                         v_x += fddx;
                         v_y += fddy;
-                        dx[get(i, stage)] = fdx;
-                        dy[get(i, stage)] = fdy;
-                        ddx[get(i, stage)] = fddx;
-                        ddy[get(i, stage)] = fddy;
+                        auto cStage = get(i, stage);
+                        dx[cStage] = fdx;
+                        dy[cStage] = fdy;
+                        ddx[cStage] = fddx;
+                        ddy[cStage] = fddy;
                         t += dt_update;
                     }
                     if constexpr (AddTraj) {
@@ -340,7 +337,7 @@ class shellCalc {
                         }
                     }
                     offset++;  // Circle back
-                    offset %= 5;
+                    offset = offset == 5 ? 0 : offset;
                 }
             } else {
                 static_assert(utility::falsy_v<std::integral_constant<
@@ -376,18 +373,15 @@ class shellCalc {
                         double dt_update = (y >= 0) * dt_min;
                         // std::array<double, 2> dx, dy, ddx, ddy;
 
-                        delta(x, dx[getIntermediate(i, 0)], y,
-                              dy[getIntermediate(i, 0)], v_x,
-                              ddx[getIntermediate(i, 0)], v_y,
-                              ddy[getIntermediate(i, 0)]);
-                        delta(x + dx[getIntermediate(i, 0)],
-                              dx[getIntermediate(i, 1)],
-                              y + dy[getIntermediate(i, 0)],
-                              dy[getIntermediate(i, 1)],
-                              v_x + ddx[getIntermediate(i, 0)],
-                              ddx[getIntermediate(i, 1)],
-                              v_y + ddy[getIntermediate(i, 0)],
-                              ddy[getIntermediate(i, 1)], y >= 0);
+                        auto intermediate0 = getIntermediate(i, 0),
+                             intermediate1 = getIntermediate(i, 1);
+                        delta(x, dx[intermediate0], y, dy[intermediate0], v_x,
+                              ddx[intermediate0], v_y, ddy[intermediate0]);
+                        delta(x + dx[intermediate0], dx[intermediate1],
+                              y + dy[intermediate0], dy[intermediate1],
+                              v_x + ddx[intermediate0], ddx[intermediate1],
+                              v_y + ddy[intermediate0], ddy[intermediate1],
+                              y >= 0);
                         // Force update even if it becomes zero
 
                         x += RK2Final(dx, i);
@@ -408,34 +402,28 @@ class shellCalc {
                         double dt_update = update * dt_min;
                         // std::array<double, 4> dx, dy, ddx, ddy;
                         // K1->K4
-                        delta(x, dx[getIntermediate(i, 0)], y,
-                              dy[getIntermediate(i, 0)], v_x,
-                              ddx[getIntermediate(i, 0)], v_y,
-                              ddy[getIntermediate(i, 0)]);
-                        delta(x + dx[getIntermediate(i, 0)] / 2,
-                              dx[getIntermediate(i, 1)],
-                              y + dy[getIntermediate(i, 0)] / 2,
-                              dy[getIntermediate(i, 1)],
-                              v_x + ddx[getIntermediate(i, 0)] / 2,
-                              ddx[getIntermediate(i, 1)],
-                              v_y + ddy[getIntermediate(i, 0)] / 2,
-                              ddy[getIntermediate(i, 1)], update);
-                        delta(x + dx[getIntermediate(i, 1)] / 2,
-                              dx[getIntermediate(i, 2)],
-                              y + dy[getIntermediate(i, 1)] / 2,
-                              dy[getIntermediate(i, 2)],
-                              v_x + ddx[getIntermediate(i, 1)] / 2,
-                              ddx[getIntermediate(i, 2)],
-                              v_y + ddy[getIntermediate(i, 1)] / 2,
-                              ddy[getIntermediate(i, 2)], update);
-                        delta(x + dx[getIntermediate(i, 2)],
-                              dx[getIntermediate(i, 3)],
-                              y + dy[getIntermediate(i, 2)],
-                              dy[getIntermediate(i, 3)],
-                              v_x + ddx[getIntermediate(i, 2)],
-                              ddx[getIntermediate(i, 3)],
-                              v_y + ddy[getIntermediate(i, 2)],
-                              ddy[getIntermediate(i, 3)], update);
+                        auto intermediate0 = getIntermediate(i, 0);
+                        delta(x, dx[intermediate0], y, dy[intermediate0], v_x,
+                              ddx[intermediate0], v_y, ddy[intermediate0]);
+
+                        for (int k = 0; k < 2; k++) {
+                            auto intermediateK = getIntermediate(i, k),
+                                 intermediateK1 = getIntermediate(i, k + 1);
+                            delta(x + dx[intermediateK] / 2, dx[intermediateK1],
+                                  y + dy[intermediateK] / 2, dy[intermediateK1],
+                                  v_x + ddx[intermediateK] / 2,
+                                  ddx[intermediateK1],
+                                  v_y + ddy[intermediateK] / 2,
+                                  ddy[intermediateK1], update);
+                        }
+
+                        auto intermediate2 = getIntermediate(i, 2),
+                             intermediate3 = getIntermediate(i, 3);
+                        delta(x + dx[intermediate2], dx[intermediate3],
+                              y + dy[intermediate2], dy[intermediate3],
+                              v_x + ddx[intermediate2], ddx[intermediate3],
+                              v_y + ddy[intermediate2], ddy[intermediate3],
+                              update);
 
                         x += RK4Final(dx, i);
                         y += RK4Final(dy, i);

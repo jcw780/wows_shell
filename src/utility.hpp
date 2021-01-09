@@ -57,7 +57,7 @@ std::string base85Encode(const T& in, const bool pad = false) {
         return charSet[((InTuple / Pow85[stage]) % 85ul)];
     };
 
-    auto addToOutput = [&](const char* target, uint8_t N) {
+    auto addToOutput = [&](const char* target, const uint8_t N) {
         uint32_t inTuple = 0;
 
         for (uint8_t j = 0; j < (sizeof(uint32_t) / sizeof(char)); ++j) {
