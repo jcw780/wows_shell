@@ -276,17 +276,13 @@ class shellCalc {
         };
 #endif
 
-        const auto getIntermediate = [](uint32_t index, uint32_t stage) {
-            return index + stage * vSize;
-        };
-
 #ifdef __SSE4_2__
-        const auto RK4Final = [&](std::array<__m128d, 4> &d) -> double {
+        const auto RK4Final = [&](std::array<__m128d, 4> &d) -> __m128d {
             // Adds deltas in Runge Kutta 4 manner
             return _mm_div_pd(
                 vectorFunctions::mad(_mm_set1_pd(2), _mm_add_pd(d[1], d[2]),
                                      _mm_add_pd(d[0], d[3])),
-                6);
+                _mm_set1_pd(6));
         };
 
         const auto RK2Final = [&](std::array<__m128d, 2> &d) -> __m128d {
@@ -294,6 +290,10 @@ class shellCalc {
             return vectorFunctions::mad(_mm_set1_pd(0.5), d[1], d[0]);
         };
 #else
+        const auto getIntermediate = [](uint32_t index, uint32_t stage) {
+            return index + stage * vSize;
+        };
+
         const auto RK4Final = [&](std::array<double, 4 * vSize> &d,
                                   uint32_t index) -> double {
             // Adds deltas in Runge Kutta 4 manner
@@ -418,11 +418,13 @@ class shellCalc {
             }*/
         } else {
             while (checkContinue()) {
+#ifdef __SSE4_2__
+                __m128d update = _mm_cmpge_pd(yR, _mm_set1_pd(0));
+                __m128d dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
+#endif
                 if constexpr (Numerical == numerical::forwardEuler) {
 #ifdef __SSE4_2__
                     __m128d dx, dy, ddx, ddy;
-                    __m128d update = _mm_cmpge_pd(yR, _mm_set1_pd(0));
-                    __m128d dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
                     delta(xR, dx, yR, dy, v_xR, ddx, v_yR, ddy);
                     xR = _mm_add_pd(xR, dx);
                     yR = _mm_add_pd(yR, dy);
@@ -450,8 +452,6 @@ class shellCalc {
                 } else if constexpr (Numerical == numerical::rungeKutta2) {
 #ifdef __SSE4_2__
                     std::array<__m128d, 2> dx, dy, ddx, ddy;
-                    __m128d update = _mm_cmpge_pd(yR, _mm_set1_pd(0));
-                    __m128d dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
                     delta(xR, dx[0], yR, dy[0], v_xR, ddx[0], v_yR, ddy[0]);
                     delta(_mm_add_pd(xR, dx[0]), dx[1], _mm_add_pd(yR, dy[0]),
                           dy[1], _mm_add_pd(v_xR, ddx[0]), ddx[1],
@@ -491,6 +491,9 @@ class shellCalc {
                     }
 #endif
                 } /*else if constexpr (Numerical == numerical::rungeKutta4) {
+#ifdef __SSE4_2__
+                    std::array<__m128d, 4> dx, dy, ddx, ddy;
+#else
                     std::array<double, 4 * vSize> dx, dy, ddx, ddy;
                     for (uint32_t i = 0; i < vSize; ++i) {
                         double &x = xy[i], &y = xy[i + vSize],
@@ -530,8 +533,9 @@ class shellCalc {
                         v_x += RK4Final(ddx, i);
                         v_y += RK4Final(ddy, i);
                         t += dt_update;
-                    }
+#endif
                 } */
+
                 else {
                     static_assert(utility::falsy_v<std::integral_constant<
                                       uint32_t, toUnderlying(Numerical)>>,
