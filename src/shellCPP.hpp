@@ -19,6 +19,10 @@
 //#include "threadpool.hpp"
 #include "utility.hpp"
 
+#ifdef __SSE4_2__
+#include "vectorFunctions.hpp"
+#endif
+
 namespace wows_shell {
 class shellCalc {
    private:
@@ -182,7 +186,19 @@ class shellCalc {
                 }
             }
         }
+#ifdef __SSE4_2__
+        __m128d v_xR = _mm_load_pd(&velocities[0]),
+                v_yR = _mm_load_pd(&velocities[vSize]),
+                tR = _mm_load_pd(&velocities[vSize * 2]), xR = _mm_set1_pd(x0),
+                yR = _mm_set_pd(start < s.impactSize ? y0 : -1,
+                                start + 1 < s.impactSize ? y0 : -1);
+        const auto checkContinue = [&]() -> bool {
+            __m128i checked =
+                _mm_castpd_si128(_mm_cmpge_pd(yR, _mm_set1_pd(0)));
+            return !_mm_test_all_zeros(checked, _mm_set1_epi32(-1));
+        };
 
+#else
         std::array<double, 2 * vSize> xy{};
         for (uint32_t i = 0, j = start; i < vSize; ++i, ++j) {
             xy[i + vSize] = j < s.impactSize ? 0 : -1;
@@ -195,8 +211,46 @@ class shellCalc {
             }
             return any;
         };
+#endif
 
-        // Helpers
+// Helpers
+#ifdef __SSE4_2__
+        const auto delta = [&](const __m128d x, __m128d &dx, __m128d y,
+                               __m128d &dy, const __m128d v_x, __m128d &ddx,
+                               const __m128d v_y, __m128d &ddy) {
+            __m128d update = _mm_cmpge_pd(y, _mm_set1_pd(0));
+            __m128d T, p, rho, kRho, velocityMagnitude,
+                dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
+            dx = _mm_mul_pd(dt_update, v_x);
+            dy = _mm_mul_pd(dt_update, v_y);
+            y = _mm_add_pd(y, dy);
+
+            T = vectorFunctions::mad(_mm_set1_pd(0 - L), y, _mm_set1_pd(t0));
+            p = _mm_mul_pd(_mm_set1_pd(p0),
+                           vectorFunctions::pow(_mm_div_pd(T, _mm_set1_pd(t0)),
+                                                _mm_set1_pd(gMRL)));
+            rho = _mm_div_pd(_mm_mul_pd(_mm_set1_pd(M), p),
+                             _mm_mul_pd(_mm_set1_pd(R), T));
+            kRho = _mm_mul_pd(_mm_set1_pd(k), rho);
+            velocityMagnitude = _mm_sqrt_pd(
+                _mm_add_pd(_mm_mul_pd(v_x, v_x), _mm_mul_pd(v_y, v_y)));
+            __m128d n_dt_update = _mm_sub_pd(_mm_set1_pd(0), dt_update);
+            // std::cout << v_y[0] << " " << v_y[1] << "\n";
+            ddx = _mm_mul_pd(
+                n_dt_update,
+                _mm_mul_pd(kRho,
+                           _mm_mul_pd(_mm_set1_pd(cw_1),
+                                      _mm_mul_pd(v_x, velocityMagnitude))));
+            ddy = _mm_mul_pd(
+                n_dt_update,
+                _mm_add_pd(
+                    _mm_set1_pd(g),
+                    _mm_mul_pd(
+                        kRho, _mm_mul_pd(_mm_set1_pd(cw_1),
+                                         _mm_mul_pd(v_y, velocityMagnitude)))));
+            // std::cout << ddy[0] << " " << ddy[1] << "\n";
+        };
+#else
         const auto delta = [&](const double x, double &dx, double y, double &dy,
                                const double v_x, double &ddx, const double v_y,
                                double &ddy, bool update = false) {
@@ -215,9 +269,11 @@ class shellCalc {
             ddx = -1 * dt_update * kRho *
                   (cw_1 * v_x * velocityMagnitude + cw_2 * v_x);
             ddy = -1 * dt_update *
-                  (g + kRho * (cw_1 * v_y * velocityMagnitude +
-                               cw_2 * fabs(v_y) * signum(v_y)));
+                  (g + kRho * (cw_1 * v_y * velocityMagnitude
+                               //+ cw_2 * fabs(v_y) * signum(v_y)
+                               ));
         };
+#endif
 
         const auto getIntermediate = [](uint32_t index, uint32_t stage) {
             return index + stage * vSize;
@@ -242,7 +298,7 @@ class shellCalc {
         };
         // TODO: Add numerical orders
         if constexpr (isMultistep<Numerical>()) {
-            if constexpr (Numerical == numerical::adamsBashforth5) {
+            /*if constexpr (Numerical == numerical::adamsBashforth5) {
                 std::array<double, 5 * vSize> dx, dy, ddx, ddy;
                 // 0 -> vSize -> ... -> 5 * vSize
                 uint32_t offset = 0;  // Make it a circular buffer
@@ -343,10 +399,21 @@ class shellCalc {
                 static_assert(utility::falsy_v<std::integral_constant<
                                   uint32_t, toUnderlying(Numerical)>>,
                               "Invalid multistep algorithm");
-            }
+            }*/
         } else {
             while (checkContinue()) {
                 if constexpr (Numerical == numerical::forwardEuler) {
+#ifdef __SSE4_2__
+                    __m128d dx, dy, ddx, ddy;
+                    __m128d update = _mm_cmpge_pd(yR, _mm_set1_pd(0));
+                    __m128d dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
+                    delta(xR, dx, yR, dy, v_xR, ddx, v_yR, ddy);
+                    xR = _mm_add_pd(xR, dx);
+                    yR = _mm_add_pd(yR, dy);
+                    v_xR = _mm_add_pd(v_xR, ddx);
+                    v_yR = _mm_add_pd(v_yR, ddy);
+                    tR = _mm_add_pd(tR, dt_update);
+#else
                     std::array<double, vSize> dx, dy, ddx, ddy;
                     for (uint32_t i = 0; i < vSize; ++i) {
                         double &x = xy[i], &y = xy[i + vSize],
@@ -363,7 +430,8 @@ class shellCalc {
                         v_y += ddy[i];
                         t += dt_update;
                     }
-                } else if constexpr (Numerical == numerical::rungeKutta2) {
+#endif
+                } /*else if constexpr (Numerical == numerical::rungeKutta2) {
                     std::array<double, 2 * vSize> dx, dy, ddx, ddy;
                     for (uint32_t i = 0; i < vSize; ++i) {
                         double &x = xy[i], &y = xy[i + vSize],
@@ -435,21 +503,35 @@ class shellCalc {
                     static_assert(utility::falsy_v<std::integral_constant<
                                       uint32_t, toUnderlying(Numerical)>>,
                                   "Invalid single step algorithm");
-                }
+                }*/
 
                 if constexpr (AddTraj) {
                     const uint32_t loopSize =
                         std::min<uint32_t>(vSize, s.impactSize - start);
                     for (uint32_t i = 0, j = start; i < loopSize;
                          ++i, ++j) {  // Breaks Vectorization
+#ifdef __SSE4_2__
+                        s.trajectories[2 * (j)].push_back(xR[i]);
+                        s.trajectories[2 * (j) + 1].push_back(yR[i]);
+#else
                         s.trajectories[2 * (j)].push_back(xy[i]);
                         s.trajectories[2 * (j) + 1].push_back(xy[i + vSize]);
+#endif
                     }
                 }
             }
         }
-        std::copy_n(xy.begin(), vSize,
-                    s.get_impactPtr(start, impact::impactIndices::distance));
+
+        auto distanceTarget =
+            s.get_impactPtr(start, impact::impactIndices::distance);
+#ifdef __SSE4_2__
+        _mm_store_pd(&velocities[0], v_xR);
+        _mm_store_pd(&velocities[vSize], v_yR);
+        _mm_store_pd(&velocities[vSize * 2], tR);
+        _mm_store_pd(distanceTarget, xR);
+#else
+        std::copy_n(xy.begin(), vSize, distanceTarget);
+#endif
     }
 
     // Several trajectories done in one chunk to allow for vectorization

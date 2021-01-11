@@ -10,7 +10,7 @@ void runtime() {
     std::unique_ptr<wows_shell::shell> test;
     wows_shell::shellCalc sc;
     sc.set_max(90.0);
-    unsigned int runs = 1;
+    unsigned int runs = 100;
     wows_shell::shellParams sp = {.460, 780, .292, 1460, 2574, 6,
                                   .033, 76,  45,   60,   0};
     wows_shell::dispersionParams dp = {10,  2.8, 1000, 5000,  0.5,
@@ -21,8 +21,8 @@ void runtime() {
     // std::cout << "Started Impact\n";
     for (unsigned int i = 0; i < runs; i++) {
         auto t1 = std::chrono::high_resolution_clock::now();
-        sc.calculateImpact<wows_shell::numerical::adamsBashforth5, false>(
-            *test, false);
+        sc.calculateImpact<wows_shell::numerical::forwardEuler, false>(*test,
+                                                                       false);
         auto t2 = std::chrono::high_resolution_clock::now();
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>(
                      t2 - t1)
