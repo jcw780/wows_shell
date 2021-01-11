@@ -19,7 +19,7 @@
 //#include "threadpool.hpp"
 #include "utility.hpp"
 
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
 #include "vectorFunctions.hpp"
 #endif
 
@@ -186,7 +186,7 @@ class shellCalc {
                 }
             }
         }
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
         __m128d v_xR = _mm_load_pd(&velocities[0]),
                 v_yR = _mm_load_pd(&velocities[vSize]),
                 tR = _mm_load_pd(&velocities[vSize * 2]), xR = _mm_set1_pd(x0),
@@ -214,7 +214,7 @@ class shellCalc {
 #endif
 
 // Helpers
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
         const auto delta = [&](const __m128d x, __m128d &dx, __m128d y,
                                __m128d &dy, const __m128d v_x, __m128d &ddx,
                                const __m128d v_y, __m128d &ddy,
@@ -276,7 +276,7 @@ class shellCalc {
         };
 #endif
 
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
         const auto RK4Final = [&](std::array<__m128d, 4> &d) -> __m128d {
             // Adds deltas in Runge Kutta 4 manner
             return _mm_div_pd(
@@ -316,7 +316,7 @@ class shellCalc {
         if constexpr (isMultistep<Numerical>()) {
             if constexpr (Numerical == numerical::adamsBashforth5) {
                 uint32_t offset = 0;  // Make it a circular buffer
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
                 std::array<__m128d, 5> dx, dy, ddx, ddy;
                 const auto get = [&](const uint32_t &stage) -> uint32_t {
                     return (stage + offset) % 5;
@@ -335,7 +335,7 @@ class shellCalc {
                 std::array<double, 2 * vSize> rdx, rdy, rddx, rddy;
 #endif
                 for (int stage = 0; (stage < 4) & checkContinue(); ++stage) {
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
                     __m128d update = _mm_cmpge_pd(yR, _mm_set1_pd(0));
                     __m128d dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
                     delta(xR, rdx[0], yR, rdy[0], v_xR, rddx[0], v_yR, rddy[0]);
@@ -395,7 +395,7 @@ class shellCalc {
                             std::min<uint32_t>(vSize, s.impactSize - start);
                         for (uint32_t i = 0, j = start; i < loopSize;
                              ++i, ++j) {
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
                             s.trajectories[2 * (j)].push_back(xR[i]);
                             s.trajectories[2 * (j) + 1].push_back(yR[i]);
 #else
@@ -408,7 +408,7 @@ class shellCalc {
                 }
 
                 while (checkContinue()) {  // 5 AB5 - Length 5+ Traj
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
                     const auto ABF5 = [&](std::array<__m128d, 5> &d,
                                           __m128d update) {
                         return _mm_and_pd(
@@ -469,7 +469,7 @@ class shellCalc {
                             std::min<uint32_t>(vSize, s.impactSize - start);
                         for (uint32_t i = 0, j = start; i < loopSize;
                              ++i, ++j) {
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
                             s.trajectories[2 * (j)].push_back(xR[i]);
                             s.trajectories[2 * (j) + 1].push_back(yR[i]);
 #else
@@ -489,12 +489,12 @@ class shellCalc {
             }
         } else {
             while (checkContinue()) {
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
                 __m128d update = _mm_cmpge_pd(yR, _mm_set1_pd(0));
                 __m128d dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
 #endif
                 if constexpr (Numerical == numerical::forwardEuler) {
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
                     __m128d dx, dy, ddx, ddy;
                     delta(xR, dx, yR, dy, v_xR, ddx, v_yR, ddy);
                     xR = _mm_add_pd(xR, dx);
@@ -521,7 +521,7 @@ class shellCalc {
                     }
 #endif
                 } else if constexpr (Numerical == numerical::rungeKutta2) {
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
                     std::array<__m128d, 2> dx, dy, ddx, ddy;
                     delta(xR, dx[0], yR, dy[0], v_xR, ddx[0], v_yR, ddy[0]);
                     delta(_mm_add_pd(xR, dx[0]), dx[1], _mm_add_pd(yR, dy[0]),
@@ -561,7 +561,7 @@ class shellCalc {
                     }
 #endif
                 } else if constexpr (Numerical == numerical::rungeKutta4) {
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
                     std::array<__m128d, 4> dx, dy, ddx, ddy;
                     delta(xR, dx[0], yR, dy[0], v_xR, ddx[0], v_yR, ddy[0]);
                     for (int k = 0; k < 2; k++) {
@@ -636,7 +636,7 @@ class shellCalc {
                         std::min<uint32_t>(vSize, s.impactSize - start);
                     for (uint32_t i = 0, j = start; i < loopSize;
                          ++i, ++j) {  // Breaks Vectorization
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
                         s.trajectories[2 * (j)].push_back(xR[i]);
                         s.trajectories[2 * (j) + 1].push_back(yR[i]);
 #else
@@ -651,7 +651,7 @@ class shellCalc {
 
         auto distanceTarget =
             s.get_impactPtr(start, impact::impactIndices::distance);
-#ifdef __SSE4_2__
+#ifdef __SSE4_1__
         _mm_store_pd(&velocities[0], v_xR);
         _mm_store_pd(&velocities[vSize], v_yR);
         _mm_store_pd(&velocities[vSize * 2], tR);
