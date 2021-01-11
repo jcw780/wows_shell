@@ -16,7 +16,6 @@
 
 #include "controlEnums.hpp"
 #include "shell.hpp"
-//#include "threadpool.hpp"
 #include "utility.hpp"
 
 #ifdef __SSE4_1__
@@ -56,9 +55,6 @@ class shellCalc {
     double dtf = 0.0001;
     double xf0 = 0, yf0 = 0;
 
-    // For vectorization - though probably not 100% necessary anymore since
-    // intrinsics were removed [intrinsics had no significant improvements in
-    // runtime] - but might still make it easier to vectorize
     static_assert(sizeof(double) == 8,
                   "Size of double is not 8 - required for vectorization");
     // Use float64 in the future
