@@ -21,8 +21,8 @@ void runtime() {
     // std::cout << "Started Impact\n";
     for (unsigned int i = 0; i < runs; i++) {
         auto t1 = std::chrono::high_resolution_clock::now();
-        sc.calculateImpact<wows_shell::numerical::forwardEuler, false>(*test,
-                                                                       false);
+        sc.calculateImpact<wows_shell::numerical::rungeKutta4, false>(*test,
+                                                                      false);
         auto t2 = std::chrono::high_resolution_clock::now();
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>(
                      t2 - t1)

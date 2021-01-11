@@ -461,7 +461,6 @@ class shellCalc {
                     v_xR = _mm_add_pd(v_xR, RK2Final(ddx));
                     v_yR = _mm_add_pd(v_yR, RK2Final(ddy));
                     tR = _mm_add_pd(tR, dt_update);
-
 #else
                     std::array<double, 2 * vSize> dx, dy, ddx, ddy;
                     for (uint32_t i = 0; i < vSize; ++i) {
@@ -490,9 +489,30 @@ class shellCalc {
                         t += dt_update;
                     }
 #endif
-                } /*else if constexpr (Numerical == numerical::rungeKutta4) {
+                } else if constexpr (Numerical == numerical::rungeKutta4) {
 #ifdef __SSE4_2__
                     std::array<__m128d, 4> dx, dy, ddx, ddy;
+                    delta(xR, dx[0], yR, dy[0], v_xR, ddx[0], v_yR, ddy[0]);
+                    for (int k = 0; k < 2; k++) {
+                        delta(vectorFunctions::mad(_mm_set1_pd(0.5), dx[k], xR),
+                              dx[k + 1],
+                              vectorFunctions::mad(_mm_set1_pd(0.5), dy[k], yR),
+                              dy[k + 1],
+                              vectorFunctions::mad(_mm_set1_pd(0.5), ddx[k],
+                                                   v_xR),
+                              ddx[k + 1],
+                              vectorFunctions::mad(_mm_set1_pd(0.5), ddy[k],
+                                                   v_yR),
+                              ddy[k + 1], update);
+                    }
+                    delta(_mm_add_pd(xR, dx[2]), dx[3], _mm_add_pd(yR, dy[2]),
+                          dy[3], _mm_add_pd(v_xR, ddx[2]), ddx[3],
+                          _mm_add_pd(v_yR, ddy[2]), ddy[3], update);
+                    xR = _mm_add_pd(xR, RK4Final(dx));
+                    yR = _mm_add_pd(yR, RK4Final(dy));
+                    v_xR = _mm_add_pd(v_xR, RK4Final(ddx));
+                    v_yR = _mm_add_pd(v_yR, RK4Final(ddy));
+                    tR = _mm_add_pd(tR, dt_update);
 #else
                     std::array<double, 4 * vSize> dx, dy, ddx, ddy;
                     for (uint32_t i = 0; i < vSize; ++i) {
@@ -534,9 +554,7 @@ class shellCalc {
                         v_y += RK4Final(ddy, i);
                         t += dt_update;
 #endif
-                } */
-
-                else {
+                } else {
                     static_assert(utility::falsy_v<std::integral_constant<
                                       uint32_t, toUnderlying(Numerical)>>,
                                   "Invalid single step algorithm");
@@ -551,8 +569,9 @@ class shellCalc {
                         s.trajectories[2 * (j)].push_back(xR[i]);
                         s.trajectories[2 * (j) + 1].push_back(yR[i]);
 #else
-                        s.trajectories[2 * (j)].push_back(xy[i]);
-                        s.trajectories[2 * (j) + 1].push_back(xy[i + vSize]);
+                            s.trajectories[2 * (j)].push_back(xy[i]);
+                            s.trajectories[2 * (j) + 1].push_back(
+                                xy[i + vSize]);
 #endif
                     }
                 }
@@ -567,7 +586,7 @@ class shellCalc {
         _mm_store_pd(&velocities[vSize * 2], tR);
         _mm_store_pd(distanceTarget, xR);
 #else
-        std::copy_n(xy.begin(), vSize, distanceTarget);
+            std::copy_n(xy.begin(), vSize, distanceTarget);
 #endif
     }
 
