@@ -190,8 +190,8 @@ class shellCalc {
         __m128d v_xR = _mm_load_pd(&velocities[0]),
                 v_yR = _mm_load_pd(&velocities[vSize]),
                 tR = _mm_load_pd(&velocities[vSize * 2]), xR = _mm_set1_pd(x0),
-                yR = _mm_set_pd(start < s.impactSize ? y0 : -1,
-                                start + 1 < s.impactSize ? y0 : -1);
+                yR = _mm_set_pd(start + 1 < s.impactSize ? y0 : -1,
+                                start < s.impactSize ? y0 : -1);
         const auto checkContinue = [&]() -> bool {
             __m128i checked =
                 _mm_castpd_si128(_mm_cmpge_pd(yR, _mm_set1_pd(0)));
@@ -624,6 +624,7 @@ class shellCalc {
                         v_x += RK4Final(ddx, i);
                         v_y += RK4Final(ddy, i);
                         t += dt_update;
+                    }
 #endif
                 } else {
                     static_assert(utility::falsy_v<std::integral_constant<
@@ -640,9 +641,8 @@ class shellCalc {
                         s.trajectories[2 * (j)].push_back(xR[i]);
                         s.trajectories[2 * (j) + 1].push_back(yR[i]);
 #else
-                            s.trajectories[2 * (j)].push_back(xy[i]);
-                            s.trajectories[2 * (j) + 1].push_back(
-                                xy[i + vSize]);
+                        s.trajectories[2 * (j)].push_back(xy[i]);
+                        s.trajectories[2 * (j) + 1].push_back(xy[i + vSize]);
 #endif
                     }
                 }
@@ -657,7 +657,7 @@ class shellCalc {
         _mm_store_pd(&velocities[vSize * 2], tR);
         _mm_store_pd(distanceTarget, xR);
 #else
-            std::copy_n(xy.begin(), vSize, distanceTarget);
+        std::copy_n(xy.begin(), vSize, distanceTarget);
 #endif
     }
 
