@@ -314,10 +314,18 @@ class shellCalc {
 #endif
         // TODO: Add numerical orders
         if constexpr (isMultistep<Numerical>()) {
-            /*if constexpr (Numerical == numerical::adamsBashforth5) {
+            if constexpr (Numerical == numerical::adamsBashforth5) {
+                uint32_t offset = 0;  // Make it a circular buffer
+#ifdef __SSE4_2__
+                std::array<__m128d, 5> dx, dy, ddx, ddy;
+                const auto get = [&](const uint32_t &stage) -> uint32_t {
+                    return (stage + offset) % 5;
+                };
+                std::array<__m128d, 2> rdx, rdy, rddx, rddy;
+#else
                 std::array<double, 5 * vSize> dx, dy, ddx, ddy;
                 // 0 -> vSize -> ... -> 5 * vSize
-                uint32_t offset = 0;  // Make it a circular buffer
+
                 auto get = [&](const uint32_t &index,
                                const uint32_t &stage) -> uint32_t {
                     return index + ((stage + offset) % 5) * vSize;
@@ -325,7 +333,28 @@ class shellCalc {
 
                 // Fill in first 5 w/ RK2
                 std::array<double, 2 * vSize> rdx, rdy, rddx, rddy;
+#endif
                 for (int stage = 0; (stage < 4) & checkContinue(); ++stage) {
+#ifdef __SSE4_2__
+                    __m128d update = _mm_cmpge_pd(yR, _mm_set1_pd(0));
+                    __m128d dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
+                    delta(xR, rdx[0], yR, rdy[0], v_xR, rddx[0], v_yR, rddy[0]);
+                    delta(_mm_add_pd(xR, rdx[0]), rdx[1],
+                          _mm_add_pd(yR, rdy[0]), rdy[1],
+                          _mm_add_pd(v_xR, rddx[0]), rddx[1],
+                          _mm_add_pd(v_yR, rddy[0]), rddy[1], update);
+                    auto cStage = get(stage);
+                    dx[cStage] = RK2Final(rdx);
+                    dy[cStage] = RK2Final(rdy);
+                    ddx[cStage] = RK2Final(rddx);
+                    ddy[cStage] = RK2Final(rddy);
+
+                    xR = _mm_add_pd(xR, dx[cStage]);
+                    yR = _mm_add_pd(yR, dy[cStage]);
+                    v_xR = _mm_add_pd(v_xR, ddx[cStage]);
+                    v_yR = _mm_add_pd(v_yR, ddy[cStage]);
+                    tR = _mm_add_pd(tR, dt_update);
+#else
                     for (std::size_t i = 0; i < vSize; ++i) {
                         double &x = xy[i], &y = xy[i + vSize],
                                &v_x = velocities[i],
@@ -360,29 +389,65 @@ class shellCalc {
                         ddy[cStage] = fddy;
                         t += dt_update;
                     }
+#endif
                     if constexpr (AddTraj) {
                         const uint32_t loopSize =
                             std::min<uint32_t>(vSize, s.impactSize - start);
                         for (uint32_t i = 0, j = start; i < loopSize;
                              ++i, ++j) {
+#ifdef __SSE4_2__
+                            s.trajectories[2 * (j)].push_back(xR[i]);
+                            s.trajectories[2 * (j) + 1].push_back(yR[i]);
+#else
                             s.trajectories[2 * (j)].push_back(xy[i]);
                             s.trajectories[2 * (j) + 1].push_back(
                                 xy[i + vSize]);
+#endif
                         }
                     }
                 }
 
                 while (checkContinue()) {  // 5 AB5 - Length 5+ Traj
-                    auto ABF5 = [&](const std::array<double, 5 * vSize> &d,
-                                    const uint32_t &i, const bool &update) {
-                        // Adds deltas in Adams Bashforth 5 manner
-                        return (1901 / 720 * d[get(i, 4)] -
-                                2774 / 720 * d[get(i, 3)] +
-                                2616 / 720 * d[get(i, 2)] -
-                                1274 / 720 * d[get(i, 1)] +
-                                251 / 720 * d[get(i, 0)]) *
-                               update;
+#ifdef __SSE4_2__
+                    const auto ABF5 = [&](std::array<__m128d, 5> &d,
+                                          __m128d update) {
+                        return _mm_and_pd(
+                            _mm_div_pd(
+                                vectorFunctions::mad(
+                                    _mm_set1_pd(1901), d[get(4)],
+                                    vectorFunctions::mad(
+                                        _mm_set1_pd(-2274), d[get(3)],
+                                        vectorFunctions::mad(
+                                            _mm_set1_pd(2616), d[get(2)],
+                                            vectorFunctions::mad(
+                                                _mm_set1_pd(-1274), d[get(1)],
+                                                _mm_mul_pd(_mm_set1_pd(251),
+                                                           d[get(0)]))))),
+                                _mm_set1_pd(720)),
+                            update);
                     };
+                    __m128d update = _mm_cmpge_pd(yR, _mm_set1_pd(0));
+                    __m128d dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
+                    auto index = get(4);
+                    delta(xR, dx[index], yR, dy[index], v_xR, ddx[index], v_yR,
+                          ddy[index]);
+                    xR = _mm_add_pd(xR, ABF5(dx, update));
+                    yR = _mm_add_pd(yR, ABF5(dy, update));
+                    v_xR = _mm_add_pd(v_xR, ABF5(ddx, update));
+                    v_yR = _mm_add_pd(v_yR, ABF5(ddy, update));
+                    tR = _mm_add_pd(tR, dt_update);
+#else
+                    const auto ABF5 =
+                        [&](const std::array<double, 5 * vSize> &d,
+                            const uint32_t &i, const bool &update) {
+                            // Adds deltas in Adams Bashforth 5 manner
+                            return (1901 / 720 * d[get(i, 4)] -
+                                    2774 / 720 * d[get(i, 3)] +
+                                    2616 / 720 * d[get(i, 2)] -
+                                    1274 / 720 * d[get(i, 1)] +
+                                    251 / 720 * d[get(i, 0)]) *
+                                   update;
+                        };
                     for (uint32_t i = 0; i < vSize; ++i) {
                         double &x = xy[i], &y = xy[i + vSize],
                                &v_x = velocities[i],
@@ -398,14 +463,20 @@ class shellCalc {
                         v_y += ABF5(ddy, i, update);
                         t += update * dt_min;
                     }
+#endif
                     if constexpr (AddTraj) {
                         const uint32_t loopSize =
                             std::min<uint32_t>(vSize, s.impactSize - start);
                         for (uint32_t i = 0, j = start; i < loopSize;
                              ++i, ++j) {
+#ifdef __SSE4_2__
+                            s.trajectories[2 * (j)].push_back(xR[i]);
+                            s.trajectories[2 * (j) + 1].push_back(yR[i]);
+#else
                             s.trajectories[2 * (j)].push_back(xy[i]);
                             s.trajectories[2 * (j) + 1].push_back(
                                 xy[i + vSize]);
+#endif
                         }
                     }
                     offset++;  // Circle back
@@ -413,9 +484,9 @@ class shellCalc {
                 }
             } else {
                 static_assert(utility::falsy_v<std::integral_constant<
-                                  uint32_t, toUnderlying(Numerical)>>,
+                                  uint32_t, toUnderlying(Numerical)> >,
                               "Invalid multistep algorithm");
-            }*/
+            }
         } else {
             while (checkContinue()) {
 #ifdef __SSE4_2__
@@ -556,7 +627,7 @@ class shellCalc {
 #endif
                 } else {
                     static_assert(utility::falsy_v<std::integral_constant<
-                                      uint32_t, toUnderlying(Numerical)>>,
+                                      uint32_t, toUnderlying(Numerical)> >,
                                   "Invalid single step algorithm");
                 }
 
