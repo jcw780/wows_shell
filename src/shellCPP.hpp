@@ -217,8 +217,9 @@ class shellCalc {
 #ifdef __SSE4_2__
         const auto delta = [&](const __m128d x, __m128d &dx, __m128d y,
                                __m128d &dy, const __m128d v_x, __m128d &ddx,
-                               const __m128d v_y, __m128d &ddy) {
-            __m128d update = _mm_cmpge_pd(y, _mm_set1_pd(0));
+                               const __m128d v_y, __m128d &ddy,
+                               __m128d update = _mm_set1_pd(0)) {
+            update = _mm_or_pd(_mm_cmpge_pd(y, _mm_set1_pd(0)), update);
             __m128d T, p, rho, kRho, velocityMagnitude,
                 dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
             dx = _mm_mul_pd(dt_update, v_x);
@@ -279,6 +280,20 @@ class shellCalc {
             return index + stage * vSize;
         };
 
+#ifdef __SSE4_2__
+        const auto RK4Final = [&](std::array<__m128d, 4> &d) -> double {
+            // Adds deltas in Runge Kutta 4 manner
+            return _mm_div_pd(
+                vectorFunctions::mad(_mm_set1_pd(2), _mm_add_pd(d[1], d[2]),
+                                     _mm_add_pd(d[0], d[3])),
+                6);
+        };
+
+        const auto RK2Final = [&](std::array<__m128d, 2> &d) -> __m128d {
+            // Adds deltas in Runge Kutta 2 manner
+            return vectorFunctions::mad(_mm_set1_pd(0.5), d[1], d[0]);
+        };
+#else
         const auto RK4Final = [&](std::array<double, 4 * vSize> &d,
                                   uint32_t index) -> double {
             // Adds deltas in Runge Kutta 4 manner
@@ -296,6 +311,7 @@ class shellCalc {
                     d[getIntermediate(index, 1)]) /
                    2;
         };
+#endif
         // TODO: Add numerical orders
         if constexpr (isMultistep<Numerical>()) {
             /*if constexpr (Numerical == numerical::adamsBashforth5) {
@@ -431,7 +447,22 @@ class shellCalc {
                         t += dt_update;
                     }
 #endif
-                } /*else if constexpr (Numerical == numerical::rungeKutta2) {
+                } else if constexpr (Numerical == numerical::rungeKutta2) {
+#ifdef __SSE4_2__
+                    std::array<__m128d, 2> dx, dy, ddx, ddy;
+                    __m128d update = _mm_cmpge_pd(yR, _mm_set1_pd(0));
+                    __m128d dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
+                    delta(xR, dx[0], yR, dy[0], v_xR, ddx[0], v_yR, ddy[0]);
+                    delta(_mm_add_pd(xR, dx[0]), dx[1], _mm_add_pd(yR, dy[0]),
+                          dy[1], _mm_add_pd(v_xR, ddx[0]), ddx[1],
+                          _mm_add_pd(v_yR, ddy[0]), ddy[1], update);
+                    xR = _mm_add_pd(xR, RK2Final(dx));
+                    yR = _mm_add_pd(yR, RK2Final(dy));
+                    v_xR = _mm_add_pd(v_xR, RK2Final(ddx));
+                    v_yR = _mm_add_pd(v_yR, RK2Final(ddy));
+                    tR = _mm_add_pd(tR, dt_update);
+
+#else
                     std::array<double, 2 * vSize> dx, dy, ddx, ddy;
                     for (uint32_t i = 0; i < vSize; ++i) {
                         double &x = xy[i], &y = xy[i + vSize],
@@ -458,7 +489,8 @@ class shellCalc {
                         v_y += RK2Final(ddy, i);
                         t += dt_update;
                     }
-                } else if constexpr (Numerical == numerical::rungeKutta4) {
+#endif
+                } /*else if constexpr (Numerical == numerical::rungeKutta4) {
                     std::array<double, 4 * vSize> dx, dy, ddx, ddy;
                     for (uint32_t i = 0; i < vSize; ++i) {
                         double &x = xy[i], &y = xy[i + vSize],
@@ -499,11 +531,12 @@ class shellCalc {
                         v_y += RK4Final(ddy, i);
                         t += dt_update;
                     }
-                } else {
+                } */
+                else {
                     static_assert(utility::falsy_v<std::integral_constant<
                                       uint32_t, toUnderlying(Numerical)>>,
                                   "Invalid single step algorithm");
-                }*/
+                }
 
                 if constexpr (AddTraj) {
                     const uint32_t loopSize =
