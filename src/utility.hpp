@@ -3,6 +3,7 @@
 #include <cstdlib>
 #define _USE_MATH_DEFINES
 #include <array>
+#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <condition_variable>
@@ -134,6 +135,7 @@ double invCDF(double x) { return sqrt(2) * MBG_erfinv(2 * x - 1); }
 
 class threadPool {
    private:
+    std::atomic<std::size_t> finished = {0};
     std::vector<std::thread> threads;
     std::function<void(std::size_t)> f;
 
@@ -143,6 +145,7 @@ class threadPool {
 
    public:
     threadPool(std::size_t numThreads = std::thread::hardware_concurrency()) {
+        finished.store(0, std::memory_order_release);
         threads.reserve(numThreads - 1);
         for (std::size_t i = 1; i < numThreads; ++i) {
             threads.emplace_back([&, i]() {
@@ -153,6 +156,21 @@ class threadPool {
                     }
                     if (stop) return;
                     if (ready && f) f(i);
+                    // std::cout << i << " "
+                    //          << finished.load(std::memory_order_acquire)
+                    //          << "\n";
+                    auto fetched =
+                        finished.fetch_add(1, std::memory_order_acq_rel);
+                    if (fetched >= threads.size()) {
+                        cv.notify_all();
+                        // finished.store(0, std::memory_order_acquire);
+                    } else {
+                        std::unique_lock<std::mutex> lk(m_);
+                        cv.wait(lk, [&] {
+                            return finished.load(std::memory_order_acquire) !=
+                                   fetched;
+                        });
+                    }
                 }
             });
         }
@@ -166,9 +184,21 @@ class threadPool {
         {
             std::lock_guard<std::mutex> lk(m_);
             f = tf, ready = true;
+            finished.store(0, std::memory_order_acq_rel);
         }
         cv.notify_all();
         tf(0);  // utilize main thread
+        auto fetched = finished.fetch_add(1, std::memory_order_acq_rel);
+        if (fetched >= threads.size()) {
+            cv.notify_all();
+            finished.store(0, std::memory_order_acquire);
+        } else {
+            std::unique_lock<std::mutex> lk(m_);
+            cv.wait(lk, [&] {
+                return finished.load(std::memory_order_acquire) != fetched;
+            });
+        }
+        std::cout << "Done\n";
         {
             std::lock_guard<std::mutex> lk(m_);
             ready = false;
