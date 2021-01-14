@@ -12,6 +12,8 @@
 
 namespace wows_shell {
 namespace vectorFunctions {
+#if defined(__SSE4_1__) || defined(__AVX__)
+// Must detect AVX for MSVC because it doesn't define SSE flags in preprocessor
 #ifdef __FMA__
 __m128d mad(__m128d x, __m128d y, __m128d z) { return _mm_fmadd_pd(x, y, z); }
 __m128d msub(__m128d x, __m128d y, __m128d z) { return _mm_fmsub_pd(x, y, z); }
@@ -49,8 +51,9 @@ __m128d exp2(__m128d x) {
     const double exponent_offset = (int64_t)exponent_offset_i << mantissa_bits;
     __m128d exponent = mad(round_x, _mm_set1_pd(exponent_factor),
                            _mm_set1_pd(exponent_offset));
-    __m128i exponent_i = _mm_set_epi64x(static_cast<int64_t>(exponent[1]),
-                                        static_cast<int64_t>(exponent[0]));
+    auto exponent_temp = reinterpret_cast<double*>(&exponent);
+    __m128i exponent_i = _mm_set_epi64x(static_cast<int64_t>(exponent_temp[1]),
+                                        static_cast<int64_t>(exponent_temp[0]));
 
     __m128d scale = _mm_castsi128_pd(exponent_i);
     r = _mm_mul_pd(r, scale);
@@ -150,10 +153,12 @@ __m256d exp2(__m256d x) {
     const double exponent_offset = (int64_t)exponent_offset_i << mantissa_bits;
     __m256d exponent = mad(round_x, _mm256_set1_pd(exponent_factor),
                            _mm256_set1_pd(exponent_offset));
-    __m256i exponent_i = _mm256_set_epi64x(
-        static_cast<int64_t>(exponent[3]), static_cast<int64_t>(exponent[2]),
-        static_cast<int64_t>(exponent[1]), static_cast<int64_t>(exponent[0]));
-
+    auto exponent_temp = reinterpret_cast<double*>(&exponent);
+    __m256i exponent_i =
+        _mm256_set_epi64x(static_cast<int64_t>(exponent_temp[3]),
+                          static_cast<int64_t>(exponent_temp[2]),
+                          static_cast<int64_t>(exponent_temp[1]),
+                          static_cast<int64_t>(exponent_temp[0]));
     __m256d scale = _mm256_castsi256_pd(exponent_i);
     r = _mm256_mul_pd(r, scale);
     return r;
@@ -212,6 +217,7 @@ __m256d log2(const __m256d x) {
 __m256d pow(const __m256d x, const __m256d n) {
     return exp2(_mm256_mul_pd(log2(x), n));
 }
+#endif
 #endif
 
 }  // namespace vectorFunctions
