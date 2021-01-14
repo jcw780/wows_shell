@@ -3,6 +3,7 @@
 #include <cstdlib>
 #define _USE_MATH_DEFINES
 #include <array>
+#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <condition_variable>
@@ -137,9 +138,10 @@ class threadPool {
     std::vector<std::thread> threads;
     std::function<void(std::size_t)> f;
 
-    std::condition_variable cv;
+    std::condition_variable cv, cv_finished;
     std::mutex m_;
-    bool ready, stop = false;
+    std::atomic_size_t busy;
+    bool ready = false, stop = false;
 
    public:
     threadPool(std::size_t numThreads = std::thread::hardware_concurrency()) {
@@ -147,12 +149,18 @@ class threadPool {
         for (std::size_t i = 1; i < numThreads; ++i) {
             threads.emplace_back([&, i]() {
                 for (;;) {
-                    {
-                        std::unique_lock<std::mutex> lk(m_);
-                        cv.wait(lk, [&] { return ready || stop; });
-                    }
+                    std::unique_lock<std::mutex> lk(m_);
+                    cv.wait(lk, [&] { return ready || stop; });
+
                     if (stop) return;
-                    if (ready && f) f(i);
+                    if (ready && f) {
+                        busy.fetch_add(1, std::memory_order_acquire);
+                        lk.unlock();
+                        f(i);
+                        lk.lock();
+                        busy.fetch_sub(1, std::memory_order_release);
+                        cv_finished.notify_one();
+                    }
                 }
             });
         }
@@ -170,7 +178,8 @@ class threadPool {
         cv.notify_all();
         tf(0);  // utilize main thread
         {
-            std::lock_guard<std::mutex> lk(m_);
+            std::unique_lock<std::mutex> lk(m_);
+            cv_finished.wait(lk, [&] { return (busy == 0); });
             ready = false;
         }
     }
