@@ -20,10 +20,6 @@ __m128d v_sub_pd(__m128d x, __m128d y) { return _mm_sub_pd(x, y); }
 __m128d v_mul_pd(__m128d x, __m128d y) { return _mm_mul_pd(x, y); }
 __m128d v_div_pd(__m128d x, __m128d y) { return _mm_div_pd(x, y); }
 
-template <typename T>
-typename std::enable_if<std::is_same_v<T, __m128d>> v_set1_pd(double x) {
-    return _mm_set1_pd(x);
-}
 __m128d v_set_pd(double e1, double e0) { return _mm_set_pd(e1, e0); }
 __m128d v_or_pd(__m128d x, __m128d y) { return _mm_or_pd(x, y); }
 
@@ -130,10 +126,6 @@ __m256d v_sub_pd(__m256d x, __m256d y) { return _mm256_sub_pd(x, y); }
 __m256d v_mul_pd(__m256d x, __m256d y) { return _mm256_mul_pd(x, y); }
 __m256d v_div_pd(__m256d x, __m256d y) { return _mm256_div_pd(x, y); }
 
-template <typename T>
-typename std::enable_if<std::is_same_v<T, __m256d>> v_set1_pd(double x) {
-    return _mm256_set1_pd(x);
-}
 __m256d v_set_pd(double e3, double e2, double e1, double e0) {
     return _mm256_set_pd(e3, e2, e1, e0);
 }

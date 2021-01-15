@@ -204,9 +204,9 @@ class shellCalc {
                 yR = _mm_set_pd(start + 1 < s.impactSize ? y0 : -1,
                                 start + 0 < s.impactSize ? y0 : -1);
         const auto checkContinue = [&]() -> bool {
-            __m128i checked =
-                _mm_castpd_si128(_mm_cmpge_pd(yR, _mm_set1_pd(0)));
-            return !_mm_test_all_zeros(checked, _mm_set1_epi32(-1));
+            auto checked = _mm_cmpge_pd(yR, _mm_set1_pd(0));
+            int64_t res = _mm_movemask_pd(checked);
+            return res != 0;
         };
 
 #else
