@@ -68,7 +68,7 @@ class shellCalc {
     static constexpr std::size_t minTasksPerThread = vSize;
     utility::threadPool tp;
     bool enableMultiThreading = false;
-    std::atomic<std::size_t> counter{0}, finished{0};
+    std::atomic<std::size_t> counter{0};  //, finished{0};
 
    public:
     double calcNormalizationR(
@@ -131,7 +131,7 @@ class shellCalc {
                                   const std::size_t size, F function) {
         if constexpr (multiThreaded) {
             counter.store(0, std::memory_order_relaxed);
-            finished.store(0, std::memory_order_release);
+            // finished.store(0, std::memory_order_release);
             // std::cout << assigned << " " << length << "\n";
             tp.start([&, length](const std::size_t id) {
                 mtWorker(length, id, function);
@@ -153,11 +153,11 @@ class shellCalc {
             if (index < length) {
                 // std::cout<<index<<"\n";
                 function(index * vSize);
-                finished.fetch_add(1, std::memory_order_acq_rel);
+                // finished.fetch_add(1, std::memory_order_acq_rel);
             }
         }
-        while (finished.load(std::memory_order_acquire) < length)
-            ;
+        // while (finished.load(std::memory_order_acquire) < length)
+        //    ;
     }
 
     std::size_t assignThreadNum(std::size_t length,

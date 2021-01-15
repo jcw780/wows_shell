@@ -139,9 +139,10 @@ class threadPool {
     std::vector<std::thread> threads;
     std::function<void(std::size_t)> f;
 
-    std::condition_variable cv;
+    std::condition_variable cv, cv_finished;
     std::mutex m_;
-    bool ready, stop = false;
+    std::atomic_size_t busy;
+    bool ready = false, stop = false;
 
    public:
     threadPool(std::size_t numThreads = std::thread::hardware_concurrency()) {
@@ -150,26 +151,17 @@ class threadPool {
         for (std::size_t i = 1; i < numThreads; ++i) {
             threads.emplace_back([&, i]() {
                 for (;;) {
-                    {
-                        std::unique_lock<std::mutex> lk(m_);
-                        cv.wait(lk, [&] { return ready || stop; });
-                    }
+                    std::unique_lock<std::mutex> lk(m_);
+                    cv.wait(lk, [&] { return ready || stop; });
+
                     if (stop) return;
-                    if (ready && f) f(i);
-                    // std::cout << i << " "
-                    //          << finished.load(std::memory_order_acquire)
-                    //          << "\n";
-                    auto fetched =
-                        finished.fetch_add(1, std::memory_order_acq_rel);
-                    if (fetched >= threads.size()) {
-                        cv.notify_all();
-                        // finished.store(0, std::memory_order_acquire);
-                    } else {
-                        std::unique_lock<std::mutex> lk(m_);
-                        cv.wait(lk, [&] {
-                            return finished.load(std::memory_order_acquire) !=
-                                   fetched;
-                        });
+                    if (ready && f) {
+                        busy.fetch_add(1, std::memory_order_relaxed);
+                        lk.unlock();
+                        f(i);
+                        lk.lock();
+                        busy.fetch_sub(1, std::memory_order_relaxed);
+                        cv_finished.notify_one();
                     }
                 }
             });
@@ -200,7 +192,10 @@ class threadPool {
         }
         std::cout << "Done\n";
         {
-            std::lock_guard<std::mutex> lk(m_);
+            std::unique_lock<std::mutex> lk(m_);
+            cv_finished.wait(lk, [&] {
+                return (busy.load(std::memory_order_relaxed) == 0);
+            });
             ready = false;
         }
     }
