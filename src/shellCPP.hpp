@@ -153,11 +153,8 @@ class shellCalc {
             if (index < length) {
                 // std::cout<<index<<"\n";
                 function(index * vSize);
-                // finished.fetch_add(1, std::memory_order_acq_rel);
             }
         }
-        // while (finished.load(std::memory_order_acquire) < length)
-        //    ;
     }
 
     std::size_t assignThreadNum(std::size_t length,
@@ -169,7 +166,6 @@ class shellCalc {
         }
     }
 
-    // https://godbolt.org/z/4b1sn5
     template <bool AddTraj, numerical Numerical>
     void multiTraj(const std::size_t start, shell &s,
                    std::array<double, 3 * vSize> &velocities) {
@@ -198,7 +194,6 @@ class shellCalc {
         const auto checkContinue = [&]() -> bool {
             auto checked = _mm256_cmp_pd(yR, _mm256_set1_pd(0), _CMP_GE_OS);
             int64_t res = _mm256_movemask_pd(checked);
-            // std::cout << std::bitset<4>(res) << " " << (res != 0) << "\n";
             return res != 0;
         };
 #elif defined(__SSE4_1__) || defined(__AVX__)
@@ -233,18 +228,17 @@ class shellCalc {
             const uint32_t loopSize =
                 std::min<uint32_t>(vSize, s.impactSize - start);
 #if defined(__SSE4_1__) || defined(__AVX__)
-            std::array<double, 2 * vSize> xy{};
-#ifdef __AVX2__
-            _mm256_storeu_pd(&xy[0], xR);
-            _mm256_storeu_pd(&xy[vSize], yR);
-#else
-            _mm_store_pd(&xy[0], xR);
-            _mm_store_pd(&xy[vSize], yR);
-#endif
+            auto xR_temp = reinterpret_cast<double *>(&xR),
+                 yR_temp = reinterpret_cast<double *>(&yR);
 #endif
             for (uint32_t i = 0, j = start; i < loopSize; ++i, ++j) {
+#if defined(__SSE4_1__) || defined(__AVX__)
+                s.trajectories[2 * (j)].push_back(xR_temp[i]);
+                s.trajectories[2 * (j) + 1].push_back(yR_temp[i]);
+#else
                 s.trajectories[2 * (j)].push_back(xy[i]);
                 s.trajectories[2 * (j) + 1].push_back(xy[i + vSize]);
+#endif
             }
         };
 
