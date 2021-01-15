@@ -154,11 +154,11 @@ class threadPool {
 
                     if (stop) return;
                     if (ready && f) {
-                        busy.fetch_add(1, std::memory_order_acquire);
+                        busy.fetch_add(1, std::memory_order_relaxed);
                         lk.unlock();
                         f(i);
                         lk.lock();
-                        busy.fetch_sub(1, std::memory_order_release);
+                        busy.fetch_sub(1, std::memory_order_relaxed);
                         cv_finished.notify_one();
                     }
                 }
@@ -179,7 +179,9 @@ class threadPool {
         tf(0);  // utilize main thread
         {
             std::unique_lock<std::mutex> lk(m_);
-            cv_finished.wait(lk, [&] { return (busy == 0); });
+            cv_finished.wait(lk, [&] {
+                return (busy.load(std::memory_order_relaxed) == 0);
+            });
             ready = false;
         }
     }
