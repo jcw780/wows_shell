@@ -33,10 +33,10 @@ void runtime() {
     std::vector<double> angle = {0, 5, 10};
     // std::cout << "Started Post\n";
     auto t1 = std::chrono::high_resolution_clock::now();
-    // sc.calculatePostPen(70, 0, *test, angle, true, true);
+    sc.calculatePostPen(70, 0, *test, angle, true, true);
     auto t2 = std::chrono::high_resolution_clock::now();
     // std::cout << "Started Angle\n";
-    // sc.calculateAngles(76, 0, *test);
+    sc.calculateAngles(76, 0, *test);
     // std::cout << "Started Dispersion\n";
     // test->printImpactData();
     auto maxDist = test->maxDist();
@@ -53,8 +53,8 @@ void runtime() {
     // test->printPostPenData();
     // test->printAngleData();
 
-    // sc.calculateDispersion(*test);
-    // test->printDispersionData();
+    sc.calculateDispersion(*test);
+    test->printDispersionData();
 
     std::cout << std::fixed << std::setprecision(10)
               << total / runs / 1000000000 << std::endl;
