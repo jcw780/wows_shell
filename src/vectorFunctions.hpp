@@ -3,6 +3,7 @@
 #include <bitset>
 #include <iostream>
 #include <limits>
+#include <type_traits>
 
 #define _USE_MATH_DEFINES
 
@@ -11,14 +12,26 @@
 #include <iomanip>
 
 namespace wows_shell {
-namespace vectorFunctions {
+namespace v_funcs {
 #if defined(__SSE4_1__) || defined(__AVX__)
 // Must detect AVX for MSVC because it doesn't define SSE flags in preprocessor
+__m128d v_add_pd(__m128d x, __m128d y) { return _mm_add_pd(x, y); }
+__m128d v_sub_pd(__m128d x, __m128d y) { return _mm_sub_pd(x, y); }
+__m128d v_mul_pd(__m128d x, __m128d y) { return _mm_mul_pd(x, y); }
+__m128d v_div_pd(__m128d x, __m128d y) { return _mm_div_pd(x, y); }
+
+template <typename T>
+typename std::enable_if<std::is_same_v<T, __m128d>> v_set1_pd(double x) {
+    return _mm_set1_pd(x);
+}
+__m128d v_set_pd(double e1, double e0) { return _mm_set_pd(e1, e0); }
+__m128d v_or_pd(__m128d x, __m128d y) { return _mm_or_pd(x, y); }
+
 #ifdef __FMA__
-__m128d mad(__m128d x, __m128d y, __m128d z) { return _mm_fmadd_pd(x, y, z); }
+__m128d madd(__m128d x, __m128d y, __m128d z) { return _mm_fmadd_pd(x, y, z); }
 __m128d msub(__m128d x, __m128d y, __m128d z) { return _mm_fmsub_pd(x, y, z); }
 #else
-__m128d mad(__m128d x, __m128d y, __m128d z) {
+__m128d madd(__m128d x, __m128d y, __m128d z) {
     return _mm_add_pd(_mm_mul_pd(x, y), z);
 }
 __m128d msub(__m128d x, __m128d y, __m128d z) {
@@ -32,25 +45,25 @@ __m128d exp2(__m128d x) {
     x = _mm_sub_pd(x, round_x);
 
     __m128d r = _mm_set1_pd(4.45623165388261696886670014471e-10);
-    r = mad(r, x, _mm_set1_pd(7.0733589360775271430968224806e-9));
-    r = mad(r, x, _mm_set1_pd(1.01780540270960163558119510246e-7));
-    r = mad(r, x, _mm_set1_pd(1.3215437348041505269462510712e-6));
-    r = mad(r, x, _mm_set1_pd(0.000015252733849766201174247690629));
-    r = mad(r, x, _mm_set1_pd(0.000154035304541242555115696403795));
-    r = mad(r, x, _mm_set1_pd(0.00133335581463968601407096905671));
-    r = mad(r, x, _mm_set1_pd(0.0096181291075949686712855561931));
-    r = mad(r, x, _mm_set1_pd(0.055504108664821672870565883052));
-    r = mad(r, x, _mm_set1_pd(0.240226506959101382690753994082));
-    r = mad(r, x, _mm_set1_pd(0.69314718055994530864272481773));
-    r = mad(r, x, _mm_set1_pd(0.9999999999999999978508676375));
+    r = madd(r, x, _mm_set1_pd(7.0733589360775271430968224806e-9));
+    r = madd(r, x, _mm_set1_pd(1.01780540270960163558119510246e-7));
+    r = madd(r, x, _mm_set1_pd(1.3215437348041505269462510712e-6));
+    r = madd(r, x, _mm_set1_pd(0.000015252733849766201174247690629));
+    r = madd(r, x, _mm_set1_pd(0.000154035304541242555115696403795));
+    r = madd(r, x, _mm_set1_pd(0.00133335581463968601407096905671));
+    r = madd(r, x, _mm_set1_pd(0.0096181291075949686712855561931));
+    r = madd(r, x, _mm_set1_pd(0.055504108664821672870565883052));
+    r = madd(r, x, _mm_set1_pd(0.240226506959101382690753994082));
+    r = madd(r, x, _mm_set1_pd(0.69314718055994530864272481773));
+    r = madd(r, x, _mm_set1_pd(0.9999999999999999978508676375));
 
     constexpr auto NLD = std::numeric_limits<double>();
     const auto mantissa_bits = NLD.digits - 1;
     const double exponent_factor = (int64_t)1 << mantissa_bits;
     const auto exponent_offset_i = 2 - NLD.min_exponent;
     const double exponent_offset = (int64_t)exponent_offset_i << mantissa_bits;
-    __m128d exponent = mad(round_x, _mm_set1_pd(exponent_factor),
-                           _mm_set1_pd(exponent_offset));
+    __m128d exponent = madd(round_x, _mm_set1_pd(exponent_factor),
+                            _mm_set1_pd(exponent_offset));
     auto exponent_temp = reinterpret_cast<double*>(&exponent);
     __m128i exponent_i = _mm_set_epi64x(static_cast<int64_t>(exponent_temp[1]),
                                         static_cast<int64_t>(exponent_temp[0]));
@@ -94,33 +107,47 @@ __m128d log2(const __m128d x) {
                            _mm_add_pd(mantissa, _mm_set1_pd(1)));
     __m128d y2 = _mm_mul_pd(y, y);
     __m128d r = _mm_set1_pd(0.243683403415639178527756320773);
-    r = mad(r, y2, _mm_set1_pd(0.26136626803870009948502658));
-    r = mad(r, y2, _mm_set1_pd(0.320619429891299265439389));
-    r = mad(r, y2, _mm_set1_pd(0.4121983452028499242926));
-    r = mad(r, y2, _mm_set1_pd(0.577078017761894161436));
-    r = mad(r, y2, _mm_set1_pd(0.96179669392233355927));
-    r = mad(r, y2, _mm_set1_pd(2.8853900817779295236));
+    r = madd(r, y2, _mm_set1_pd(0.26136626803870009948502658));
+    r = madd(r, y2, _mm_set1_pd(0.320619429891299265439389));
+    r = madd(r, y2, _mm_set1_pd(0.4121983452028499242926));
+    r = madd(r, y2, _mm_set1_pd(0.577078017761894161436));
+    r = madd(r, y2, _mm_set1_pd(0.96179669392233355927));
+    r = madd(r, y2, _mm_set1_pd(2.8853900817779295236));
 
     __m128d ilogbd =
         _mm_set_pd(static_cast<double>(_mm_extract_epi64(exponent, 1)),
                    static_cast<double>(_mm_extract_epi64(exponent, 0)));
-    return mad(r, y, ilogbd);
+    return madd(r, y, ilogbd);
 }
 
 __m128d pow(const __m128d x, const __m128d n) {
     return exp2(_mm_mul_pd(log2(x), n));
 }
-
+#endif
 #ifdef __AVX2__
+__m256d v_add_pd(__m256d x, __m256d y) { return _mm256_add_pd(x, y); }
+__m256d v_sub_pd(__m256d x, __m256d y) { return _mm256_sub_pd(x, y); }
+__m256d v_mul_pd(__m256d x, __m256d y) { return _mm256_mul_pd(x, y); }
+__m256d v_div_pd(__m256d x, __m256d y) { return _mm256_div_pd(x, y); }
+
+template <typename T>
+typename std::enable_if<std::is_same_v<T, __m256d>> v_set1_pd(double x) {
+    return _mm256_set1_pd(x);
+}
+__m256d v_set_pd(double e3, double e2, double e1, double e0) {
+    return _mm256_set_pd(e3, e2, e1, e0);
+}
+__m256d v_or_pd(__m256d x, __m256d y) { return _mm256_or_pd(x, y); }
+
 #ifdef __FMA__
-__m256d mad(__m256d x, __m256d y, __m256d z) {
+__m256d madd(__m256d x, __m256d y, __m256d z) {
     return _mm256_fmadd_pd(x, y, z);
 }
 __m256d msub(__m256d x, __m256d y, __m256d z) {
     return _mm256_fmsub_pd(x, y, z);
 }
 #else
-__m256d mad(__m256d x, __m256d y, __m256d z) {
+__m256d madd(__m256d x, __m256d y, __m256d z) {
     return _mm256_add_pd(_mm256_mul_pd(x, y), z);
 }
 __m256d msub(__m256d x, __m256d y, __m256d z) {
@@ -134,25 +161,25 @@ __m256d exp2(__m256d x) {
     x = _mm256_sub_pd(x, round_x);
 
     __m256d r = _mm256_set1_pd(4.45623165388261696886670014471e-10);
-    r = mad(r, x, _mm256_set1_pd(7.0733589360775271430968224806e-9));
-    r = mad(r, x, _mm256_set1_pd(1.01780540270960163558119510246e-7));
-    r = mad(r, x, _mm256_set1_pd(1.3215437348041505269462510712e-6));
-    r = mad(r, x, _mm256_set1_pd(0.000015252733849766201174247690629));
-    r = mad(r, x, _mm256_set1_pd(0.000154035304541242555115696403795));
-    r = mad(r, x, _mm256_set1_pd(0.00133335581463968601407096905671));
-    r = mad(r, x, _mm256_set1_pd(0.0096181291075949686712855561931));
-    r = mad(r, x, _mm256_set1_pd(0.055504108664821672870565883052));
-    r = mad(r, x, _mm256_set1_pd(0.240226506959101382690753994082));
-    r = mad(r, x, _mm256_set1_pd(0.69314718055994530864272481773));
-    r = mad(r, x, _mm256_set1_pd(0.9999999999999999978508676375));
+    r = madd(r, x, _mm256_set1_pd(7.0733589360775271430968224806e-9));
+    r = madd(r, x, _mm256_set1_pd(1.01780540270960163558119510246e-7));
+    r = madd(r, x, _mm256_set1_pd(1.3215437348041505269462510712e-6));
+    r = madd(r, x, _mm256_set1_pd(0.000015252733849766201174247690629));
+    r = madd(r, x, _mm256_set1_pd(0.000154035304541242555115696403795));
+    r = madd(r, x, _mm256_set1_pd(0.00133335581463968601407096905671));
+    r = madd(r, x, _mm256_set1_pd(0.0096181291075949686712855561931));
+    r = madd(r, x, _mm256_set1_pd(0.055504108664821672870565883052));
+    r = madd(r, x, _mm256_set1_pd(0.240226506959101382690753994082));
+    r = madd(r, x, _mm256_set1_pd(0.69314718055994530864272481773));
+    r = madd(r, x, _mm256_set1_pd(0.9999999999999999978508676375));
 
     constexpr auto NLD = std::numeric_limits<double>();
     const auto mantissa_bits = NLD.digits - 1;
     const double exponent_factor = (int64_t)1 << mantissa_bits;
     const auto exponent_offset_i = 2 - NLD.min_exponent;
     const double exponent_offset = (int64_t)exponent_offset_i << mantissa_bits;
-    __m256d exponent = mad(round_x, _mm256_set1_pd(exponent_factor),
-                           _mm256_set1_pd(exponent_offset));
+    __m256d exponent = madd(round_x, _mm256_set1_pd(exponent_factor),
+                            _mm256_set1_pd(exponent_offset));
     auto exponent_temp = reinterpret_cast<double*>(&exponent);
     __m256i exponent_i =
         _mm256_set_epi64x(static_cast<int64_t>(exponent_temp[3]),
@@ -199,26 +226,25 @@ __m256d log2(const __m256d x) {
                               _mm256_add_pd(mantissa, _mm256_set1_pd(1)));
     __m256d y2 = _mm256_mul_pd(y, y);
     __m256d r = _mm256_set1_pd(0.243683403415639178527756320773);
-    r = mad(r, y2, _mm256_set1_pd(0.26136626803870009948502658));
-    r = mad(r, y2, _mm256_set1_pd(0.320619429891299265439389));
-    r = mad(r, y2, _mm256_set1_pd(0.4121983452028499242926));
-    r = mad(r, y2, _mm256_set1_pd(0.577078017761894161436));
-    r = mad(r, y2, _mm256_set1_pd(0.96179669392233355927));
-    r = mad(r, y2, _mm256_set1_pd(2.8853900817779295236));
+    r = madd(r, y2, _mm256_set1_pd(0.26136626803870009948502658));
+    r = madd(r, y2, _mm256_set1_pd(0.320619429891299265439389));
+    r = madd(r, y2, _mm256_set1_pd(0.4121983452028499242926));
+    r = madd(r, y2, _mm256_set1_pd(0.577078017761894161436));
+    r = madd(r, y2, _mm256_set1_pd(0.96179669392233355927));
+    r = madd(r, y2, _mm256_set1_pd(2.8853900817779295236));
 
     __m256d ilogbd =
         _mm256_set_pd(static_cast<double>(_mm256_extract_epi64(exponent, 3)),
                       static_cast<double>(_mm256_extract_epi64(exponent, 2)),
                       static_cast<double>(_mm256_extract_epi64(exponent, 1)),
                       static_cast<double>(_mm256_extract_epi64(exponent, 0)));
-    return mad(r, y, ilogbd);
+    return madd(r, y, ilogbd);
 }
 
 __m256d pow(const __m256d x, const __m256d n) {
     return exp2(_mm256_mul_pd(log2(x), n));
 }
 #endif
-#endif
 
-}  // namespace vectorFunctions
+}  // namespace v_funcs
 }  // namespace wows_shell

@@ -257,12 +257,10 @@ class shellCalc {
             dy = _mm256_mul_pd(dt_update, v_y);
             y = _mm256_add_pd(y, dy);
 
-            T = vectorFunctions::mad(_mm256_set1_pd(0 - L), y,
-                                     _mm256_set1_pd(t0));
-            p = _mm256_mul_pd(
-                _mm256_set1_pd(p0),
-                vectorFunctions::pow(_mm256_div_pd(T, _mm256_set1_pd(t0)),
-                                     _mm256_set1_pd(gMRL)));
+            T = v_funcs::madd(_mm256_set1_pd(0 - L), y, _mm256_set1_pd(t0));
+            p = _mm256_mul_pd(_mm256_set1_pd(p0),
+                              v_funcs::pow(_mm256_div_pd(T, _mm256_set1_pd(t0)),
+                                           _mm256_set1_pd(gMRL)));
             rho = _mm256_div_pd(_mm256_mul_pd(_mm256_set1_pd(M), p),
                                 _mm256_mul_pd(_mm256_set1_pd(R), T));
             kRho = _mm256_mul_pd(_mm256_set1_pd(k), rho);
@@ -299,10 +297,10 @@ class shellCalc {
             dy = _mm_mul_pd(dt_update, v_y);
             y = _mm_add_pd(y, dy);
 
-            T = vectorFunctions::mad(_mm_set1_pd(0 - L), y, _mm_set1_pd(t0));
+            T = v_funcs::madd(_mm_set1_pd(0 - L), y, _mm_set1_pd(t0));
             p = _mm_mul_pd(_mm_set1_pd(p0),
-                           vectorFunctions::pow(_mm_div_pd(T, _mm_set1_pd(t0)),
-                                                _mm_set1_pd(gMRL)));
+                           v_funcs::pow(_mm_div_pd(T, _mm_set1_pd(t0)),
+                                        _mm_set1_pd(gMRL)));
             rho = _mm_div_pd(_mm_mul_pd(_mm_set1_pd(M), p),
                              _mm_mul_pd(_mm_set1_pd(R), T));
             kRho = _mm_mul_pd(_mm_set1_pd(k), rho);
@@ -353,28 +351,27 @@ class shellCalc {
         const auto RK4Final = [&](std::array<__m256d, 4> &d) -> __m256d {
             // Adds deltas in Runge Kutta 4 manner
             return _mm256_div_pd(
-                vectorFunctions::mad(_mm256_set1_pd(2),
-                                     _mm256_add_pd(d[1], d[2]),
-                                     _mm256_add_pd(d[0], d[3])),
+                v_funcs::madd(_mm256_set1_pd(2), _mm256_add_pd(d[1], d[2]),
+                              _mm256_add_pd(d[0], d[3])),
                 _mm256_set1_pd(6));
         };
 
         const auto RK2Final = [&](std::array<__m256d, 2> &d) -> __m256d {
             // Adds deltas in Runge Kutta 2 manner
-            return vectorFunctions::mad(_mm256_set1_pd(0.5), d[1], d[0]);
+            return v_funcs::madd(_mm256_set1_pd(0.5), d[1], d[0]);
         };
 #elif defined(__SSE4_1__) || defined(__AVX__)
         const auto RK4Final = [&](std::array<__m128d, 4> &d) -> __m128d {
             // Adds deltas in Runge Kutta 4 manner
             return _mm_div_pd(
-                vectorFunctions::mad(_mm_set1_pd(2), _mm_add_pd(d[1], d[2]),
-                                     _mm_add_pd(d[0], d[3])),
+                v_funcs::madd(_mm_set1_pd(2), _mm_add_pd(d[1], d[2]),
+                              _mm_add_pd(d[0], d[3])),
                 _mm_set1_pd(6));
         };
 
         const auto RK2Final = [&](std::array<__m128d, 2> &d) -> __m128d {
             // Adds deltas in Runge Kutta 2 manner
-            return vectorFunctions::mad(_mm_set1_pd(0.5), d[1], d[0]);
+            return v_funcs::madd(_mm_set1_pd(0.5), d[1], d[0]);
         };
 #else
         const auto getIntermediate = [](uint32_t index, uint32_t stage) {
@@ -515,13 +512,13 @@ class shellCalc {
                                           __m256d update) {
                         return _mm256_and_pd(
                             _mm256_div_pd(
-                                vectorFunctions::mad(
+                                v_funcs::madd(
                                     _mm256_set1_pd(1901), d[get(4)],
-                                    vectorFunctions::mad(
+                                    v_funcs::madd(
                                         _mm256_set1_pd(-2274), d[get(3)],
-                                        vectorFunctions::mad(
+                                        v_funcs::madd(
                                             _mm256_set1_pd(2616), d[get(2)],
-                                            vectorFunctions::mad(
+                                            v_funcs::madd(
                                                 _mm256_set1_pd(-1274),
                                                 d[get(1)],
                                                 _mm256_mul_pd(
@@ -547,13 +544,13 @@ class shellCalc {
                                           __m128d update) {
                         return _mm_and_pd(
                             _mm_div_pd(
-                                vectorFunctions::mad(
+                                v_funcs::madd(
                                     _mm_set1_pd(1901), d[get(4)],
-                                    vectorFunctions::mad(
+                                    v_funcs::madd(
                                         _mm_set1_pd(-2274), d[get(3)],
-                                        vectorFunctions::mad(
+                                        v_funcs::madd(
                                             _mm_set1_pd(2616), d[get(2)],
-                                            vectorFunctions::mad(
+                                            v_funcs::madd(
                                                 _mm_set1_pd(-1274), d[get(1)],
                                                 _mm_mul_pd(_mm_set1_pd(251),
                                                            d[get(0)]))))),
@@ -713,12 +710,11 @@ class shellCalc {
                     delta(xR, dx[0], yR, dy[0], v_xR, ddx[0], v_yR, ddy[0]);
                     for (int k = 0; k < 2; k++) {
                         const __m256d p5 = _mm256_set1_pd(0.5);
-                        delta(vectorFunctions::mad(p5, dx[k], xR), dx[k + 1],
-                              vectorFunctions::mad(p5, dy[k], yR), dy[k + 1],
-                              vectorFunctions::mad(p5, ddx[k], v_xR),
-                              ddx[k + 1],
-                              vectorFunctions::mad(p5, ddy[k], v_yR),
-                              ddy[k + 1], update);
+                        delta(v_funcs::madd(p5, dx[k], xR), dx[k + 1],
+                              v_funcs::madd(p5, dy[k], yR), dy[k + 1],
+                              v_funcs::madd(p5, ddx[k], v_xR), ddx[k + 1],
+                              v_funcs::madd(p5, ddy[k], v_yR), ddy[k + 1],
+                              update);
                     }
                     delta(_mm256_add_pd(xR, dx[2]), dx[3],
                           _mm256_add_pd(yR, dy[2]), dy[3],
@@ -734,12 +730,11 @@ class shellCalc {
                     delta(xR, dx[0], yR, dy[0], v_xR, ddx[0], v_yR, ddy[0]);
                     for (int k = 0; k < 2; k++) {
                         const __m128d p5 = _mm_set1_pd(0.5);
-                        delta(vectorFunctions::mad(p5, dx[k], xR), dx[k + 1],
-                              vectorFunctions::mad(p5, dy[k], yR), dy[k + 1],
-                              vectorFunctions::mad(p5, ddx[k], v_xR),
-                              ddx[k + 1],
-                              vectorFunctions::mad(p5, ddy[k], v_yR),
-                              ddy[k + 1], update);
+                        delta(v_funcs::madd(p5, dx[k], xR), dx[k + 1],
+                              v_funcs::madd(p5, dy[k], yR), dy[k + 1],
+                              v_funcs::madd(p5, ddx[k], v_xR), ddx[k + 1],
+                              v_funcs::madd(p5, ddy[k], v_yR), ddy[k + 1],
+                              update);
                     }
                     delta(_mm_add_pd(xR, dx[2]), dx[3], _mm_add_pd(yR, dy[2]),
                           dy[3], _mm_add_pd(v_xR, ddx[2]), ddx[3],
