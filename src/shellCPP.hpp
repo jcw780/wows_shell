@@ -19,6 +19,8 @@
 #include "shell.hpp"
 #include "utility.hpp"
 #include "vectorFunctions.hpp"
+#include "version2/vectorclass.h"
+#include "version2/vectormath_trig.h"
 
 namespace wows_shell {
 class shellCalc {
@@ -823,7 +825,36 @@ class shellCalc {
         const double normalizationR = s.get_normalizationR();
         // std::cout<<"Entered\n";
         std::array<double, vSize * 3> velocitiesTime{};
-        // 0 -> (v_x) -> vSize -> (v_y) -> 2*vSize -> (t) -> 3*vSize
+// 0 -> (v_x) -> vSize -> (v_y) -> 2*vSize -> (t) -> 3*vSize
+#ifdef __AVX2__
+        static_assert(vSize == 4, "AVX2 Requires vSize of 4");
+        using VT = Vec4d;
+        VT indices = {0, 1, 2, 3};
+#elif defined(__SSE4_2__) || defined(__AVX__)
+        static_assert(vSize == 2, " Requires vSize of 2");
+        using VT = Vec2d;
+        VT indices = {0, 1};
+#endif
+
+#if defined(__SSE4_2__) || defined(__AVX__)
+        VT launch_degrees, launch_radians, v0_v, v_xv, v_yv;
+        if constexpr (!Fit) {
+            launch_degrees = VT(precision) * (VT(i) + indices) + VT(min);
+            launch_degrees.store(
+                s.get_impactPtr(i, impact::impactIndices::launchAngle));
+        } else {
+            launch_degrees.load(
+                s.get_impactPtr(i, impact::impactIndices::launchAngle));
+        }
+        launch_radians = launch_degrees * VT(M_PI / 180);
+        v0_v = VT(s.get_v0());
+        VT cx, cy;
+        cy = sincos(&cx, launch_radians);
+        v_xv = cx * v0_v, v_yv = cy * v0_v;
+        v_xv.store(&velocitiesTime[0]);
+        v_yv.store(&velocitiesTime[vSize]);
+
+#else
         for (uint32_t j = 0; j < vSize; j++) {
             double radianLaunch;
             if constexpr (!Fit) {
@@ -839,6 +870,7 @@ class shellCalc {
             velocitiesTime[j] = s.get_v0() * cos(radianLaunch);
             velocitiesTime[j + vSize] = s.get_v0() * sin(radianLaunch);
         }
+#endif
         // std::cout<<"Calculating\n";
         multiTraj<AddTraj, Numerical>(i, s, velocitiesTime);
         // std::cout<<"Processing\n";
