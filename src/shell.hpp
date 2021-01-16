@@ -178,7 +178,8 @@ class shell {
         delimDistance = maxDistance * delim;
         zeroDelimSlope = (delimRadius - zeroRadius) / delimDistance;
         zeroDelimIntercept = zeroRadius;
-        delimMaxSlope = (maxRadius - delimRadius) / delimDistance;
+        delimMaxSlope =
+            (maxRadius - delimRadius) / (maxDistance - delimDistance);
         delimMaxIntercept = delimRadius - delimMaxSlope * delimDistance;
         convex = zeroDelimSlope >= delimMaxSlope;
         // This allows for an optimization that removes branches in a hot loop
