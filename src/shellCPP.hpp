@@ -1196,7 +1196,7 @@ class shellCalc {
         }
         std::size_t length = ceil(static_cast<double>(s.impactSize) / vSize);
         std::size_t assigned = assignThreadNum(length, nThreads);
-        if (s.convex) {
+        if (s.zeroDelimSlope >= s.delimMaxSlope) {
             mtFunctionRunner(
                 assigned, length, s.impactSize,
                 [&](const std::size_t i) { dispersionGroup<true>(i, s); });
