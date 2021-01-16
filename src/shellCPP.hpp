@@ -1234,6 +1234,7 @@ class shellCalc {
             // Continuous piecewise linear [2] function
             // Will pick based on convexity
             double verticalRatio = std::min(verticalRatioUncapped, s.maxRadius);
+            // std::cout << distance << " " << verticalRatio << "\n";
             // Results will never be higher than s.maxRadius
 
             double vertical =
