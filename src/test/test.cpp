@@ -7,15 +7,21 @@
 // Sample Test / Benchmark Function
 void runtime() {
     double total = 0.0;
-    std::unique_ptr<wows_shell::shell> test;
-    wows_shell::shellCalc sc;
+    std::unique_ptr<wows_shell::shell> test, test1;
+    wows_shell::shellCalc sc(1);
     sc.set_max(90.0);
     unsigned int runs = 1;
     wows_shell::shellParams sp = {.460, 780, .292, 1460, 2574, 6,
                                   .033, 76,  45,   60,   0};
     wows_shell::dispersionParams dp = {10,  2.8, 1000, 5000,  0.5,
                                        0.2, 0.6, 0.8,  26630, 2.1};
-    test = std::make_unique<wows_shell::shell>(sp, dp, "Yamato");
+    // test = std::make_unique<wows_shell::shell>(sp, dp, "Yamato");
+
+    wows_shell::shellParams sp1 = {.457, 800, .256, 1373, 2500, 6,
+                                   .033, 76,  45,   60,   0};
+    wows_shell::dispersionParams dp1 = {13,   1.1, 1000, 5000,  0.6,
+                                        0.25, 0.4, 0.75, 20680, 1.8};
+    test = std::make_unique<wows_shell::shell>(sp1, dp1, "Kremlin");
 
     std::cout << wows_shell::generateHash(*test) << "\n";
     std::cout << "Started Impact\n";
@@ -71,7 +77,7 @@ void runtime() {
 }
 
 int main() {
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 1; ++i) {
         runtime();
         std::cout << "Stage: " << i << " Finished \n";
     }
