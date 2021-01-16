@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdlib>
 #define _USE_MATH_DEFINES
 #include <array>
 #include <atomic>
@@ -154,12 +153,15 @@ class threadPool {
 
                     if (stop) return;
                     if (ready && f) {
-                        busy.fetch_add(1, std::memory_order_relaxed);
+                        busy.fetch_add(1, std::memory_order_acquire);
                         lk.unlock();
                         f(i);
-                        lk.lock();
-                        busy.fetch_sub(1, std::memory_order_relaxed);
-                        cv_finished.notify_one();
+                        auto current =
+                            busy.fetch_sub(1, std::memory_order_release);
+                        if (current == 1) {  // Double check locking for speed
+                            lk.lock();
+                            cv_finished.notify_one();
+                        }
                     }
                 }
             });
@@ -180,7 +182,7 @@ class threadPool {
         {
             std::unique_lock<std::mutex> lk(m_);
             cv_finished.wait(lk, [&] {
-                return (busy.load(std::memory_order_relaxed) == 0);
+                return (busy.load(std::memory_order_acquire) == 0);
             });
             ready = false;
         }
