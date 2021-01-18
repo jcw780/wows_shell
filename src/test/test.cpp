@@ -27,8 +27,8 @@ void runtime() {
     std::cout << "Started Impact\n";
     for (unsigned int i = 0; i < runs; i++) {
         auto t1 = std::chrono::high_resolution_clock::now();
-        sc.calculateImpact<wows_shell::numerical::forwardEuler, false>(*test,
-                                                                       false);
+        sc.calculateImpact<wows_shell::numerical::adamsBashforth5, false>(
+            *test, false);
         auto t2 = std::chrono::high_resolution_clock::now();
         total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>(
                      t2 - t1)
@@ -44,7 +44,7 @@ void runtime() {
     // std::cout << "Started Angle\n";
     sc.calculateAngles(76, 0, *test);
     // std::cout << "Started Dispersion\n";
-    // test->printImpactData();
+    test->printImpactData();
     auto maxDist = test->maxDist();
     if (std::get<0>(maxDist) != std::numeric_limits<std::size_t>::max()) {
         std::cout << std::get<0>(maxDist) << " " << std::get<1>(maxDist)

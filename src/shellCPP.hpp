@@ -20,6 +20,7 @@
 #include "utility.hpp"
 #include "vectorFunctions.hpp"
 #include "version2/vectorclass.h"
+#include "version2/vectormath_exp.h"
 #include "version2/vectormath_trig.h"
 
 namespace wows_shell {
@@ -62,6 +63,13 @@ class shellCalc {
                   "Type is not IEE754 compliant");
 // For setting up vectorization lane widths
 // 128bit because compilers cannot seem to generate 256bit instructions
+#ifdef __AVX2__
+    using VT = Vec4d;
+    using VTb = Vec4db;
+#elif defined(__SSE4_1__) || defined(__AVX__)
+    using VT = Vec2d;
+    using VTb = Vec2db;
+#endif
 #ifdef __AVX2__
     static constexpr std::size_t vSize = (256 / 8) / sizeof(double);
 #else
@@ -183,34 +191,25 @@ class shellCalc {
                 }
             }
         }
+#if defined(__SSE4_1__) || defined(__AVX__)
+        VT v_xR, v_yR, tR, xR(x0), yR;
+        v_xR.load(&velocities[vSize * 0]);
+        v_yR.load(&velocities[vSize * 1]);
+        tR.load(&velocities[vSize * 2]);
 #ifdef __AVX2__
-        static_assert(vSize == 4, "mismatched vSize");
-        __m256d v_xR = _mm256_loadu_pd(&velocities[0]),
-                v_yR = _mm256_loadu_pd(&velocities[vSize]),
-                tR = _mm256_loadu_pd(&velocities[vSize * 2]),
-                xR = _mm256_set1_pd(x0),
-                yR = _mm256_set_pd(start + 3 < s.impactSize ? y0 : -1,
-                                   start + 2 < s.impactSize ? y0 : -1,
-                                   start + 1 < s.impactSize ? y0 : -1,
-                                   start + 0 < s.impactSize ? y0 : -1);
+        yR = VT(start + 3 < s.impactSize ? y0 : -1,
+                start + 2 < s.impactSize ? y0 : -1,
+                start + 1 < s.impactSize ? y0 : -1,
+                start + 0 < s.impactSize ? y0 : -1);
+#else
+        yR = VT(start + 1 < s.impactSize ? y0 : -1,
+                start + 0 < s.impactSize ? y0 : -1);
+#endif
         const auto checkContinue = [&]() -> bool {
-            auto checked = _mm256_cmp_pd(yR, _mm256_set1_pd(0), _CMP_GE_OS);
-            int64_t res = _mm256_movemask_pd(checked);
-            return res != 0;
+            auto checked = yR >= VT(0);
+            auto res = horizontal_or(checked);
+            return res;
         };
-#elif defined(__SSE4_1__) || defined(__AVX__)
-        static_assert(vSize == 2, "mismatched vSize");
-        __m128d v_xR = _mm_load_pd(&velocities[0]),
-                v_yR = _mm_load_pd(&velocities[vSize]),
-                tR = _mm_load_pd(&velocities[vSize * 2]), xR = _mm_set1_pd(x0),
-                yR = _mm_set_pd(start + 1 < s.impactSize ? y0 : -1,
-                                start + 0 < s.impactSize ? y0 : -1);
-        const auto checkContinue = [&]() -> bool {
-            auto checked = _mm_cmpge_pd(yR, _mm_set1_pd(0));
-            int64_t res = _mm_movemask_pd(checked);
-            return res != 0;
-        };
-
 #else
         std::array<double, 2 * vSize> xy{};
         for (uint32_t i = 0, j = start; i < vSize; ++i, ++j) {
@@ -229,14 +228,10 @@ class shellCalc {
         const auto addTrajFunction = [&]() {
             const uint32_t loopSize =
                 std::min<uint32_t>(vSize, s.impactSize - start);
-#if defined(__SSE4_1__) || defined(__AVX__)
-            auto xR_temp = reinterpret_cast<double *>(&xR),
-                 yR_temp = reinterpret_cast<double *>(&yR);
-#endif
             for (uint32_t i = 0, j = start; i < loopSize; ++i, ++j) {
 #if defined(__SSE4_1__) || defined(__AVX__)
-                s.trajectories[2 * (j)].push_back(xR_temp[i]);
-                s.trajectories[2 * (j) + 1].push_back(yR_temp[i]);
+                s.trajectories[2 * (j)].push_back(xR[i]);
+                s.trajectories[2 * (j) + 1].push_back(yR[i]);
 #else
                 s.trajectories[2 * (j)].push_back(xy[i]);
                 s.trajectories[2 * (j) + 1].push_back(xy[i + vSize]);
@@ -245,84 +240,28 @@ class shellCalc {
         };
 
 // Helpers
-#ifdef __AVX2__
-        const auto delta = [&](const __m256d x, __m256d &dx, __m256d y,
-                               __m256d &dy, const __m256d v_x, __m256d &ddx,
-                               const __m256d v_y, __m256d &ddy,
-                               __m256d update = _mm256_set1_pd(0)) {
-            // std::cout << "Started Delta\n";
-            update = _mm256_or_pd(
-                _mm256_cmp_pd(yR, _mm256_set1_pd(0), _CMP_GE_OS), update);
-            __m256d T, p, rho, kRho, velocityMagnitude,
-                dt_update = _mm256_and_pd(update, _mm256_set1_pd(dt_min));
-            dx = _mm256_mul_pd(dt_update, v_x);
-            dy = _mm256_mul_pd(dt_update, v_y);
-            y = _mm256_add_pd(y, dy);
+#if defined(__SSE4_1__) || defined(__AVX__)
+        const auto delta = [&](const VT x, VT &dx, VT y, VT &dy, const VT v_x,
+                               VT &ddx, const VT v_y, VT &ddy,
+                               VT update = VT(0)) {
+            update = static_cast<VT>(y >= VT(0)) | update;
+            VT T, p, rho, kRho, velocityMagnitude,
+                dt_update = update & VT(dt_min);
+            dx = dt_update * v_x;
+            dy = dt_update * v_y;
+            y += dy;
 
-            T = v_funcs::madd(_mm256_set1_pd(0 - L), y, _mm256_set1_pd(t0));
-            p = _mm256_mul_pd(_mm256_set1_pd(p0),
-                              v_funcs::pow(_mm256_div_pd(T, _mm256_set1_pd(t0)),
-                                           _mm256_set1_pd(gMRL)));
-            rho = _mm256_div_pd(_mm256_mul_pd(_mm256_set1_pd(M), p),
-                                _mm256_mul_pd(_mm256_set1_pd(R), T));
-            kRho = _mm256_mul_pd(_mm256_set1_pd(k), rho);
-            velocityMagnitude = _mm256_sqrt_pd(_mm256_add_pd(
-                _mm256_mul_pd(v_x, v_x), _mm256_mul_pd(v_y, v_y)));
-            __m256d n_dt_update = _mm256_sub_pd(_mm256_set1_pd(0), dt_update);
-            // std::cout << v_y[0] << " " << v_y[1] << "\n";
-            ddx = _mm256_mul_pd(
-                n_dt_update,
-                _mm256_mul_pd(
-                    kRho,
-                    _mm256_mul_pd(_mm256_set1_pd(cw_1),
-                                  _mm256_mul_pd(v_x, velocityMagnitude))));
-            ddy = _mm256_mul_pd(
-                n_dt_update,
-                _mm256_add_pd(
-                    _mm256_set1_pd(g),
-                    _mm256_mul_pd(
-                        kRho,
-                        _mm256_mul_pd(_mm256_set1_pd(cw_1),
-                                      _mm256_mul_pd(v_y, velocityMagnitude)))));
-            // std::cout << ddy[0] << " " << ddy[1] << "\n";
-            // std::cout << "Completed Delta\n";
-        };
-#elif defined(__SSE4_1__) || defined(__AVX__)
-        const auto delta = [&](const __m128d x, __m128d &dx, __m128d y,
-                               __m128d &dy, const __m128d v_x, __m128d &ddx,
-                               const __m128d v_y, __m128d &ddy,
-                               __m128d update = _mm_set1_pd(0)) {
-            update = _mm_or_pd(_mm_cmpge_pd(y, _mm_set1_pd(0)), update);
-            __m128d T, p, rho, kRho, velocityMagnitude,
-                dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
-            dx = _mm_mul_pd(dt_update, v_x);
-            dy = _mm_mul_pd(dt_update, v_y);
-            y = _mm_add_pd(y, dy);
-
-            T = v_funcs::madd(_mm_set1_pd(0 - L), y, _mm_set1_pd(t0));
-            p = _mm_mul_pd(_mm_set1_pd(p0),
-                           v_funcs::pow(_mm_div_pd(T, _mm_set1_pd(t0)),
-                                        _mm_set1_pd(gMRL)));
-            rho = _mm_div_pd(_mm_mul_pd(_mm_set1_pd(M), p),
-                             _mm_mul_pd(_mm_set1_pd(R), T));
-            kRho = _mm_mul_pd(_mm_set1_pd(k), rho);
-            velocityMagnitude = _mm_sqrt_pd(
-                _mm_add_pd(_mm_mul_pd(v_x, v_x), _mm_mul_pd(v_y, v_y)));
-            __m128d n_dt_update = _mm_sub_pd(_mm_set1_pd(0), dt_update);
-            // std::cout << v_y[0] << " " << v_y[1] << "\n";
-            ddx = _mm_mul_pd(
-                n_dt_update,
-                _mm_mul_pd(kRho,
-                           _mm_mul_pd(_mm_set1_pd(cw_1),
-                                      _mm_mul_pd(v_x, velocityMagnitude))));
-            ddy = _mm_mul_pd(
-                n_dt_update,
-                _mm_add_pd(
-                    _mm_set1_pd(g),
-                    _mm_mul_pd(
-                        kRho, _mm_mul_pd(_mm_set1_pd(cw_1),
-                                         _mm_mul_pd(v_y, velocityMagnitude)))));
-            // std::cout << ddy[0] << " " << ddy[1] << "\n";
+            T = mul_add(VT(0 - L), y, VT(t0));
+            p = VT(p0) * pow(T / VT(t0), gMRL);
+            rho = VT(M) * p / (VT(R) * T);
+            kRho = VT(k) * rho;
+            velocityMagnitude = sqrt(v_x * v_x + v_y * v_y);
+            VT n_dt_update = VT(0) - dt_update;
+            ddx = n_dt_update * kRho * VT(cw_1) * v_x * velocityMagnitude;
+            ddy = n_dt_update * (g + kRho * VT(cw_1) * v_y * velocityMagnitude);
+            // std::cout << dx[0] << " " << dy[0] << " " << ddx[0] << " " <<
+            // ddy[0]
+            //          << "\n";
         };
 #else
         const auto delta = [&](const double x, double &dx, double y, double &dy,
@@ -349,31 +288,15 @@ class shellCalc {
         };
 #endif
 
-#ifdef __AVX2__
-        const auto RK4Final = [&](std::array<__m256d, 4> &d) -> __m256d {
+#if defined(__SSE4_1__) || defined(__AVX__)
+        const auto RK4Final = [&](std::array<VT, 4> &d) -> VT {
             // Adds deltas in Runge Kutta 4 manner
-            return _mm256_div_pd(
-                v_funcs::madd(_mm256_set1_pd(2), _mm256_add_pd(d[1], d[2]),
-                              _mm256_add_pd(d[0], d[3])),
-                _mm256_set1_pd(6));
+            return mul_add(VT(2), d[1] + d[2], d[0] + d[3]) / VT(6);
         };
 
-        const auto RK2Final = [&](std::array<__m256d, 2> &d) -> __m256d {
+        const auto RK2Final = [&](std::array<VT, 2> &d) -> VT {
             // Adds deltas in Runge Kutta 2 manner
-            return v_funcs::madd(_mm256_set1_pd(0.5), d[1], d[0]);
-        };
-#elif defined(__SSE4_1__) || defined(__AVX__)
-        const auto RK4Final = [&](std::array<__m128d, 4> &d) -> __m128d {
-            // Adds deltas in Runge Kutta 4 manner
-            return _mm_div_pd(
-                v_funcs::madd(_mm_set1_pd(2), _mm_add_pd(d[1], d[2]),
-                              _mm_add_pd(d[0], d[3])),
-                _mm_set1_pd(6));
-        };
-
-        const auto RK2Final = [&](std::array<__m128d, 2> &d) -> __m128d {
-            // Adds deltas in Runge Kutta 2 manner
-            return v_funcs::madd(_mm_set1_pd(0.5), d[1], d[0]);
+            return mul_add(VT(0.5), d[1], d[0]);
         };
 #else
         const auto getIntermediate = [](uint32_t index, uint32_t stage) {
@@ -402,18 +325,12 @@ class shellCalc {
         if constexpr (isMultistep<Numerical>()) {
             if constexpr (Numerical == numerical::adamsBashforth5) {
                 uint32_t offset = 0;  // Make it a circular buffer
-#ifdef __AVX2__
-                std::array<__m256d, 5> dx, dy, ddx, ddy;
+#if defined(__SSE4_1__) || defined(__AVX__)
+                std::array<VT, 5> dx, dy, ddx, ddy;
                 const auto get = [&](const uint32_t &stage) -> uint32_t {
                     return (stage + offset) % 5;
                 };
-                std::array<__m256d, 2> rdx, rdy, rddx, rddy;
-#elif defined(__SSE4_1__) || defined(__AVX__)
-                std::array<__m128d, 5> dx, dy, ddx, ddy;
-                const auto get = [&](const uint32_t &stage) -> uint32_t {
-                    return (stage + offset) % 5;
-                };
-                std::array<__m128d, 2> rdx, rdy, rddx, rddy;
+                std::array<VT, 2> rdx, rdy, rddx, rddy;
 #else
                 std::array<double, 5 * vSize> dx, dy, ddx, ddy;
                 // 0 -> vSize -> ... -> 5 * vSize
@@ -427,46 +344,24 @@ class shellCalc {
                 std::array<double, 2 * vSize> rdx, rdy, rddx, rddy;
 #endif
                 for (int stage = 0; (stage < 4) & checkContinue(); ++stage) {
-#ifdef __AVX2__
-                    __m256d update =
-                        _mm256_cmp_pd(yR, _mm256_set1_pd(0), _CMP_GE_OS);
-                    __m256d dt_update =
-                        _mm256_and_pd(update, _mm256_set1_pd(dt_min));
+#if defined(__SSE4_1__) || defined(__AVX__)
+                    VT update = static_cast<VT>(yR >= VT(0));
+                    VT dt_update = update & VT(dt_min);
                     delta(xR, rdx[0], yR, rdy[0], v_xR, rddx[0], v_yR, rddy[0]);
-                    delta(_mm256_add_pd(xR, rdx[0]), rdx[1],
-                          _mm256_add_pd(yR, rdy[0]), rdy[1],
-                          _mm256_add_pd(v_xR, rddx[0]), rddx[1],
-                          _mm256_add_pd(v_yR, rddy[0]), rddy[1], update);
+                    delta((xR + rdx[0]), rdx[1], (yR + rdy[0]), rdy[1],
+                          (v_xR + rddx[0]), rddx[1], (v_yR + rddy[0]), rddy[1],
+                          update);
                     auto cStage = get(stage);
                     dx[cStage] = RK2Final(rdx);
                     dy[cStage] = RK2Final(rdy);
                     ddx[cStage] = RK2Final(rddx);
                     ddy[cStage] = RK2Final(rddy);
 
-                    xR = _mm256_add_pd(xR, dx[cStage]);
-                    yR = _mm256_add_pd(yR, dy[cStage]);
-                    v_xR = _mm256_add_pd(v_xR, ddx[cStage]);
-                    v_yR = _mm256_add_pd(v_yR, ddy[cStage]);
-                    tR = _mm256_add_pd(tR, dt_update);
-#elif defined(__SSE4_1__) || defined(__AVX__)
-                    __m128d update = _mm_cmpge_pd(yR, _mm_set1_pd(0));
-                    __m128d dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
-                    delta(xR, rdx[0], yR, rdy[0], v_xR, rddx[0], v_yR, rddy[0]);
-                    delta(_mm_add_pd(xR, rdx[0]), rdx[1],
-                          _mm_add_pd(yR, rdy[0]), rdy[1],
-                          _mm_add_pd(v_xR, rddx[0]), rddx[1],
-                          _mm_add_pd(v_yR, rddy[0]), rddy[1], update);
-                    auto cStage = get(stage);
-                    dx[cStage] = RK2Final(rdx);
-                    dy[cStage] = RK2Final(rdy);
-                    ddx[cStage] = RK2Final(rddx);
-                    ddy[cStage] = RK2Final(rddy);
-
-                    xR = _mm_add_pd(xR, dx[cStage]);
-                    yR = _mm_add_pd(yR, dy[cStage]);
-                    v_xR = _mm_add_pd(v_xR, ddx[cStage]);
-                    v_yR = _mm_add_pd(v_yR, ddy[cStage]);
-                    tR = _mm_add_pd(tR, dt_update);
+                    xR = (xR + dx[cStage]);
+                    yR = (yR + dy[cStage]);
+                    v_xR = (v_xR + ddx[cStage]);
+                    v_yR = (v_yR + ddy[cStage]);
+                    tR = (tR + dt_update);
 #else
                     for (std::size_t i = 0; i < vSize; ++i) {
                         double &x = xy[i], &y = xy[i + vSize],
@@ -509,66 +404,29 @@ class shellCalc {
                 }
 
                 while (checkContinue()) {  // 5 AB5 - Length 5+ Traj
-#ifdef __AVX2__
-                    const auto ABF5 = [&](std::array<__m256d, 5> &d,
-                                          __m256d update) {
-                        return _mm256_and_pd(
-                            _mm256_div_pd(
-                                v_funcs::madd(
-                                    _mm256_set1_pd(1901), d[get(4)],
-                                    v_funcs::madd(
-                                        _mm256_set1_pd(-2274), d[get(3)],
-                                        v_funcs::madd(
-                                            _mm256_set1_pd(2616), d[get(2)],
-                                            v_funcs::madd(
-                                                _mm256_set1_pd(-1274),
-                                                d[get(1)],
-                                                _mm256_mul_pd(
-                                                    _mm256_set1_pd(251),
-                                                    d[get(0)]))))),
-                                _mm256_set1_pd(720)),
-                            update);
+#if defined(__SSE4_1__) || defined(__AVX__)
+                    const auto ABF5 = [&](std::array<VT, 5> &d, VT update) {
+                        return (mul_add(
+                                    VT(1901), d[get(4)],
+                                    mul_add(
+                                        VT(-2274), d[get(3)],
+                                        mul_add(
+                                            VT(2616), d[get(2)],
+                                            mul_add(VT(-1274), d[get(1)],
+                                                    VT(251) * d[get(0)])))) /
+                                VT(720)) &
+                               update;
                     };
-                    __m256d update =
-                        _mm256_cmp_pd(yR, _mm256_set1_pd(0), _CMP_GE_OS);
-                    __m256d dt_update =
-                        _mm256_and_pd(update, _mm256_set1_pd(dt_min));
+                    VT update = static_cast<VT>(yR >= VT(0));
+                    VT dt_update = update & VT(dt_min);
                     auto index = get(4);
                     delta(xR, dx[index], yR, dy[index], v_xR, ddx[index], v_yR,
                           ddy[index]);
-                    xR = _mm256_add_pd(xR, ABF5(dx, update));
-                    yR = _mm256_add_pd(yR, ABF5(dy, update));
-                    v_xR = _mm256_add_pd(v_xR, ABF5(ddx, update));
-                    v_yR = _mm256_add_pd(v_yR, ABF5(ddy, update));
-                    tR = _mm256_add_pd(tR, dt_update);
-#elif defined(__SSE4_1__) || defined(__AVX__)
-                    const auto ABF5 = [&](std::array<__m128d, 5> &d,
-                                          __m128d update) {
-                        return _mm_and_pd(
-                            _mm_div_pd(
-                                v_funcs::madd(
-                                    _mm_set1_pd(1901), d[get(4)],
-                                    v_funcs::madd(
-                                        _mm_set1_pd(-2274), d[get(3)],
-                                        v_funcs::madd(
-                                            _mm_set1_pd(2616), d[get(2)],
-                                            v_funcs::madd(
-                                                _mm_set1_pd(-1274), d[get(1)],
-                                                _mm_mul_pd(_mm_set1_pd(251),
-                                                           d[get(0)]))))),
-                                _mm_set1_pd(720)),
-                            update);
-                    };
-                    __m128d update = _mm_cmpge_pd(yR, _mm_set1_pd(0));
-                    __m128d dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
-                    auto index = get(4);
-                    delta(xR, dx[index], yR, dy[index], v_xR, ddx[index], v_yR,
-                          ddy[index]);
-                    xR = _mm_add_pd(xR, ABF5(dx, update));
-                    yR = _mm_add_pd(yR, ABF5(dy, update));
-                    v_xR = _mm_add_pd(v_xR, ABF5(ddx, update));
-                    v_yR = _mm_add_pd(v_yR, ABF5(ddy, update));
-                    tR = _mm_add_pd(tR, dt_update);
+                    xR += ABF5(dx, update);
+                    yR += ABF5(dy, update);
+                    v_xR += ABF5(ddx, update);
+                    v_yR += ABF5(ddy, update);
+                    tR += dt_update;
 #else
                     const auto ABF5 =
                         [&](const std::array<double, 5 * vSize> &d,
@@ -610,33 +468,18 @@ class shellCalc {
             }
         } else {
             while (checkContinue()) {
-#ifdef __AVX2__
-                __m256d update =
-                    _mm256_cmp_pd(yR, _mm256_set1_pd(0), _CMP_GE_OS);
-                __m256d dt_update =
-                    _mm256_and_pd(update, _mm256_set1_pd(dt_min));
-#elif defined(__SSE4_1__) || defined(__AVX__)
-                __m128d update = _mm_cmpge_pd(yR, _mm_set1_pd(0));
-                __m128d dt_update = _mm_and_pd(update, _mm_set1_pd(dt_min));
+#if defined(__SSE4_1__) || defined(__AVX__)
+                VT update = static_cast<VT>(yR >= VT(0));
+                VT dt_update = update & VT(dt_min);
 #endif
                 if constexpr (Numerical == numerical::forwardEuler) {
-#ifdef __AVX2__
-                    __m256d dx, dy, ddx, ddy;
+#if defined(__SSE4_1__) || defined(__AVX__)
+                    VT dx, dy, ddx, ddy;
                     delta(xR, dx, yR, dy, v_xR, ddx, v_yR, ddy);
-                    xR = _mm256_add_pd(xR, dx);
-                    yR = _mm256_add_pd(yR, dy);
-                    v_xR = _mm256_add_pd(v_xR, ddx);
-                    v_yR = _mm256_add_pd(v_yR, ddy);
-                    tR = _mm256_add_pd(tR, dt_update);
-#elif defined(__SSE4_1__) || defined(__AVX__)
-                    __m128d dx, dy, ddx, ddy;
-                    delta(xR, dx, yR, dy, v_xR, ddx, v_yR, ddy);
-                    xR = _mm_add_pd(xR, dx);
-                    yR = _mm_add_pd(yR, dy);
-                    v_xR = _mm_add_pd(v_xR, ddx);
-                    v_yR = _mm_add_pd(v_yR, ddy);
-                    tR = _mm_add_pd(tR, dt_update);
+                    xR += dx, yR += dy, v_xR += ddx, v_yR += ddy,
+                        tR += dt_update;
 #else
+
                     std::array<double, vSize> dx, dy, ddx, ddy;
                     for (uint32_t i = 0; i < vSize; ++i) {
                         double &x = xy[i], &y = xy[i + vSize],
@@ -655,29 +498,16 @@ class shellCalc {
                     }
 #endif
                 } else if constexpr (Numerical == numerical::rungeKutta2) {
-#ifdef __AVX2__
-                    std::array<__m256d, 2> dx, dy, ddx, ddy;
+#if defined(__SSE4_1__) || defined(__AVX__)
+                    std::array<VT, 2> dx, dy, ddx, ddy;
                     delta(xR, dx[0], yR, dy[0], v_xR, ddx[0], v_yR, ddy[0]);
-                    delta(_mm256_add_pd(xR, dx[0]), dx[1],
-                          _mm256_add_pd(yR, dy[0]), dy[1],
-                          _mm256_add_pd(v_xR, ddx[0]), ddx[1],
-                          _mm256_add_pd(v_yR, ddy[0]), ddy[1], update);
-                    xR = _mm256_add_pd(xR, RK2Final(dx));
-                    yR = _mm256_add_pd(yR, RK2Final(dy));
-                    v_xR = _mm256_add_pd(v_xR, RK2Final(ddx));
-                    v_yR = _mm256_add_pd(v_yR, RK2Final(ddy));
-                    tR = _mm256_add_pd(tR, dt_update);
-#elif defined(__SSE4_1__) || defined(__AVX__)
-                    std::array<__m128d, 2> dx, dy, ddx, ddy;
-                    delta(xR, dx[0], yR, dy[0], v_xR, ddx[0], v_yR, ddy[0]);
-                    delta(_mm_add_pd(xR, dx[0]), dx[1], _mm_add_pd(yR, dy[0]),
-                          dy[1], _mm_add_pd(v_xR, ddx[0]), ddx[1],
-                          _mm_add_pd(v_yR, ddy[0]), ddy[1], update);
-                    xR = _mm_add_pd(xR, RK2Final(dx));
-                    yR = _mm_add_pd(yR, RK2Final(dy));
-                    v_xR = _mm_add_pd(v_xR, RK2Final(ddx));
-                    v_yR = _mm_add_pd(v_yR, RK2Final(ddy));
-                    tR = _mm_add_pd(tR, dt_update);
+                    delta(xR + dx[0], dx[1], yR + dy[0], dy[1], v_xR + ddx[0],
+                          ddx[1], v_yR + ddy[0], ddy[1], update);
+                    xR += RK2Final(dx);
+                    yR += RK2Final(dy);
+                    v_xR += RK2Final(ddx);
+                    v_yR += RK2Final(ddy);
+                    tR += dt_update;
 #else
                     std::array<double, 2 * vSize> dx, dy, ddx, ddy;
                     for (uint32_t i = 0; i < vSize; ++i) {
@@ -707,45 +537,23 @@ class shellCalc {
                     }
 #endif
                 } else if constexpr (Numerical == numerical::rungeKutta4) {
-#ifdef __AVX2__
-                    std::array<__m256d, 4> dx, dy, ddx, ddy;
+#if defined(__SSE4_1__) || defined(__AVX__)
+                    std::array<VT, 4> dx, dy, ddx, ddy;
                     delta(xR, dx[0], yR, dy[0], v_xR, ddx[0], v_yR, ddy[0]);
                     for (int k = 0; k < 2; k++) {
-                        const __m256d p5 = _mm256_set1_pd(0.5);
-                        delta(v_funcs::madd(p5, dx[k], xR), dx[k + 1],
-                              v_funcs::madd(p5, dy[k], yR), dy[k + 1],
-                              v_funcs::madd(p5, ddx[k], v_xR), ddx[k + 1],
-                              v_funcs::madd(p5, ddy[k], v_yR), ddy[k + 1],
-                              update);
+                        const auto p5 = VT(0.5);
+                        delta(mul_add(p5, dx[k], xR), dx[k + 1],
+                              mul_add(p5, dy[k], yR), dy[k + 1],
+                              mul_add(p5, ddx[k], v_xR), ddx[k + 1],
+                              mul_add(p5, ddy[k], v_yR), ddy[k + 1], update);
                     }
-                    delta(_mm256_add_pd(xR, dx[2]), dx[3],
-                          _mm256_add_pd(yR, dy[2]), dy[3],
-                          _mm256_add_pd(v_xR, ddx[2]), ddx[3],
-                          _mm256_add_pd(v_yR, ddy[2]), ddy[3], update);
-                    xR = _mm256_add_pd(xR, RK4Final(dx));
-                    yR = _mm256_add_pd(yR, RK4Final(dy));
-                    v_xR = _mm256_add_pd(v_xR, RK4Final(ddx));
-                    v_yR = _mm256_add_pd(v_yR, RK4Final(ddy));
-                    tR = _mm256_add_pd(tR, dt_update);
-#elif defined(__SSE4_1__) || defined(__AVX__)
-                    std::array<__m128d, 4> dx, dy, ddx, ddy;
-                    delta(xR, dx[0], yR, dy[0], v_xR, ddx[0], v_yR, ddy[0]);
-                    for (int k = 0; k < 2; k++) {
-                        const __m128d p5 = _mm_set1_pd(0.5);
-                        delta(v_funcs::madd(p5, dx[k], xR), dx[k + 1],
-                              v_funcs::madd(p5, dy[k], yR), dy[k + 1],
-                              v_funcs::madd(p5, ddx[k], v_xR), ddx[k + 1],
-                              v_funcs::madd(p5, ddy[k], v_yR), ddy[k + 1],
-                              update);
-                    }
-                    delta(_mm_add_pd(xR, dx[2]), dx[3], _mm_add_pd(yR, dy[2]),
-                          dy[3], _mm_add_pd(v_xR, ddx[2]), ddx[3],
-                          _mm_add_pd(v_yR, ddy[2]), ddy[3], update);
-                    xR = _mm_add_pd(xR, RK4Final(dx));
-                    yR = _mm_add_pd(yR, RK4Final(dy));
-                    v_xR = _mm_add_pd(v_xR, RK4Final(ddx));
-                    v_yR = _mm_add_pd(v_yR, RK4Final(ddy));
-                    tR = _mm_add_pd(tR, dt_update);
+                    delta(xR + dx[2], dx[3], yR + dy[2], dy[3], v_xR + ddx[2],
+                          ddx[3], v_yR + ddy[2], ddy[3], update);
+                    xR += RK4Final(dx);
+                    yR += RK4Final(dy);
+                    v_xR += RK4Final(ddx);
+                    v_yR += RK4Final(ddy);
+                    tR += dt_update;
 #else
                     std::array<double, 4 * vSize> dx, dy, ddx, ddy;
                     for (uint32_t i = 0; i < vSize; ++i) {
@@ -828,11 +636,9 @@ class shellCalc {
 // 0 -> (v_x) -> vSize -> (v_y) -> 2*vSize -> (t) -> 3*vSize
 #ifdef __AVX2__
         static_assert(vSize == 4, "AVX2 Requires vSize of 4");
-        using VT = Vec4d;
         VT indices = {0, 1, 2, 3};
 #elif defined(__SSE4_2__) || defined(__AVX__)
         static_assert(vSize == 2, " Requires vSize of 2");
-        using VT = Vec2d;
         VT indices = {0, 1};
 #endif
 

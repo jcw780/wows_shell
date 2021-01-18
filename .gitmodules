@@ -1,0 +1,3 @@
+[submodule "src/version2"]
+	path = src/version2
+	url = https://github.com/jcw780/version2.git
