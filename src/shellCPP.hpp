@@ -81,6 +81,15 @@ class shellCalc {
     std::atomic<std::size_t> counter{0};  //, finished{0};
 
    public:
+#if defined(__SSE4_1__) || defined(__AVX__)
+    VT calcNormalizationR(
+        const VT angle,
+        const double normalizationR) noexcept {  // Input in radians
+        auto gt = angle > VT(normalizationR);
+        return select(gt, angle - VT(normalizationR), VT(0));
+        // Don't worry this branch goes away
+    }
+#endif
     double calcNormalizationR(
         const double angle,
         const double normalizationR) noexcept {  // Input in radians
@@ -197,13 +206,13 @@ class shellCalc {
         v_yR.load(&velocities[vSize * 1]);
         tR.load(&velocities[vSize * 2]);
 #ifdef __AVX2__
-        yR = VT(start + 3 < s.impactSize ? y0 : -1,
-                start + 2 < s.impactSize ? y0 : -1,
+        yR = VT(start + 0 < s.impactSize ? y0 : -1,
                 start + 1 < s.impactSize ? y0 : -1,
-                start + 0 < s.impactSize ? y0 : -1);
+                start + 2 < s.impactSize ? y0 : -1,
+                start + 3 < s.impactSize ? y0 : -1);
 #else
-        yR = VT(start + 1 < s.impactSize ? y0 : -1,
-                start + 0 < s.impactSize ? y0 : -1);
+        yR = VT(start + 0 < s.impactSize ? y0 : -1,
+                start + 1 < s.impactSize ? y0 : -1);
 #endif
         const auto checkContinue = [&]() -> bool {
             auto checked = yR >= VT(0);
@@ -258,7 +267,8 @@ class shellCalc {
             velocityMagnitude = sqrt(v_x * v_x + v_y * v_y);
             VT n_dt_update = VT(0) - dt_update;
             ddx = n_dt_update * kRho * VT(cw_1) * v_x * velocityMagnitude;
-            ddy = n_dt_update * (g + kRho * VT(cw_1) * v_y * velocityMagnitude);
+            ddy =
+                n_dt_update * (g + (kRho * VT(cw_1) * v_y * velocityMagnitude));
             // std::cout << dx[0] << " " << dy[0] << " " << ddx[0] << " " <<
             // ddy[0]
             //          << "\n";
@@ -357,11 +367,11 @@ class shellCalc {
                     ddx[cStage] = RK2Final(rddx);
                     ddy[cStage] = RK2Final(rddy);
 
-                    xR = (xR + dx[cStage]);
-                    yR = (yR + dy[cStage]);
-                    v_xR = (v_xR + ddx[cStage]);
-                    v_yR = (v_yR + ddy[cStage]);
-                    tR = (tR + dt_update);
+                    xR += dx[cStage];
+                    yR += dy[cStage];
+                    v_xR += ddx[cStage];
+                    v_yR += ddy[cStage];
+                    tR += dt_update;
 #else
                     for (std::size_t i = 0; i < vSize; ++i) {
                         double &x = xy[i], &y = xy[i + vSize],
@@ -409,7 +419,7 @@ class shellCalc {
                         return (mul_add(
                                     VT(1901), d[get(4)],
                                     mul_add(
-                                        VT(-2274), d[get(3)],
+                                        VT(-2774), d[get(3)],
                                         mul_add(
                                             VT(2616), d[get(2)],
                                             mul_add(VT(-1274), d[get(1)],
@@ -479,7 +489,6 @@ class shellCalc {
                     xR += dx, yR += dy, v_xR += ddx, v_yR += ddy,
                         tR += dt_update;
 #else
-
                     std::array<double, vSize> dx, dy, ddx, ddy;
                     for (uint32_t i = 0; i < vSize; ++i) {
                         double &x = xy[i], &y = xy[i + vSize],
@@ -610,16 +619,11 @@ class shellCalc {
 
         auto distanceTarget =
             s.get_impactPtr(start, impact::impactIndices::distance);
-#ifdef __AVX2__
-        _mm256_storeu_pd(&velocities[0], v_xR);
-        _mm256_storeu_pd(&velocities[vSize], v_yR);
-        _mm256_storeu_pd(&velocities[vSize * 2], tR);
-        _mm256_storeu_pd(distanceTarget, xR);
-#elif defined(__SSE4_1__) || defined(__AVX__)
-        _mm_store_pd(&velocities[0], v_xR);
-        _mm_store_pd(&velocities[vSize], v_yR);
-        _mm_store_pd(&velocities[vSize * 2], tR);
-        _mm_store_pd(distanceTarget, xR);
+#if defined(__SSE4_1__) || defined(__AVX__)
+        v_xR.store(&velocities[vSize * 0]);
+        v_yR.store(&velocities[vSize * 1]);
+        tR.store(&velocities[vSize * 2]);
+        xR.store(distanceTarget);
 #else
         std::copy_n(xy.begin(), vSize, distanceTarget);
 #endif
@@ -628,7 +632,6 @@ class shellCalc {
     // Several trajectories done in one chunk to allow for vectorization
     template <bool AddTraj, numerical Numerical, bool Fit, bool nonAP>
     void impactGroup(const std::size_t i, shell &s) {
-        // shell &s = *shellPointer;
         const double pPPC = s.get_pPPC();
         const double normalizationR = s.get_normalizationR();
         // std::cout<<"Entered\n";
@@ -659,7 +662,6 @@ class shellCalc {
         v_xv = cx * v0_v, v_yv = cy * v0_v;
         v_xv.store(&velocitiesTime[0]);
         v_yv.store(&velocitiesTime[vSize]);
-
 #else
         for (uint32_t j = 0; j < vSize; j++) {
             double radianLaunch;
@@ -679,7 +681,71 @@ class shellCalc {
 #endif
         // std::cout<<"Calculating\n";
         multiTraj<AddTraj, Numerical>(i, s, velocitiesTime);
-        // std::cout<<"Processing\n";
+// std::cout<<"Processing\n";
+#if defined(__SSE4_2__) || defined(__AVX__)
+        const VT v_x = VT().load(&velocitiesTime[0]),
+                 v_y = VT().load(&velocitiesTime[vSize]),
+                 time = VT().load(&velocitiesTime[vSize * 2]);
+        const VT IA_R = atan(v_x / v_y);
+        IA_R.store(s.get_impactPtr(
+            i, impact::impactIndices::impactAngleHorizontalRadians));
+
+        const VT IAD_R = VT(M_PI_2) + IA_R;
+        const VT IA_D = IA_R * VT(180 / M_PI);
+        (IA_D * VT(-1))
+            .store(s.get_impactPtr(
+                i, impact::impactIndices::impactAngleHorizontalDegrees));
+        (VT(90) + IA_D)
+            .store(s.get_impactPtr(
+                i, impact::impactIndices::impactAngleDeckDegrees));
+
+        const VT IV = sqrt(v_x * v_x + v_y * v_y);
+        IV.store(s.get_impactPtr(i, impact::impactIndices::impactVelocity));
+
+        time.store(s.get_impactPtr(i, impact::impactIndices::timeToTarget));
+        (time / VT(timeMultiplier))
+            .store(s.get_impactPtr(
+                i, impact::impactIndices::timeToTargetAdjusted));
+
+        if constexpr (!Fit) {
+            if constexpr (nonAP) {
+                const VT nonAPPen = VT(s.nonAP);
+                nonAPPen.store(
+                    s.get_impactPtr(i, impact::impactIndices::rawPenetration));
+                nonAPPen.store(s.get_impactPtr(
+                    i, impact::impactIndices::effectivePenetrationHorizontal));
+                nonAPPen.store(s.get_impactPtr(
+                    i, impact::impactIndices::effectivePenetrationDeck));
+                nonAPPen.store(s.get_impactPtr(
+                    i, impact::impactIndices::
+                           effectivePenetrationHorizontalNormalized));
+                nonAPPen.store(s.get_impactPtr(
+                    i,
+                    impact::impactIndices::effectivePenetrationDeckNormalized));
+            } else {
+                const VT rawPenetration = VT(pPPC) * pow(IV, VT(velocityPower));
+                rawPenetration.store(
+                    s.get_impactPtr(i, impact::impactIndices::rawPenetration));
+
+                (rawPenetration * cos(IA_R))
+                    .store(s.get_impactPtr(
+                        i,
+                        impact::impactIndices::effectivePenetrationHorizontal));
+                (rawPenetration * cos(IAD_R))
+                    .store(s.get_impactPtr(
+                        i, impact::impactIndices::effectivePenetrationDeck));
+                (rawPenetration * cos(calcNormalizationR(IA_R, normalizationR)))
+                    .store(s.get_impactPtr(
+                        i, impact::impactIndices::
+                               effectivePenetrationHorizontalNormalized));
+                (rawPenetration *
+                 cos(calcNormalizationR(IAD_R, normalizationR)))
+                    .store(s.get_impactPtr(
+                        i, impact::impactIndices::
+                               effectivePenetrationDeckNormalized));
+            }
+        }
+#else
         for (uint32_t j = 0; j < vSize; j++) {
             const double &v_x = velocitiesTime[j],
                          &v_y = velocitiesTime[j + vSize];
@@ -751,6 +817,7 @@ class shellCalc {
                 }
             }
         }
+#endif
     }
 
    public:
@@ -851,10 +918,10 @@ class shellCalc {
         const std::size_t ISA = s.impactSizeAligned;
         // ^^^
         // Otherwise Clang would think that assigned values are
-        // "value[s] that could not be identified as reduction is used outside
-        // the loop" This doesn't vectorize anyways - because of the acos's -
-        // but that's there so that when acos vectorization is added
-        // to compilers this will autovectorize
+        // "value[s] that could not be identified as reduction is used
+        // outside the loop" This doesn't vectorize anyways - because of the
+        // acos's - but that's there so that when acos vectorization is
+        // added to compilers this will autovectorize
         for (std::size_t j = 0; j < vSize; j++) {
             double fallAngleAdjusted =
                 s.impactData[i + j +
@@ -908,8 +975,8 @@ class shellCalc {
                 out[k] = acos(quotient);
                 out[k] = fabs(quotient) > 1 ? 0 : out[k];
                 out[k] = criticalAngles[k] < M_PI_2 ? out[k] : M_PI_2;
-                // Can't use ifs because for some reason (cond) ? (v1) : (v2)
-                // is not equal to if(cond) v1 else v2 - creates jumps
+                // Can't use ifs because for some reason (cond) ? (v1) :
+                // (v2) is not equal to if(cond) v1 else v2 - creates jumps
             }
             {
                 int k = toUnderlying(angle::angleIndices::fuseRadians) / 2;
