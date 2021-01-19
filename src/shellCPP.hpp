@@ -185,6 +185,14 @@ class shellCalc {
         }
     }
 
+    template <std::size_t N>
+    static constexpr bool testAnalysisCoeffs(std::array<double, N> coeffs,
+                                             double divisor) {
+        double sum = 0;
+        for (double c : coeffs) sum += c;
+        return sum == divisor;
+    }
+
     template <bool AddTraj, numerical Numerical>
     void multiTraj(const std::size_t start, shell &s,
                    std::array<double, 3 * vSize> &velocities) {
@@ -414,18 +422,19 @@ class shellCalc {
                 }
 
                 while (checkContinue()) {  // 5 AB5 - Length 5+ Traj
+                    constexpr std::array<double, 5> AB5Coeffs = {
+                        251, -1274, 2616, -2774, 1901};
+                    constexpr double AB5Divisor = 720;
+                    static_assert(testAnalysisCoeffs(AB5Coeffs, AB5Divisor),
+                                  "Incorrect AB5 Coefficients");
 #if defined(__SSE4_1__) || defined(__AVX__)
-                    const auto ABF5 = [&](std::array<VT, 5> &d, VT update) {
-                        return (mul_add(
-                                    VT(1901), d[get(4)],
-                                    mul_add(
-                                        VT(-2774), d[get(3)],
-                                        mul_add(
-                                            VT(2616), d[get(2)],
-                                            mul_add(VT(-1274), d[get(1)],
-                                                    VT(251) * d[get(0)])))) /
-                                VT(720)) &
-                               update;
+                    const auto ABF5 = [&](const std::array<VT, 5> &d,
+                                          const VT update) {
+                        VT result = VT(0);
+                        for (int j = 0; j < 5; ++j)
+                            result =
+                                mul_add(VT(AB5Coeffs[j]), d[get(j)], result);
+                        return (result / VT(AB5Divisor)) & update;
                     };
                     VT update = static_cast<VT>(yR >= VT(0));
                     VT dt_update = update & VT(dt_min);
@@ -441,13 +450,10 @@ class shellCalc {
                     const auto ABF5 =
                         [&](const std::array<double, 5 * vSize> &d,
                             const uint32_t &i, const bool &update) {
-                            // Adds deltas in Adams Bashforth 5 manner
-                            return (1901 / 720 * d[get(i, 4)] -
-                                    2774 / 720 * d[get(i, 3)] +
-                                    2616 / 720 * d[get(i, 2)] -
-                                    1274 / 720 * d[get(i, 1)] +
-                                    251 / 720 * d[get(i, 0)]) *
-                                   update;
+                            double result = 0;
+                            for (int j = 0; j < 5; ++j)
+                                result += AB5Coeffs[j] * d[get(i, j)];
+                            return result / AB5Divisor * update;
                         };
                     for (uint32_t i = 0; i < vSize; ++i) {
                         double &x = xy[i], &y = xy[i + vSize],
