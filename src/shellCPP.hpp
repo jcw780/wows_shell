@@ -692,7 +692,7 @@ class shellCalc {
         const VT v_x = VT().load(&velocitiesTime[0]),
                  v_y = VT().load(&velocitiesTime[vSize]),
                  time = VT().load(&velocitiesTime[vSize * 2]);
-        const VT IA_R = atan(v_x / v_y);
+        const VT IA_R = atan(v_y / v_x);
         IA_R.store(s.get_impactPtr(
             i, impact::impactIndices::impactAngleHorizontalRadians));
 
@@ -920,7 +920,38 @@ class shellCalc {
                      shell &s) {
         static_assert(toUnderlying(fusing) <= 2 && toUnderlying(fusing) >= 0,
                       "Invalid fusing parameter");
-        // shell &s = *shellPointer;
+#if false  // defined(__SSE4_2__) || defined(__AVX__)
+        VT fallAngleAdjusted =
+               VT().load(s.get_impactPtr(
+                   i, impact::impactIndices::impactAngleHorizontalRadians)) +
+               VT(inclination_R),
+           rawPenetration = VT().load(
+               s.get_impactPtr(i, impact::impactIndices::rawPenetration));
+        VT penetrationCriticalAngle;
+        if constexpr (nonAP) {
+            if constexpr (nonAPPerforated) {
+                penetrationCriticalAngle = VT(M_PI_2);
+            } else {
+                penetrationCriticalAngle = VT(0);
+            }
+        } else {
+            penetrationCriticalAngle = (acos(VT(thickness) / rawPenetration) +
+                                        VT(s.get_normalizationR()));
+            penetrationCriticalAngle =
+                static_cast<VT>(VT(thickness) <= rawPenetration) &
+                penetrationCriticalAngle;
+        }
+
+        std::array<VT, 4> criticalAngles;
+        if constexpr (disableRicochet) {
+            criticalAngles = {VT(M_PI_2), VT(M_PI_2), penetrationCriticalAngle,
+                              fusingAngle};
+        } else {
+            criticalAngles = {s.ricochet0R, s.ricochet1R,
+                              penetrationCriticalAngle, VT(fusingAngle)};
+        }
+#else
+
         const std::size_t ISA = s.impactSizeAligned;
         // ^^^
         // Otherwise Clang would think that assigned values are
@@ -928,6 +959,14 @@ class shellCalc {
         // outside the loop" This doesn't vectorize anyways - because of the
         // acos's - but that's there so that when acos vectorization is
         // added to compilers this will autovectorize
+        const auto computeAngleFromCritical =
+            [](double criticalAngle, double fallAngleAdjusted) -> double {
+            double quotient = cos(criticalAngle) / cos(fallAngleAdjusted);
+            double result = acos(quotient);
+            result = fabs(quotient) > 1 ? 0 : result;
+            return result;
+        };
+
         for (std::size_t j = 0; j < vSize; j++) {
             double fallAngleAdjusted =
                 s.impactData[i + j +
@@ -972,6 +1011,8 @@ class shellCalc {
                     cos(criticalAngles[k]) / cos(fallAngleAdjusted);
                 out[k] = acos(quotient);
                 out[k] = fabs(quotient) > 1 ? 0 : out[k];
+                out[k] = computeAngleFromCritical(criticalAngles[k],
+                                                  fallAngleAdjusted);
             }
 
             {
@@ -1016,6 +1057,7 @@ class shellCalc {
             s.get_angle(i + j, angle::angleIndices::armorDegrees) = out[2];
             s.get_angle(i + j, angle::angleIndices::fuseDegrees) = out[3];
         }
+#endif
     }
 
    public:
