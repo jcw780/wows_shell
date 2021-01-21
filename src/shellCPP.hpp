@@ -948,7 +948,7 @@ class shellCalc {
             criticalAngles = {VT(M_PI_2), VT(M_PI_2), penetrationCriticalAngle,
                               fusingAngle};
         } else {
-            criticalAngles = {s.ricochet0R, s.ricochet1R,
+            criticalAngles = {VT(s.ricochet0R), VT(s.ricochet1R),
                               penetrationCriticalAngle, VT(fusingAngle)};
         }
 
