@@ -920,7 +920,8 @@ class shellCalc {
                      shell &s) {
         static_assert(toUnderlying(fusing) <= 2 && toUnderlying(fusing) >= 0,
                       "Invalid fusing parameter");
-#if false  // defined(__SSE4_2__) || defined(__AVX__)
+        enum class caIndex { ricochet0, ricochet1, penetration, fuse };
+#if defined(__SSE4_2__) || defined(__AVX__)
         VT fallAngleAdjusted =
                VT().load(s.get_impactPtr(
                    i, impact::impactIndices::impactAngleHorizontalRadians)) +
@@ -950,8 +951,65 @@ class shellCalc {
             criticalAngles = {s.ricochet0R, s.ricochet1R,
                               penetrationCriticalAngle, VT(fusingAngle)};
         }
-#else
 
+        const auto computeAngleFromCritical = [](VT criticalAngle,
+                                                 VT fallAngleAdjusted) -> VT {
+            VT quotient = cos(criticalAngle) / cos(fallAngleAdjusted);
+            VT result = acos(quotient);
+            result = select(abs(quotient) > 1, VT(0), result);
+            return result;
+        };
+        std::array<VT, 4> out;
+        {
+            const std::size_t k = toUnderlying(caIndex::ricochet0);
+            out[k] =
+                computeAngleFromCritical(criticalAngles[k], fallAngleAdjusted);
+        }
+        {
+            const std::size_t k = toUnderlying(caIndex::ricochet1);
+            out[k] =
+                computeAngleFromCritical(criticalAngles[k], fallAngleAdjusted);
+        }
+        {
+            const std::size_t k = toUnderlying(caIndex::penetration);
+            out[k] =
+                computeAngleFromCritical(criticalAngles[k], fallAngleAdjusted);
+            out[k] = select(criticalAngles[k] < VT(M_PI_2), out[k], VT(M_PI_2));
+        }
+        {
+            const std::size_t k = toUnderlying(caIndex::fuse);
+            if constexpr (fusing == fuseStatus::never) {
+                out[k] = VT(M_PI_2);
+            } else if constexpr (fusing == fuseStatus::check) {
+                out[k] = computeAngleFromCritical(criticalAngles[k],
+                                                  fallAngleAdjusted);
+            } else if constexpr (fusing == fuseStatus::always) {
+                out[k] = VT(0);
+            }
+        }
+
+        out[toUnderlying(caIndex::ricochet0)].store(
+            s.get_anglePtr(i, angle::angleIndices::ricochetAngle0Radians));
+        out[toUnderlying(caIndex::ricochet1)].store(
+            s.get_anglePtr(i, angle::angleIndices::ricochetAngle1Radians));
+        out[toUnderlying(caIndex::penetration)].store(
+            s.get_anglePtr(i, angle::angleIndices::armorRadians));
+        out[toUnderlying(caIndex::fuse)].store(
+            s.get_anglePtr(i, angle::angleIndices::fuseRadians));
+
+        for (std::size_t k = 0; k < angle::maxColumns / 2; k++) {
+            out[k] *= VT(180 / M_PI);
+        }
+
+        out[toUnderlying(caIndex::ricochet0)].store(
+            s.get_anglePtr(i, angle::angleIndices::ricochetAngle0Degrees));
+        out[toUnderlying(caIndex::ricochet1)].store(
+            s.get_anglePtr(i, angle::angleIndices::ricochetAngle1Degrees));
+        out[toUnderlying(caIndex::penetration)].store(
+            s.get_anglePtr(i, angle::angleIndices::armorDegrees));
+        out[toUnderlying(caIndex::fuse)].store(
+            s.get_anglePtr(i, angle::angleIndices::fuseDegrees));
+#else
         const std::size_t ISA = s.impactSizeAligned;
         // ^^^
         // Otherwise Clang would think that assigned values are
@@ -989,9 +1047,7 @@ class shellCalc {
                 }
             } else {
                 penetrationCriticalAngle =
-
                     (acos(thickness / rawPenetration) + s.get_normalizationR());
-
                 penetrationCriticalAngle =
                     thickness > rawPenetration ? 0 : penetrationCriticalAngle;
             }
@@ -1002,60 +1058,55 @@ class shellCalc {
                                   fusingAngle};
             } else {
                 criticalAngles = {s.ricochet0R, s.ricochet1R,
-
                                   penetrationCriticalAngle, fusingAngle};
             }
             std::array<double, 4> out;
             for (uint32_t k = 0; k < 2; k++) {
-                double quotient =
-                    cos(criticalAngles[k]) / cos(fallAngleAdjusted);
-                out[k] = acos(quotient);
-                out[k] = fabs(quotient) > 1 ? 0 : out[k];
                 out[k] = computeAngleFromCritical(criticalAngles[k],
                                                   fallAngleAdjusted);
             }
 
             {
-                int k = toUnderlying(angle::angleIndices::armorRadians) / 2;
-                double quotient =
-                    cos(criticalAngles[k]) / cos(fallAngleAdjusted);
-                out[k] = acos(quotient);
-                out[k] = fabs(quotient) > 1 ? 0 : out[k];
+                const std::size_t k = toUnderlying(caIndex::penetration);
+                out[k] = computeAngleFromCritical(criticalAngles[k],
+                                                  fallAngleAdjusted);
                 out[k] = criticalAngles[k] < M_PI_2 ? out[k] : M_PI_2;
                 // Can't use ifs because for some reason (cond) ? (v1) :
                 // (v2) is not equal to if(cond) v1 else v2 - creates jumps
             }
             {
-                int k = toUnderlying(angle::angleIndices::fuseRadians) / 2;
+                const std::size_t k = toUnderlying(caIndex::fuse);
                 if constexpr (fusing == fuseStatus::never) {
                     out[k] = M_PI_2;
                 } else if constexpr (fusing == fuseStatus::check) {
-                    double quotient =
-                        cos(criticalAngles[k]) / cos(fallAngleAdjusted);
-                    out[k] = acos(quotient);
-                    out[k] = fabs(quotient) > 1 ? 0 : out[k];
+                    out[k] = computeAngleFromCritical(criticalAngles[k],
+                                                      fallAngleAdjusted);
                 } else if constexpr (fusing == fuseStatus::always) {
                     out[k] = 0;
                 }
             }
 
             s.get_angle(i + j, angle::angleIndices::ricochetAngle0Radians) =
-                out[0];
+                out[toUnderlying(caIndex::ricochet0)];
             s.get_angle(i + j, angle::angleIndices::ricochetAngle1Radians) =
-                out[1];
-            s.get_angle(i + j, angle::angleIndices::armorRadians) = out[2];
-            s.get_angle(i + j, angle::angleIndices::fuseRadians) = out[3];
+                out[toUnderlying(caIndex::ricochet1)];
+            s.get_angle(i + j, angle::angleIndices::armorRadians) =
+                out[toUnderlying(caIndex::penetration)];
+            s.get_angle(i + j, angle::angleIndices::fuseRadians) =
+                out[toUnderlying(caIndex::fuse)];
 
-            for (uint32_t k = 0; k < angle::maxColumns / 2; k++) {
+            for (std::size_t k = 0; k < angle::maxColumns / 2; k++) {
                 out[k] *= 180 / M_PI;
             }
 
             s.get_angle(i + j, angle::angleIndices::ricochetAngle0Degrees) =
-                out[0];
+                out[toUnderlying(caIndex::ricochet0)];
             s.get_angle(i + j, angle::angleIndices::ricochetAngle1Degrees) =
-                out[1];
-            s.get_angle(i + j, angle::angleIndices::armorDegrees) = out[2];
-            s.get_angle(i + j, angle::angleIndices::fuseDegrees) = out[3];
+                out[toUnderlying(caIndex::ricochet1)];
+            s.get_angle(i + j, angle::angleIndices::armorDegrees) =
+                out[toUnderlying(caIndex::penetration)];
+            s.get_angle(i + j, angle::angleIndices::fuseDegrees) =
+                out[toUnderlying(caIndex::fuse)];
         }
 #endif
     }
