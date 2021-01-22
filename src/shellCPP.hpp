@@ -28,15 +28,17 @@ class shellCalc {
    private:
     // TODO: Static Constexpr these
     // Physical Constants     Description                  | Units
-    double g = 9.8;        // Gravitational Constant       | m/(s^2)
-    double t0 = 288.15;    // Temperature at Sea Level     | K
-    double L = 0.0065;     // Atmospheric Lapse Rate       | C/m
-    double p0 = 101325;    // Pressure at Sea Level        | Pa
-    double R = 8.31447;    // Ideal Gas Constant           | J/(mol K)
-    double M = 0.0289644;  // Molarity of Air at Sea Level | kg/mol
-    double cw_1 = 1;
+    static constexpr double g = 9.8;  // Gravitational Constant       | m/(s^2)
+    static constexpr double t0 = 288.15;  // Temperature at Sea Level     | K
+    static constexpr double L = 0.0065;   // Atmospheric Lapse Rate       | C/m
+    static constexpr double p0 = 101325;  // Pressure at Sea Level        | Pa
+    static constexpr double R =
+        8.31447;  // Ideal Gas Constant           | J/(mol K)
+    static constexpr double M =
+        0.0289644;  // Molarity of Air at Sea Level | kg/mol
+    static constexpr double cw_1 = 1;
 
-    double gMRL = (g * M) / (R * L);
+    static constexpr double gMRL = (g * M) / (R * L);
     // Calculation Parameters
     double max = 25;        // Max Angle                    | degrees
     double min = 0;         // Min Angle                    | degrees
@@ -62,7 +64,6 @@ class shellCalc {
     static_assert(std::numeric_limits<double>::is_iec559,
                   "Type is not IEE754 compliant");
 // For setting up vectorization lane widths
-// 128bit because compilers cannot seem to generate 256bit instructions
 #ifdef __AVX2__
     using VT = Vec4d;
     using VTb = Vec4db;
@@ -76,9 +77,11 @@ class shellCalc {
     static constexpr std::size_t vSize = (128 / 8) / sizeof(double);
 #endif
     static constexpr std::size_t minTasksPerThread = vSize;
+
+    // multithreading
     mutable utility::threadPool tp;
     bool enableMultiThreading = false;
-    mutable std::atomic<std::size_t> counter{0};  //, finished{0};
+    mutable std::atomic<std::size_t> counter{0};
 
    public:
 #if defined(__SSE4_1__) || defined(__AVX__)
@@ -223,8 +226,8 @@ class shellCalc {
                 start + 1 < s.impactSize ? y0 : -1);
 #endif
         const auto checkContinue = [&]() -> bool {
-            auto checked = yR >= VT(0);
-            auto res = horizontal_or(checked);
+            const auto checked = yR >= VT(0);
+            const auto res = horizontal_or(checked);
             return res;
         };
 #else
@@ -262,21 +265,19 @@ class shellCalc {
                                VT &ddx, const VT v_y, VT &ddy,
                                VT update = VT(0)) {
             update = static_cast<VT>(y >= VT(0)) | update;
-            VT T, p, rho, kRho, velocityMagnitude,
-                dt_update = update & VT(dt_min);
+            const VT dt_update = update & VT(dt_min);
             dx = dt_update * v_x;
             dy = dt_update * v_y;
             y += dy;
 
-            T = mul_add(VT(0 - L), y, VT(t0));
-            p = VT(p0) * pow(T / VT(t0), gMRL);
-            rho = VT(M) * p / (VT(R) * T);
-            kRho = VT(k) * rho;
-            velocityMagnitude = sqrt(v_x * v_x + v_y * v_y);
-            VT n_dt_update = VT(0) - dt_update;
-            ddx = n_dt_update * kRho * VT(cw_1) * v_x * velocityMagnitude;
-            ddy =
-                n_dt_update * (g + (kRho * VT(cw_1) * v_y * velocityMagnitude));
+            const VT T = mul_add(VT(0 - L), y, VT(t0));
+            const VT p = VT(p0) * pow(T / VT(t0), gMRL);
+            const VT rho = VT(M) * p / (VT(R) * T);
+            const VT kRho = VT(k) * rho;
+            const VT speed = sqrt(v_x * v_x + v_y * v_y);
+            const VT n_dt_update = VT(0) - dt_update;
+            ddx = n_dt_update * kRho * VT(cw_1) * v_x * speed;
+            ddy = n_dt_update * (g + (kRho * VT(cw_1) * v_y * speed));
             // std::cout << dx[0] << " " << dy[0] << " " << ddx[0] << " " <<
             // ddy[0]
             //          << "\n";
@@ -286,21 +287,20 @@ class shellCalc {
                                const double v_x, double &ddx, const double v_y,
                                double &ddy, bool update = false) {
             update |= (y >= 0);
-            double T, p, rho, dt_update = update * dt_min;
+            const double dt_update = update * dt_min;
             dx = dt_update * v_x;
             dy = dt_update * v_y;
             y += dy;  // x not needed
             // Air Density
-            T = t0 - L * y;
-            p = p0 * pow(T / t0, gMRL);
-            rho = p * M / (R * T);
-            double kRho = k * rho;
+            const double T = t0 - L * y;
+            const double p = p0 * pow(T / t0, gMRL);
+            const double rho = p * M / (R * T);
+            const double kRho = k * rho;
             // Calculate Drag Components
-            double velocityMagnitude = sqrt(v_x * v_x + v_y * v_y);
-            ddx = -1 * dt_update * kRho *
-                  (cw_1 * v_x * velocityMagnitude + cw_2 * v_x);
+            const double speed = sqrt(v_x * v_x + v_y * v_y);
+            ddx = -1 * dt_update * kRho * (cw_1 * v_x * speed + cw_2 * v_x);
             ddy = -1 * dt_update *
-                  (g + kRho * (cw_1 * v_y * velocityMagnitude
+                  (g + kRho * (cw_1 * v_y * speed
                                //+ cw_2 * fabs(v_y) * signum(v_y)
                                ));
         };
@@ -755,23 +755,23 @@ class shellCalc {
         for (uint32_t j = 0; j < vSize; j++) {
             const double &v_x = velocitiesTime[j],
                          &v_y = velocitiesTime[j + vSize];
-            double IA_R = atan(v_y / v_x);
+            const double IA_R = atan(v_y / v_x);
 
             s.get_impact(i + j,
                          impact::impactIndices::impactAngleHorizontalRadians) =
                 IA_R;
-            double IAD_R = M_PI_2 + IA_R;
-            double IA_D = IA_R * 180 / M_PI;
+            const double IAD_R = M_PI_2 + IA_R;
+            const double IA_D = IA_R * 180 / M_PI;
             s.get_impact(i + j,
                          impact::impactIndices::impactAngleHorizontalDegrees) =
                 IA_D * -1;
             s.get_impact(i + j, impact::impactIndices::impactAngleDeckDegrees) =
                 90 + IA_D;
 
-            double IV = sqrt(v_x * v_x + v_y * v_y);
+            const double IV = sqrt(v_x * v_x + v_y * v_y);
             s.get_impact(i + j, impact::impactIndices::impactVelocity) = IV;
 
-            double time = velocitiesTime[j + 2 * vSize];
+            const double time = velocitiesTime[j + 2 * vSize];
             s.get_impact(i + j, impact::impactIndices::timeToTarget) = time;
             s.get_impact(i + j, impact::impactIndices::timeToTargetAdjusted) =
                 time / timeMultiplier;
@@ -797,7 +797,7 @@ class shellCalc {
                                      effectivePenetrationDeckNormalized) =
                         s.nonAP;
                 } else {
-                    double rawPenetration = pPPC * pow(IV, velocityPower);
+                    const double rawPenetration = pPPC * pow(IV, velocityPower);
                     s.get_impact(i + j, impact::impactIndices::rawPenetration) =
                         rawPenetration;
 
@@ -925,42 +925,42 @@ class shellCalc {
                       "Invalid fusing parameter");
         enum class caIndex { ricochet0, ricochet1, penetration, fuse };
 #if defined(__SSE4_2__) || defined(__AVX__)
-        VT fallAngleAdjusted =
-               VT().load(s.get_impactPtr(
-                   i, impact::impactIndices::impactAngleHorizontalRadians)) +
-               VT(inclination_R),
-           rawPenetration = VT().load(
-               s.get_impactPtr(i, impact::impactIndices::rawPenetration));
-        VT penetrationCriticalAngle;
-        if constexpr (nonAP) {
-            if constexpr (nonAPPerforated) {
-                penetrationCriticalAngle = VT(M_PI_2);
+        const VT fallAngleAdjusted =
+                     VT().load(s.get_impactPtr(
+                         i,
+                         impact::impactIndices::impactAngleHorizontalRadians)) +
+                     VT(inclination_R),
+                 rawPenetration = VT().load(
+                     s.get_impactPtr(i, impact::impactIndices::rawPenetration));
+        const VT penetrationCriticalAngle = [&]() {
+            if constexpr (nonAP) {
+                if constexpr (nonAPPerforated) {
+                    return VT(M_PI_2);
+                } else {
+                    return VT(0);
+                }
             } else {
-                penetrationCriticalAngle = VT(0);
+                return static_cast<VT>(VT(thickness) <= rawPenetration) &
+                       (acos(VT(thickness) / rawPenetration) +
+                        VT(s.get_normalizationR()));
             }
-        } else {
-            penetrationCriticalAngle = (acos(VT(thickness) / rawPenetration) +
-                                        VT(s.get_normalizationR()));
-            penetrationCriticalAngle =
-                static_cast<VT>(VT(thickness) <= rawPenetration) &
-                penetrationCriticalAngle;
-        }
+        }();
 
-        std::array<VT, 4> criticalAngles;
-        if constexpr (disableRicochet) {
-            criticalAngles = {VT(M_PI_2), VT(M_PI_2), penetrationCriticalAngle,
-                              fusingAngle};
-        } else {
-            criticalAngles = {VT(s.ricochet0R), VT(s.ricochet1R),
-                              penetrationCriticalAngle, VT(fusingAngle)};
-        }
+        const std::array<VT, 4> criticalAngles = [&]() -> std::array<VT, 4> {
+            if constexpr (disableRicochet) {
+                return {VT(M_PI_2), VT(M_PI_2), penetrationCriticalAngle,
+                        fusingAngle};
+            } else {
+                return {VT(s.ricochet0R), VT(s.ricochet1R),
+                        penetrationCriticalAngle, VT(fusingAngle)};
+            }
+        }();
 
         const auto computeAngleFromCritical = [](VT criticalAngle,
                                                  VT fallAngleAdjusted) -> VT {
-            VT quotient = cos(criticalAngle) / cos(fallAngleAdjusted);
-            VT result = acos(quotient);
-            result = select(abs(quotient) > 1, VT(0), result);
-            return result;
+            const VT quotient = cos(criticalAngle) / cos(fallAngleAdjusted);
+            const VT result = acos(quotient);
+            return select(abs(quotient) > 1, VT(0), result);
         };
         std::array<VT, 4> out;
         {
@@ -1022,47 +1022,50 @@ class shellCalc {
         // added to compilers this will autovectorize
         const auto computeAngleFromCritical =
             [](double criticalAngle, double fallAngleAdjusted) -> double {
-            double quotient = cos(criticalAngle) / cos(fallAngleAdjusted);
-            double result = acos(quotient);
-            result = fabs(quotient) > 1 ? 0 : result;
-            return result;
+            const double quotient = cos(criticalAngle) / cos(fallAngleAdjusted);
+            const double result = acos(quotient);
+            return fabs(quotient) > 1 ? 0 : result;
         };
 
         for (std::size_t j = 0; j < vSize; j++) {
-            double fallAngleAdjusted =
+            const double fallAngleAdjusted =
                 s.impactData[i + j +
                              toUnderlying(impact::impactIndices::
                                               impactAngleHorizontalRadians) *
                                  ISA] +
                 inclination_R;
-            double rawPenetration =
+            const double rawPenetration =
                 s.impactData[i + j +
                              toUnderlying(
                                  impact::impactIndices::rawPenetration) *
                                  ISA];
 
-            double penetrationCriticalAngle;
-            if constexpr (nonAP) {
-                if constexpr (nonAPPerforated) {
-                    penetrationCriticalAngle = M_PI_2;
+            const double penetrationCriticalAngle = [&]() {
+                if constexpr (nonAP) {
+                    if constexpr (nonAPPerforated) {
+                        return M_PI_2;
+                    } else {
+                        return 0;
+                    }
                 } else {
-                    penetrationCriticalAngle = 0;
+                    return thickness > rawPenetration
+                               ? 0
+                               : acos(thickness / rawPenetration) +
+                                     s.get_normalizationR();
                 }
-            } else {
-                penetrationCriticalAngle =
-                    (acos(thickness / rawPenetration) + s.get_normalizationR());
-                penetrationCriticalAngle =
-                    thickness > rawPenetration ? 0 : penetrationCriticalAngle;
-            }
+            }();
 
-            std::array<double, 4> criticalAngles;
-            if constexpr (disableRicochet) {
-                criticalAngles = {M_PI_2, M_PI_2, penetrationCriticalAngle,
-                                  fusingAngle};
-            } else {
-                criticalAngles = {s.ricochet0R, s.ricochet1R,
-                                  penetrationCriticalAngle, fusingAngle};
-            }
+            const std::array<double, 4> criticalAngles =
+                [&]() -> std::array<double, 4> {
+                if constexpr (disableRicochet) {
+                    return {M_PI_2, M_PI_2, penetrationCriticalAngle,
+                            fusingAngle};
+                } else {
+                    return {s.ricochet0R, s.ricochet1R,
+                            penetrationCriticalAngle, fusingAngle};
+                }
+            }();
+
             std::array<double, 4> out;
             for (uint32_t k = 0; k < 2; k++) {
                 out[k] = computeAngleFromCritical(criticalAngles[k],
@@ -1161,14 +1164,15 @@ class shellCalc {
             ceil(static_cast<double>(s.impactSize) / vSize));
         std::size_t assigned = assignThreadNum(length, nThreads);
 
-        double inclination_R = inclination / 180 * M_PI;
-        double fusingAngle;
-        if (thickness >= s.threshold) {
-            fusingAngle = 0;
-        } else {
-            fusingAngle =
-                acos(thickness / s.threshold) + s.get_normalizationR();
-        }
+        const double inclination_R = inclination / 180 * M_PI;
+        const double fusingAngle = [&]() -> double {
+            if (thickness >= s.threshold) {
+                return 0;
+            } else {
+                return acos(thickness / s.threshold) + s.get_normalizationR();
+            }
+        }();
+
         if (thickness > s.threshold) {
             mtFunctionRunner(
                 assigned, length, s.impactSize, [&](const std::size_t i) {
@@ -1223,34 +1227,37 @@ class shellCalc {
     void dispersionGroup(const std::size_t startIndex, shell &s) const {
         for (uint8_t j = 0; j < vSize; ++j) {
             const std::size_t i = startIndex + j;
-            double distance = s.get_impact(i, impact::impactIndices::distance);
-            double impactAngle = s.get_impact(
+            const double distance =
+                s.get_impact(i, impact::impactIndices::distance);
+            const double impactAngle = s.get_impact(
                 i, impact::impactIndices::impactAngleHorizontalRadians);
-            double horizontal =
+            const double horizontal =
                 std::min(s.horizontalSlope * distance + s.horizontalIntercept,
                          s.taperSlope * distance);
             // Continuous piecewise linear [2] function
             // Will always be convex - pick the lower of the two
 
-            double verticalRatioUncapped;
-            if constexpr (convex) {
-                verticalRatioUncapped = std::min(
-                    s.delimMaxSlope * distance + s.delimMaxIntercept,
-                    s.zeroDelimSlope * distance + s.zeroDelimIntercept);
-            } else {
-                verticalRatioUncapped = std::max(
-                    s.delimMaxSlope * distance + s.delimMaxIntercept,
-                    s.zeroDelimSlope * distance + s.zeroDelimIntercept);
-            }
+            const double verticalRatioUncapped = [&]() -> double {
+                if constexpr (convex) {
+                    return std::min(
+                        s.delimMaxSlope * distance + s.delimMaxIntercept,
+                        s.zeroDelimSlope * distance + s.zeroDelimIntercept);
+                } else {
+                    return std::max(
+                        s.delimMaxSlope * distance + s.delimMaxIntercept,
+                        s.zeroDelimSlope * distance + s.zeroDelimIntercept);
+                }
+            }();
             // Continuous piecewise linear [2] function
             // Will pick based on convexity
-            double verticalRatio = std::min(verticalRatioUncapped, s.maxRadius);
+            const double verticalRatio =
+                std::min(verticalRatioUncapped, s.maxRadius);
             // std::cout << distance << " " << verticalRatio << "\n";
             // Results will never be higher than s.maxRadius
 
-            double vertical =
+            const double vertical =
                 horizontal * verticalRatio / sin(impactAngle * -1);
-            double area = M_PI * horizontal * vertical;
+            const double area = M_PI * horizontal * vertical;
 
             s.get_dispersion(i, dispersion::dispersionIndices::maxHorizontal) =
                 horizontal;
@@ -1284,8 +1291,8 @@ class shellCalc {
                      double v_z, double thickness) const {
         const double notFusedCode = -1;
         if constexpr (fast) {
-            bool positive = v_x > 0;
-            double x = v_x * s.fuseTime * positive;
+            const bool positive = v_x > 0;
+            const double x = v_x * s.fuseTime * positive;
             s.get_postPen(i, post::postPenIndices::x, 0) = x;
             s.get_postPen(i, post::postPenIndices::y, 0) =
                 v_y * s.fuseTime * positive;
@@ -1389,20 +1396,26 @@ class shellCalc {
             vSize, v0V);
 
         for (uint32_t l = 0; l < vSize; l++) {
-            double HA_R = hAngleV[l] * M_PI / 180;     // lateral  angle radians
-            double VA_R = vAngleV[l] + inclination_R;  // vertical angle radians
-            double cAngle = acos(cos(HA_R) * cos(VA_R));
-            double nCAngle = calcNormalizationR(cAngle, s.get_normalizationR());
-            double eThickness = thickness / cos(nCAngle);
-            double pPV = v0V[l] * (1 - exp(1 - penetrationV[l] / eThickness));
+            const double HA_R =
+                hAngleV[l] * M_PI / 180;  // lateral  angle radians
+            const double VA_R =
+                vAngleV[l] + inclination_R;  // vertical angle radians
+            const double cAngle = acos(cos(HA_R) * cos(VA_R));
+            const double nCAngle =
+                calcNormalizationR(cAngle, s.get_normalizationR());
+            const double eThickness = thickness / cos(nCAngle);
+            const double pPV =
+                v0V[l] * (1 - exp(1 - penetrationV[l] / eThickness));
 
             if constexpr (changeDirection) {
-                double hFAngle = atan(tan(nCAngle) * tan(HA_R) / tan(cAngle));
-                double vFAngle = atan(tan(nCAngle) * cos(hFAngle) * tan(VA_R) /
-                                      cos(HA_R) / tan(cAngle));
+                const double hFAngle =
+                    atan(tan(nCAngle) * tan(HA_R) / tan(cAngle));
+                const double vFAngle =
+                    atan(tan(nCAngle) * cos(hFAngle) * tan(VA_R) / cos(HA_R) /
+                         tan(cAngle));
 
-                double v_x0 = pPV * cos(vFAngle) * cos(hFAngle);
-                double v_y0 = pPV * cos(vFAngle) * sin(hFAngle);
+                const double v_x0 = pPV * cos(vFAngle) * cos(hFAngle);
+                const double v_y0 = pPV * cos(vFAngle) * sin(hFAngle);
 
                 v_x[l] = v_x0 * cos(inclination_R) + v_y0 * sin(inclination_R);
                 v_z[l] = v_y0 * cos(inclination_R) + v_x0 * sin(inclination_R);
