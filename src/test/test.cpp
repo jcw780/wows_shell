@@ -4,13 +4,19 @@
 
 #include "../shellCPP.hpp"
 
+struct function_runtimes {
+    std::chrono::nanoseconds impact;
+    std::chrono::nanoseconds angle;
+    std::chrono::nanoseconds post;
+    std::chrono::nanoseconds dispersion;
+};
+
 // Sample Test / Benchmark Function
-void runtime() {
-    double total = 0.0;
+function_runtimes runtime() {
     std::unique_ptr<wows_shell::shell> test, test1;
     wows_shell::shellCalc sc(1);
     sc.set_max(90.0);
-    unsigned int runs = 1;
+
     wows_shell::shellParams sp = {.460, 780, .292, 1460, 2574, 6,
                                   .033, 76,  45,   60,   0};
     wows_shell::dispersionParams dp = {10,  2.8, 1000, 5000,  0.5,
@@ -22,29 +28,31 @@ void runtime() {
     wows_shell::dispersionParams dp1 = {13,   1.1, 1000, 5000,  0.6,
                                         0.25, 0.4, 0.75, 20680, 1.8};
     test = std::make_unique<wows_shell::shell>(sp1, dp1, "Kremlin");
-
     std::cout << wows_shell::generateHash(*test) << "\n";
-    std::cout << "Started Impact\n";
-    for (unsigned int i = 0; i < runs; i++) {
-        auto t1 = std::chrono::high_resolution_clock::now();
-        sc.calculateImpact<wows_shell::numerical::adamsBashforth5, false>(
-            *test, false);
-        auto t2 = std::chrono::high_resolution_clock::now();
-        total += (double)std::chrono::duration_cast<std::chrono::nanoseconds>(
-                     t2 - t1)
-                     .count();
-    }
-    std::cout << "completed" << std::endl;
+
+    function_runtimes r;
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    sc.calculateImpact<wows_shell::numerical::adamsBashforth5, false>(*test,
+                                                                      false);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    r.impact = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
 
     std::vector<double> angle = {0, 5, 10};
-    // std::cout << "Started Post\n";
-    auto t1 = std::chrono::high_resolution_clock::now();
+    t1 = std::chrono::high_resolution_clock::now();
     sc.calculatePostPen(70, 0, *test, angle, true, true);
-    auto t2 = std::chrono::high_resolution_clock::now();
-    // std::cout << "Started Angle\n";
-    sc.calculateAngles(76, 0, *test);
-    // std::cout << "Started Dispersion\n";
-    test->printImpactData();
+    t2 = std::chrono::high_resolution_clock::now();
+    r.post = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
+    t1 = std::chrono::high_resolution_clock::now();
+    sc.calculateAngles(70, 0, *test);
+    t2 = std::chrono::high_resolution_clock::now();
+    r.angle = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
+    t1 = std::chrono::high_resolution_clock::now();
+    sc.calculateDispersion(*test);
+    t2 = std::chrono::high_resolution_clock::now();
+    r.dispersion =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
+
     auto maxDist = test->maxDist();
     if (std::get<0>(maxDist) != std::numeric_limits<std::size_t>::max()) {
         std::cout << std::get<0>(maxDist) << " " << std::get<1>(maxDist)
@@ -56,30 +64,32 @@ void runtime() {
                      30000, wows_shell::impact::impactIndices::rawPenetration)
               << "\n";
     // test->printTrajectory(0);
+    // test->printImpactData();
     // test->printPostPenData();
-    // test->printAngleData();
+    test->printAngleData();
+    // test->printDispersionData();
 
-    sc.calculateDispersion(*test);
-    test->printDispersionData();
-
-    std::cout << std::fixed << std::setprecision(10)
-              << total / runs / 1000000000 << std::endl;
-    std::cout << std::fixed << std::setprecision(10)
-              << (double)std::chrono::duration_cast<std::chrono::nanoseconds>(
-                     t2 - t1)
-                         .count() /
-                     1000000000
-              << "\n";
-    // std::cout<<"Ended\n";
-
-    std::cout << wows_shell::utility::base85Encode(std::string("Hello"))
-              << "\n";
+    return r;
 }
 
 int main() {
-    for (int i = 0; i < 1; ++i) {
-        runtime();
+    long long impactTotal = 0, angleTotal = 0, postTotal = 0,
+              dispersionTotal = 0;
+    constexpr std::size_t runs = 1;
+    for (int i = 0; i < runs; ++i) {
+        auto [impact, angle, post, dispersion] = runtime();
+        impactTotal += impact.count();
+        angleTotal += angle.count();
+        postTotal += post.count();
+        dispersionTotal += dispersion.count();
         std::cout << "Stage: " << i << " Finished \n";
     }
+
+    constexpr auto runs_d = static_cast<double>(runs);
+    std::cout << "Runtimes ns\n";
+    std::cout << "Impact: " << impactTotal / runs_d << "\n";
+    std::cout << "Angle: " << angleTotal / runs_d << "\n";
+    std::cout << "Post: " << postTotal / runs_d << "\n";
+    std::cout << "Dispersion: " << dispersionTotal / runs_d << "\n";
     return 0;
 }
