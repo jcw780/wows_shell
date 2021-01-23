@@ -1440,24 +1440,65 @@ class shellCalc {
     template <bool changeDirection, bool fast>
     void multiPostPen(std::size_t i, const double thickness,
                       const double inclination_R, shell &s) const {
-        // shell &s = *shellPointer;
-        double hAngleV[vSize], vAngleV[vSize];
-        double v0V[vSize], penetrationV[vSize], eThicknessV[vSize];
-        double v_x[vSize], v_y[vSize], v_z[vSize];
         std::size_t distIndex = (i < s.impactSize) ? i : i % s.impactSize;
+#if defined(__SSE4_2__) || defined(__AVX__)
+        VT hAngleV, vAngleV, v0V, penetrationV, eThicknessV, v_x, v_y, v_z;
+        if (s.postPenSize - i >= vSize) {
+            hAngleV.load(s.get_postPenPtr(i, post::postPenIndices::angle, 0));
+        } else {
+            hAngleV.load_partial(
+                s.postPenSize - i,
+                s.get_postPenPtr(i, post::postPenIndices::angle, 0));
+        }
+        vAngleV.load(s.get_impactPtr(
+            distIndex, impact::impactIndices::impactAngleHorizontalRadians));
+        penetrationV.load(
+            s.get_impactPtr(distIndex, impact::impactIndices::rawPenetration));
+        v0V.load(
+            s.get_impactPtr(distIndex, impact::impactIndices::impactVelocity));
+
+        const VT HA_R = hAngleV * VT(M_PI / 180);
+        const VT VA_R = vAngleV + VT(inclination_R);
+        const VT cAngle = acos(cos(HA_R) * cos(VA_R));
+        const VT nCAngle = calcNormalizationR(cAngle, s.get_normalizationR());
+        const VT eThickness = VT(thickness) / cos(nCAngle);
+        const VT pPV = v0V * (VT(1) - exp(VT(1) - penetrationV / eThickness));
+
+        if constexpr (changeDirection) {
+            const VT hFAngle = atan(tan(nCAngle) * tan(HA_R) / tan(cAngle));
+            const VT vFAngle = atan(tan(nCAngle) * cos(hFAngle) * tan(VA_R) /
+                                    cos(HA_R) / tan(cAngle));
+
+            const VT v_x0 = pPV * cos(vFAngle) * cos(hFAngle);
+            const VT v_y0 = pPV * cos(vFAngle) * sin(hFAngle);
+
+            v_x = v_x0 * cos(inclination_R) + v_y0 * sin(inclination_R);
+            v_z = v_y0 * cos(inclination_R) + v_x0 * sin(inclination_R);
+            v_y = pPV * sin(vFAngle);
+        } else {
+            v_x = pPV * cos(VA_R) * cos(HA_R);
+            v_z = pPV * cos(VA_R) * sin(HA_R);
+            v_y = pPV * sin(VA_R);
+        }
+        eThicknessV = eThickness;
+
+#else
+        std::array<double, vSize> hAngleV, vAngleV, v0V, penetrationV,
+            eThicknessV, v_x, v_y, v_z;
 
         std::copy_n(s.get_postPenPtr(i, post::postPenIndices::angle, 0),
-                    std::min<std::size_t>(vSize, s.postPenSize - i), hAngleV);
+                    std::min<std::size_t>(vSize, s.postPenSize - i),
+                    hAngleV.data());
         std::copy_n(
             s.get_impactPtr(
                 distIndex, impact::impactIndices::impactAngleHorizontalRadians),
-            vSize, vAngleV);
+            vSize, vAngleV.data());
         std::copy_n(
             s.get_impactPtr(distIndex, impact::impactIndices::rawPenetration),
-            vSize, penetrationV);
+            vSize, penetrationV.data());
         std::copy_n(
             s.get_impactPtr(distIndex, impact::impactIndices::impactVelocity),
-            vSize, v0V);
+            vSize, v0V.data());
 
         for (uint32_t l = 0; l < vSize; l++) {
             const double HA_R =
@@ -1491,6 +1532,7 @@ class shellCalc {
             }
             eThicknessV[l] = eThickness;
         }
+#endif
 
         //#pragma clang loop vectorize(enable)
         const std::size_t loopSize =
