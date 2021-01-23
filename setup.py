@@ -1,7 +1,11 @@
+import sys
+import cpufeature
 from pathlib import Path
 from glob import glob
 from setuptools import setup
 from pybind11.setup_helpers import Pybind11Extension, build_ext
+
+WIN = sys.platform.startswith("win32")
 
 ext_modules = [
     Pybind11Extension(
@@ -12,12 +16,21 @@ ext_modules = [
     ),
 ]
 
+cxx_compile_args = ext_modules[0].extra_compile_args
+if WIN:
+    if cpufeature.CPUFeature['AVX2']:
+        cxx_compile_args.append('/arch:AVX2')
+    elif cpufeature.CPUFeature['AVX']:
+        cxx_compile_args.append('/arch:AVX')
+else:
+    cxx_compile_args.append('-march=native')
+
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
     name="wows_shell",
-    version="1.1.2",
+    version="1.1.5",
     description="Python extension of wows_shell",
     long_description=long_description,
     long_description_content_type="text/markdown",
