@@ -18,7 +18,6 @@
 #include "controlEnums.hpp"
 #include "shell.hpp"
 #include "utility.hpp"
-#include "vectorFunctions.hpp"
 #include "version2/vectorclass.h"
 #include "version2/vectormath_exp.h"
 #include "version2/vectormath_trig.h"
