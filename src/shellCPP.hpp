@@ -40,8 +40,8 @@ class shellCalc {
 
     static constexpr double gMRL = (g * M) / (R * L);
     // Calculation Parameters
-    double max = 25;        // Max Angle                    | degrees
-    double min = 0;         // Min Angle                    | degrees
+    double maxA = 25;       // Max Angle                    | degrees
+    double minA = 0;        // Min Angle                    | degrees
     double precision = .1;  // Angle Step                   | degrees
     double x0 = 0, y0 = 0;  // Starting x0, y0              | m
     double dt_min = .02;    // Time step                    | s
@@ -112,8 +112,8 @@ class shellCalc {
                             const double y0, const double dt_min,
                             const double xf0, const double yf0,
                             const double dtf) {
-        this->max = max;
-        this->min = min;
+        this->maxA = max;
+        this->minA = min;
         this->precision = precision;
         this->x0 = x0;
         this->y0 = y0;
@@ -123,8 +123,8 @@ class shellCalc {
         this->dtf = dtf;
     }
 
-    void set_max(const double max) { this->max = max; }
-    void set_min(const double min) { this->min = min; }
+    void set_max(const double max) { this->maxA = max; }
+    void set_min(const double min) { this->minA = min; }
     void set_precision(const double precision) { this->precision = precision; }
     void set_x0(const double x0) { this->x0 = x0; }
     void set_y0(const double y0) { this->y0 = y0; }
@@ -654,7 +654,7 @@ class shellCalc {
 #if defined(__SSE4_2__) || defined(__AVX__)
         VT launch_degrees, launch_radians, v0_v, v_xv, v_yv;
         if constexpr (!Fit) {
-            launch_degrees = VT(precision) * (VT(i) + indices) + VT(min);
+            launch_degrees = VT(precision) * (VT(i) + indices) + VT(minA);
             launch_degrees.store(
                 s.get_impactPtr(i, impact::impactIndices::launchAngle));
         } else {
@@ -672,7 +672,7 @@ class shellCalc {
         for (uint32_t j = 0; j < vSize; j++) {
             double radianLaunch;
             if constexpr (!Fit) {
-                double degreeLaunch = precision * (i + j) + min;
+                double degreeLaunch = precision * (i + j) + minA;
                 s.get_impact(i + j, impact::impactIndices::launchAngle) =
                     degreeLaunch;
                 radianLaunch = degreeLaunch * M_PI / 180;
@@ -867,7 +867,7 @@ class shellCalc {
         shell &s,
         std::size_t nThreads = std::thread::hardware_concurrency()) const {
         s.impactSize =
-            static_cast<std::size_t>(max / precision - min / precision) + 1;
+            static_cast<std::size_t>(maxA / precision - minA / precision) + 1;
         s.impactSizeAligned = calculateAlignmentSize(s.impactSize);
         if constexpr (AddTraj) {
             s.trajectories.resize(2 * s.impactSize);
@@ -1225,6 +1225,69 @@ class shellCalc {
 
     template <bool convex>
     void dispersionGroup(const std::size_t startIndex, shell &s) const {
+#if defined(__SSE4_2__) || defined(__AVX__)
+        const std::size_t i = startIndex;
+        const VT distance =
+            VT().load(s.get_impactPtr(i, impact::impactIndices::distance));
+        const VT impactAngle = VT().load(s.get_impactPtr(
+            i, impact::impactIndices::impactAngleHorizontalRadians));
+        const VT horizontal = min(
+            mul_add(VT(s.horizontalSlope), distance, VT(s.horizontalIntercept)),
+            VT(s.taperSlope) * distance);
+        // Continuous piecewise linear [2] function
+        // Will always be convex - pick the lower of the two
+
+        const VT verticalRatioUncapped = [&]() -> VT {
+            const VT delimMax = mul_add(VT(s.delimMaxSlope), distance,
+                                        VT(s.delimMaxIntercept)),
+                     zeroDelim = mul_add(VT(s.zeroDelimSlope), distance,
+                                         VT(s.zeroDelimIntercept));
+            if constexpr (convex) {
+                return min(delimMax, zeroDelim);
+            } else {
+                return max(delimMax, zeroDelim);
+            }
+        }();
+        // Continuous piecewise linear [2] function
+        // Will pick based on convexity
+        const VT verticalRatio = min(verticalRatioUncapped, VT(s.maxRadius));
+        // Results will never be higher than s.maxRadius
+
+        const VT vertical =
+            horizontal * verticalRatio / sin(impactAngle * VT(-1));
+        /*std::cout << verticalRatioUncapped[0] << " " <<
+           verticalRatioUncapped[1]
+                  << " " << verticalRatioUncapped[2] << " "
+                  << verticalRatioUncapped[3] << "\n";*/
+        const VT area = VT(M_PI) * horizontal * vertical;
+
+        horizontal.store(s.get_dispersionPtr(
+            i, dispersion::dispersionIndices::maxHorizontal));
+        (horizontal * s.standardRatio)
+            .store(s.get_dispersionPtr(
+                i, dispersion::dispersionIndices::standardHorizontal));
+        (horizontal * s.halfRatio)
+            .store(s.get_dispersionPtr(
+                i, dispersion::dispersionIndices::halfHorizontal));
+
+        vertical.store(
+            s.get_dispersionPtr(i, dispersion::dispersionIndices::maxVertical));
+        (vertical * s.standardRatio)
+            .store(s.get_dispersionPtr(
+                i, dispersion::dispersionIndices::standardVertical));
+        (vertical * s.halfRatio)
+            .store(s.get_dispersionPtr(
+                i, dispersion::dispersionIndices::halfVertical));
+
+        area.store(
+            s.get_dispersionPtr(i, dispersion::dispersionIndices::maxArea));
+        (area * s.standardRatio * s.standardRatio)
+            .store(s.get_dispersionPtr(
+                i, dispersion::dispersionIndices::standardArea));
+        (area * s.halfRatio * s.halfRatio)
+            .store(s.get_dispersionPtr(
+                i, dispersion::dispersionIndices::halfArea));
+#else
         for (uint8_t j = 0; j < vSize; ++j) {
             const std::size_t i = startIndex + j;
             const double distance =
@@ -1238,14 +1301,14 @@ class shellCalc {
             // Will always be convex - pick the lower of the two
 
             const double verticalRatioUncapped = [&]() -> double {
+                const double delimMax = s.delimMaxSlope * distance +
+                                        s.delimMaxIntercept,
+                             zeroDelim = s.zeroDelimSlope * distance +
+                                         s.zeroDelimIntercept;
                 if constexpr (convex) {
-                    return std::min(
-                        s.delimMaxSlope * distance + s.delimMaxIntercept,
-                        s.zeroDelimSlope * distance + s.zeroDelimIntercept);
+                    return std::min(delimMax, zeroDelim);
                 } else {
-                    return std::max(
-                        s.delimMaxSlope * distance + s.delimMaxIntercept,
-                        s.zeroDelimSlope * distance + s.zeroDelimIntercept);
+                    return std::max(delimMax, zeroDelim);
                 }
             }();
             // Continuous piecewise linear [2] function
@@ -1281,6 +1344,7 @@ class shellCalc {
             s.get_dispersion(i, dispersion::dispersionIndices::halfArea) =
                 area * s.halfRatio * s.halfRatio;
         }
+#endif
     }
 
     // Post-Penetration Section
