@@ -14,7 +14,7 @@ struct function_runtimes {
 // Sample Test / Benchmark Function
 function_runtimes runtime() {
     std::unique_ptr<wows_shell::shell> test, test1;
-    wows_shell::shellCalc sc(1);
+    wows_shell::shellCalc sc;
     sc.set_max(90.0);
 
     wows_shell::shellParams sp = {.460, 780, .292, 1460, 2574, 6,
@@ -64,10 +64,10 @@ function_runtimes runtime() {
                      30000, wows_shell::impact::impactIndices::rawPenetration)
               << "\n";
     // test->printTrajectory(0);
-    // test->printImpactData();
-    // test->printPostPenData();
+    test->printImpactData();
+    test->printPostPenData();
     test->printAngleData();
-    // test->printDispersionData();
+    test->printDispersionData();
 
     return r;
 }
