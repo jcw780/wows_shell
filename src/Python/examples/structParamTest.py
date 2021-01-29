@@ -37,7 +37,7 @@ for i, s in enumerate(shellList):
     s.setValues(*dataList[i])
     c.calcImpactForwardEuler(s)
     c.calcAngles(s, 70, 0)
-    c.calcDispersion(s)
+    c.calcDispersion(s, int(verticalTypes.horizontal))
     c.calcPostPen(s, 70, 0, angles, True, False)
     print(s.maxDist())
 
@@ -46,6 +46,7 @@ for s in shellList:
     # s.printAngles()
     # s.printDispersion()
     # s.printPostPen()
+    s.printDispersion()
     print(s.getImpact(owned=False))
     print(s.getAngles(owned=False))
     print(s.getDispersion(owned=False))
