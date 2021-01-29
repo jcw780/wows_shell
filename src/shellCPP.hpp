@@ -18,9 +18,12 @@
 #include "controlEnums.hpp"
 #include "shell.hpp"
 #include "utility.hpp"
+
+#if defined(__SSE4_1__) || defined(__AVX__)
 #include "version2/vectorclass.h"
 #include "version2/vectormath_exp.h"
 #include "version2/vectormath_trig.h"
+#endif
 
 namespace wows_shell {
 class shellCalc {
