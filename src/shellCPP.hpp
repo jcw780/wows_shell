@@ -18,9 +18,12 @@
 #include "controlEnums.hpp"
 #include "shell.hpp"
 #include "utility.hpp"
+
+#if defined(__SSE4_1__) || defined(__AVX__)
 #include "version2/vectorclass.h"
 #include "version2/vectormath_exp.h"
 #include "version2/vectormath_trig.h"
+#endif
 
 namespace wows_shell {
 class shellCalc {
@@ -1201,29 +1204,43 @@ class shellCalc {
 
     // Dispersion Section
     void calculateDispersion(
+        const dispersion::verticalTypes verticalType, shell &s,
+        std::size_t nThreads = std::thread::hardware_concurrency()) const {
+        using verticalTypes = dispersion::verticalTypes;
+        if (verticalType == verticalTypes::horizontal) {
+            calculateDispersion<verticalTypes::horizontal>(s);
+        } else if (verticalType == verticalTypes::normal) {
+            calculateDispersion<verticalTypes::normal>(s);
+        } else {
+            calculateDispersion<verticalTypes::vertical>(s);
+        }
+    }
+
+    template <dispersion::verticalTypes verticalType>
+    void calculateDispersion(
         shell &s,
         std::size_t nThreads = std::thread::hardware_concurrency()) const {
         checkRunImpact(s);
         s.dispersionData.resize(dispersion::maxColumns * s.impactSizeAligned);
-        if (nThreads > std::thread::hardware_concurrency()) {
-            nThreads = std::thread::hardware_concurrency();
-        }
         std::size_t length = ceil(static_cast<double>(s.impactSize) / vSize);
         std::size_t assigned = assignThreadNum(length, nThreads);
         if (s.zeroDelimSlope >= s.delimMaxSlope) {
-            mtFunctionRunner(
-                assigned, length, s.impactSize,
-                [&](const std::size_t i) { dispersionGroup<true>(i, s); });
+            mtFunctionRunner(assigned, length, s.impactSize,
+                             [&](const std::size_t i) {
+                                 dispersionGroup<true, verticalType>(i, s);
+                             });
         } else {
-            mtFunctionRunner(
-                assigned, length, s.impactSize,
-                [&](const std::size_t i) { dispersionGroup<false>(i, s); });
+            mtFunctionRunner(assigned, length, s.impactSize,
+                             [&](const std::size_t i) {
+                                 dispersionGroup<false, verticalType>(i, s);
+                             });
         }
         s.completedDispersion = true;
     }
 
-    template <bool convex>
+    template <bool convex, dispersion::verticalTypes verticalType>
     void dispersionGroup(const std::size_t startIndex, shell &s) const {
+        using verticalTypes = dispersion::verticalTypes;
 #if defined(__SSE4_2__) || defined(__AVX__)
         const std::size_t i = startIndex;
         const VT distance =
@@ -1252,8 +1269,16 @@ class shellCalc {
         const VT verticalRatio = min(verticalRatioUncapped, VT(s.maxRadius));
         // Results will never be higher than s.maxRadius
 
-        const VT vertical =
-            horizontal * verticalRatio / sin(impactAngle * VT(-1));
+        const VT vertical = [&]() -> VT {
+            const VT verticalNormal = horizontal * verticalRatio;
+            if constexpr (verticalType == verticalTypes::horizontal) {
+                return verticalNormal / sin(impactAngle * VT(-1));
+            } else if constexpr (verticalType == verticalTypes::normal) {
+                return verticalNormal;
+            } else {
+                return verticalNormal / cos(impactAngle * VT(-1));
+            }
+        }();
         /*std::cout << verticalRatioUncapped[0] << " " <<
            verticalRatioUncapped[1]
                   << " " << verticalRatioUncapped[2] << " "
@@ -1317,8 +1342,16 @@ class shellCalc {
             // std::cout << distance << " " << verticalRatio << "\n";
             // Results will never be higher than s.maxRadius
 
-            const double vertical =
-                horizontal * verticalRatio / sin(impactAngle * -1);
+            const double vertical = [&]() -> double {
+                const double verticalNormal = horizontal * verticalRatio;
+                if constexpr (verticalType == verticalTypes::horizontal) {
+                    return verticalNormal / sin(impactAngle * -1);
+                } else if constexpr (verticalType == verticalTypes::normal) {
+                    return verticalNormal;
+                } else {
+                    return verticalNormal / cos(impactAngle * -1);
+                }
+            }();
             const double area = M_PI * horizontal * vertical;
 
             s.get_dispersion(i, dispersion::dispersionIndices::maxHorizontal) =

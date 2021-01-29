@@ -56,7 +56,7 @@ const testFunction = () => {
 
     shells.forEach(shell => {
         calculator.calcImpact(shell);
-        calculator.calcDispersion(shell);
+        calculator.calcDispersion(shell, Module.verticalTypes.horizontal.value);
         calculator.calcAngles(shell, armor, inclination);
         calculator.calcPostPen(shell, armor, inclination, angles, false, true);        
         let datasets = [];

@@ -391,7 +391,11 @@ class shellCalcWasm : public shellCalc {
         calculateAngles(thickness, inclination, sp.s);
     }
 
-    void calcDispersion(shellWasm &sp) { calculateDispersion(sp.s); }
+    void calcDispersion(shellWasm &sp, const std::size_t verticalType_i) {
+        dispersion::verticalTypes verticalType =
+            static_cast<dispersion::verticalTypes>(verticalType_i);
+        calculateDispersion(verticalType, sp.s);
+    }
 
     void calcPostPen(shellWasm &sp, const double thickness,
                      const double inclination, emscripten::val anglesVal,
@@ -644,6 +648,11 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .value("maxArea", dispersion::dispersionIndices::maxArea)
         .value("standardArea", dispersion::dispersionIndices::standardArea)
         .value("halfArea", dispersion::dispersionIndices::halfArea);
+
+    emscripten::enum_<dispersion::verticalTypes>("verticalTypes")
+        .value("horizontal", dispersion::verticalTypes::horizontal)
+        .value("normal", dispersion::verticalTypes::normal)
+        .value("vertical", dispersion::verticalTypes::vertical);
 
     emscripten::enum_<post::postPenIndices>("postPenIndices")
         .value("angle", post::postPenIndices::angle)

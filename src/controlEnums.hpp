@@ -67,6 +67,9 @@ enum class dispersionIndices {
 };
 static_assert(toUnderlying(dispersionIndices::halfArea) == (maxColumns - 1),
               "Invalid dispersion columns");
+enum class verticalTypes { horizontal, normal, vertical };
+static_assert(toUnderlying(verticalTypes::vertical) == 2,
+              "Invalid vertical types");
 };  // namespace dispersion
 
 namespace post {

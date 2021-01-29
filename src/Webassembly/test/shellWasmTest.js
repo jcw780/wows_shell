@@ -77,7 +77,7 @@ const runFunc = () => {
     for (const shell of shells) {
         calc.calcImpact(shell);
         calc.calcAngles(shell, 70, -20);
-        calc.calcDispersion(shell);
+        calc.calcDispersion(shell, Module.verticalTypes.horizontal.value);
         calc.calcPostPen(shell, 70, -20, angles, true, false);
 
         const hash = Module.generateShellHash(shell)

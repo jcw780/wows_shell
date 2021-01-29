@@ -48,7 +48,8 @@ function_runtimes runtime() {
     t2 = std::chrono::high_resolution_clock::now();
     r.angle = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
     t1 = std::chrono::high_resolution_clock::now();
-    sc.calculateDispersion(*test);
+    sc.calculateDispersion(wows_shell::dispersion::verticalTypes::normal,
+                           *test);
     t2 = std::chrono::high_resolution_clock::now();
     r.dispersion =
         std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);

@@ -218,7 +218,11 @@ class shellCalcPython : public shellCalc {
         calculateAngles(thickness, inclination, sp.s);
     }
 
-    void calcDispersion(shellPython &sp) { calculateDispersion(sp.s); }
+    void calcDispersion(shellPython &sp, const std::size_t verticalType_i) {
+        dispersion::verticalTypes verticalType =
+            static_cast<dispersion::verticalTypes>(verticalType_i);
+        calculateDispersion(verticalType, sp.s);
+    }
 
     void calcPostPen(shellPython &sp, const double thickness,
                      const double inclination, std::vector<double> angles,
@@ -449,6 +453,26 @@ PYBIND11_MODULE(wows_shell, m) {
         .value("fuseRadians", angle::angleIndices::fuseRadians)
         .value("fuseDegrees", angle::angleIndices::fuseDegrees)
         .export_values();
+
+    pybind11::enum_<dispersion::dispersionIndices>(m, "dispersionIndices",
+                                                   pybind11::arithmetic())
+        .value("maxHorizontal", dispersion::dispersionIndices::maxHorizontal)
+        .value("standardHorizontal",
+               dispersion::dispersionIndices::standardHorizontal)
+        .value("halfHorizontal", dispersion::dispersionIndices::halfHorizontal)
+        .value("maxVertical", dispersion::dispersionIndices::maxVertical)
+        .value("standardVertical",
+               dispersion::dispersionIndices::standardVertical)
+        .value("halfVertical", dispersion::dispersionIndices::halfVertical)
+        .value("maxArea", dispersion::dispersionIndices::maxArea)
+        .value("standardArea", dispersion::dispersionIndices::standardArea)
+        .value("halfArea", dispersion::dispersionIndices::halfArea);
+
+    pybind11::enum_<dispersion::verticalTypes>(m, "verticalTypes",
+                                               pybind11::arithmetic())
+        .value("horizontal", dispersion::verticalTypes::horizontal)
+        .value("normal", dispersion::verticalTypes::normal)
+        .value("vertical", dispersion::verticalTypes::vertical);
 
     pybind11::enum_<post::postPenIndices>(m, "postPenIndices",
                                           pybind11::arithmetic())
