@@ -30,7 +30,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="wows_shell",
-    version="1.1.5",
+    version="1.1.6",
     description="Python extension of wows_shell",
     long_description=long_description,
     long_description_content_type="text/markdown",
