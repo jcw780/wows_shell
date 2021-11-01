@@ -11,6 +11,14 @@ struct function_runtimes {
     std::chrono::nanoseconds dispersion;
 };
 
+template <typename Function>
+auto get_runtime(Function f) {
+    auto t1 = std::chrono::high_resolution_clock::now();
+    f();
+    auto t2 = std::chrono::high_resolution_clock::now();
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
+};
+
 // Sample Test / Benchmark Function
 function_runtimes runtime() {
     std::unique_ptr<wows_shell::shell> test, test1;
@@ -31,26 +39,23 @@ function_runtimes runtime() {
     std::cout << wows_shell::generateHash(*test) << "\n";
 
     function_runtimes r;
-    auto t1 = std::chrono::high_resolution_clock::now();
-    sc.calculateImpact<wows_shell::numerical::forwardEuler, false>(*test, true);
-    auto t2 = std::chrono::high_resolution_clock::now();
-    r.impact = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
+
+    r.impact = get_runtime([&] {
+        sc.calculateImpact<wows_shell::numerical::forwardEuler, false>(*test,
+                                                                       true);
+    });
 
     std::vector<double> angle = {0, 5, 10};
-    t1 = std::chrono::high_resolution_clock::now();
-    sc.calculatePostPen(70, 0, *test, angle, true, true);
-    t2 = std::chrono::high_resolution_clock::now();
-    r.post = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
-    t1 = std::chrono::high_resolution_clock::now();
-    sc.calculateAngles(70, 0, *test);
-    t2 = std::chrono::high_resolution_clock::now();
-    r.angle = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
-    t1 = std::chrono::high_resolution_clock::now();
-    sc.calculateDispersion(wows_shell::dispersion::verticalTypes::normal,
-                           *test);
-    t2 = std::chrono::high_resolution_clock::now();
-    r.dispersion =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
+
+    r.post = get_runtime(
+        [&] { sc.calculatePostPen(70, 0, *test, angle, true, true); });
+
+    r.angle = get_runtime([&] { sc.calculateAngles(70, 0, *test); });
+
+    r.dispersion = get_runtime([&] {
+        sc.calculateDispersion(wows_shell::dispersion::verticalTypes::normal,
+                               *test);
+    });
 
     auto maxDist = test->maxDist();
     if (std::get<0>(maxDist) != std::numeric_limits<std::size_t>::max()) {
@@ -63,10 +68,10 @@ function_runtimes runtime() {
                      30000, wows_shell::impact::impactIndices::rawPenetration)
               << "\n";
     test->printTrajectory(50);
-    test->printImpactData();
-    test->printPostPenData();
-    test->printAngleData();
-    test->printDispersionData();
+    // test->printImpactData();
+    // test->printPostPenData();
+    // test->printAngleData();
+    // test->printDispersionData();
 
     return r;
 }
