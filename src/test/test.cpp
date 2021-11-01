@@ -31,10 +31,8 @@ function_runtimes runtime() {
     std::cout << wows_shell::generateHash(*test) << "\n";
 
     function_runtimes r;
-
     auto t1 = std::chrono::high_resolution_clock::now();
-    sc.calculateImpact<wows_shell::numerical::adamsBashforth5, false>(*test,
-                                                                      false);
+    sc.calculateImpact<wows_shell::numerical::forwardEuler, false>(*test, true);
     auto t2 = std::chrono::high_resolution_clock::now();
     r.impact = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1);
 
@@ -64,7 +62,7 @@ function_runtimes runtime() {
     std::cout << test->interpolateDistanceImpact(
                      30000, wows_shell::impact::impactIndices::rawPenetration)
               << "\n";
-    // test->printTrajectory(0);
+    test->printTrajectory(50);
     test->printImpactData();
     test->printPostPenData();
     test->printAngleData();

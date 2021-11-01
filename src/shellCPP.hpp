@@ -206,10 +206,14 @@ class shellCalc {
         if constexpr (AddTraj) {
             for (uint32_t i = 0, j = start; i < vSize; ++i, ++j) {
                 if (j < s.impactSize) {
-                    s.trajectories[2 * (j)].clear();
-                    s.trajectories[2 * (j) + 1].clear();
-                    s.trajectories[2 * (j)].push_back(x0);
-                    s.trajectories[2 * (j) + 1].push_back(y0);
+                    s.trajectories[s.trajectories_width * (j)].clear();
+                    s.trajectories[s.trajectories_width * (j) + 1].clear();
+                    s.trajectories[s.trajectories_width * (j) + 2].clear();
+                    s.trajectories[s.trajectories_width * (j)].push_back(x0);
+                    s.trajectories[s.trajectories_width * (j) + 1].push_back(
+                        y0);
+                    s.trajectories[s.trajectories_width * (j) + 2].push_back(
+                        utility::compress_height(y0));
                 }
             }
         }
@@ -252,11 +256,16 @@ class shellCalc {
                 std::min<uint32_t>(vSize, s.impactSize - start);
             for (uint32_t i = 0, j = start; i < loopSize; ++i, ++j) {
 #if defined(__SSE4_1__) || defined(__AVX__)
-                s.trajectories[2 * (j)].push_back(xR[i]);
-                s.trajectories[2 * (j) + 1].push_back(yR[i]);
+                s.trajectories[s.trajectories_width * (j)].push_back(xR[i]);
+                s.trajectories[s.trajectories_width * (j) + 1].push_back(yR[i]);
+                s.trajectories[s.trajectories_width * (j) + 2].push_back(
+                    utility::compress_height(yR[i]));
 #else
-                s.trajectories[2 * (j)].push_back(xy[i]);
-                s.trajectories[2 * (j) + 1].push_back(xy[i + vSize]);
+                s.trajectories[s.trajectories_width * (j)].push_back(xy[i]);
+                s.trajectories[s.trajectories_width * (j) + 1].push_back(
+                    xy[i + vSize]);
+                s.trajectories[s.trajectories_width * (j) + 2].push_back(
+                    utility::compress_height(xy[i + vSize]));
 #endif
             }
         };
@@ -872,7 +881,7 @@ class shellCalc {
             static_cast<std::size_t>(maxA / precision - minA / precision) + 1;
         s.impactSizeAligned = calculateAlignmentSize(s.impactSize);
         if constexpr (AddTraj) {
-            s.trajectories.resize(2 * s.impactSize);
+            s.trajectories.resize(s.trajectories_width * s.impactSize);
         }
         s.impactData.resize(impact::maxColumns * s.impactSizeAligned);
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdlib>
 #define _USE_MATH_DEFINES
 #include <algorithm>
 #include <array>
@@ -195,10 +196,11 @@ class shell {
          completedDispersion = false, completedPostPen = false;
 
     /*trajectories output
-    [0           ]trajx 0        [1           ]trajy 1
+    [0       ]trajx 0        [1       ]trajy 1        [2       ]trajy_c 2
     ...
-    [size * 2 - 2]trajx size - 1 [size * 2 - 1]trajy size - 1
+    [size*2-3]trajx size - 1 [size*3-2]trajy size - 1 [size*3-1]trajy_c size = 1
     */
+    static constexpr std::size_t trajectories_width = 3;
     std::vector<std::vector<double>> trajectories;
 
     // Refer to stdDataIndex enums defined above
@@ -525,9 +527,12 @@ class shell {
         } else {
             std::cout << "Index:[" << target << "] X Y\n";
             for (std::vector<double>::size_type i = 0;
-                 i < trajectories[target * 2].size(); i++) {
-                std::cout << trajectories[target * 2][i] << " "
-                          << trajectories[target * 2 + 1][i] << std::endl;
+                 i < trajectories[target * trajectories_width].size(); i++) {
+                std::cout << trajectories[target * trajectories_width][i] << " "
+                          << trajectories[target * trajectories_width + 1][i]
+                          << " "
+                          << trajectories[target * trajectories_width + 2][i]
+                          << std::endl;
             }
         }
     }
