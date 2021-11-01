@@ -409,6 +409,13 @@ class shell {
         return postPenData.data() + row + angle * postPenSize +
                impact * impactSize;
     }
+    const std::tuple<const std::vector<double> &, const std::vector<double> &,
+                     const std::vector<double> &>
+    get_trajectory(std::size_t target) {
+        return {trajectories[trajectories_width * target],
+                trajectories[trajectories_width * target + 1],
+                trajectories[trajectories_width * target + 2]};
+    }
 
     std::tuple<std::size_t, double> maxDist() {
         std::size_t errorCode = std::numeric_limits<std::size_t>::max();
@@ -526,12 +533,14 @@ class shell {
                       << std::endl;
         } else {
             std::cout << "Index:[" << target << "] X Y\n";
-            for (std::vector<double>::size_type i = 0;
-                 i < trajectories[target * trajectories_width].size(); i++) {
-                std::cout << trajectories[target * trajectories_width][i] << " "
-                          << trajectories[target * trajectories_width + 1][i]
-                          << " "
-                          << trajectories[target * trajectories_width + 2][i]
+            auto acquired_trajectories = get_trajectory(target);
+            const std::vector<double> &a_x = std::get<0>(acquired_trajectories);
+            const std::vector<double> &a_y = std::get<1>(acquired_trajectories);
+            const std::vector<double> &a_y_c =
+                std::get<2>(acquired_trajectories);
+
+            for (std::size_t i = 0; i < a_x.size(); ++i) {
+                std::cout << a_x[i] << " " << a_y[i] << " " << a_y_c[i]
                           << std::endl;
             }
         }
