@@ -197,6 +197,35 @@ emscripten::val getImpactSizedPointArrayFuseStatus(shell &s,
     return points;
 }
 
+emscripten::val getTrajectoryPointArrays(shell &s, const std::size_t target) {
+    emscripten::val points = emscripten::val::array();
+    emscripten::val points_compressed = emscripten::val::array();
+
+    emscripten::val trajectory_original_compressed = emscripten::val::object();
+
+    if (s.completedImpact && target < s.impactSize) {
+        auto targeted_trajectory = s.get_trajectory(target);
+        for (std::size_t i = 0; i < std::get<0>(targeted_trajectory).size();
+             i++) {
+            emscripten::val point = emscripten::val::object();
+            point.set("x", std::get<0>(targeted_trajectory)[i]);
+            point.set("y", std::get<1>(targeted_trajectory)[i]);
+
+            points.call<void>("push", point);
+
+            emscripten::val point_compressed = emscripten::val::object();
+            point_compressed.set("x", std::get<0>(targeted_trajectory)[i]);
+            point_compressed.set("y", std::get<2>(targeted_trajectory)[i]);
+
+            points_compressed.call<void>("push", point);
+        }
+
+        trajectory_original_compressed.set("original", points);
+        trajectory_original_compressed.set("compressed", points_compressed);
+    }
+    return trajectory_original_compressed;
+}
+
 }  // namespace pointArray
 
 class shellWasm {
@@ -320,6 +349,10 @@ class shellWasm {
             s, addCondition, angle, xIndex, yIndex);
     }
 
+    /*emscripten::val getTrajectory(const std::size_t target) {
+        return pointArray::getTrajectoryPointArrays(s, target);
+    }*/
+
     void printImpact() {
         if (s.completedImpact) {
             s.printImpactData();
@@ -363,6 +396,11 @@ emscripten::val getImpactSizedPointArrayFuseStatus(shellWasm &s,
                                                           angle, fuseStatus);
 }
 
+emscripten::val getTrajectoryPointArrays(shellWasm &s,
+                                         const std::size_t target) {
+    return pointArray::getTrajectoryPointArrays(s.s, target);
+}
+
 class shellCalcWasm : public shellCalc {
    public:
 #ifdef __EMSCRIPTEN_PTHREADS__
@@ -383,7 +421,7 @@ class shellCalcWasm : public shellCalc {
 
     template <numerical Numerical>
     void calcImpact(shellWasm &sp) {
-        calculateImpact<false, Numerical, false>(sp.s);
+        calculateImpact<true, Numerical, false>(sp.s);
     }
 
     void calcAngles(shellWasm &sp, const double thickness,
@@ -572,6 +610,7 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
         .function("getPostPenPointArrayFuseStatus",
                   &shellWasm::getPostPenPointArrayFuseStatus)
         .function("getPostPenSize", &shellWasm::postPenSize)
+        //.function("getTrajectory", &shellWasm::getTrajectory)
         .function("printImpact", &shellWasm::printImpact)
         .function("printAngles", &shellWasm::printAngles)
         .function("printPostPen", &shellWasm::printPostPen);
@@ -581,6 +620,7 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
     emscripten::function("getImpactSizedPointArray", &getImpactSizedPointArray);
     emscripten::function("getImpactSizedPointArrayFuseStatus",
                          &getImpactSizedPointArrayFuseStatus);
+    emscripten::function("getTrajectoryPointArrays", &getTrajectoryPointArrays);
 
     emscripten::class_<shellCalcWasm>("shellCalc")
         .constructor()
