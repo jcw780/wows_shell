@@ -255,18 +255,37 @@ class shellCalc {
             const uint32_t loopSize =
                 std::min<uint32_t>(vSize, s.impactSize - start);
             for (uint32_t i = 0, j = start; i < loopSize; ++i, ++j) {
+                double x, y;
 #if defined(__SSE4_1__) || defined(__AVX__)
-                s.trajectories[s.trajectories_width * (j)].push_back(xR[i]);
-                s.trajectories[s.trajectories_width * (j) + 1].push_back(yR[i]);
-                s.trajectories[s.trajectories_width * (j) + 2].push_back(
-                    utility::compress_height(yR[i]));
+                x = xR[i], y = yR[i];
 #else
-                s.trajectories[s.trajectories_width * (j)].push_back(xy[i]);
-                s.trajectories[s.trajectories_width * (j) + 1].push_back(
-                    xy[i + vSize]);
-                s.trajectories[s.trajectories_width * (j) + 2].push_back(
-                    utility::compress_height(xy[i + vSize]));
+                x = xy[i], y = xy[i + vSize];
 #endif
+                std::vector<double> &target_x =
+                    s.trajectories[s.trajectories_width * (j)];
+                std::vector<double> &target_y =
+                    s.trajectories[s.trajectories_width * (j) + 1];
+                std::vector<double> &target_y_c =
+                    s.trajectories[s.trajectories_width * (j) + 2];
+                std::size_t current_traj_length = target_x.size();
+                // All targeted trajectory vectors should have the same length
+
+                const auto add_point = [&]() {
+                    target_x.push_back(x);
+                    target_y.push_back(y);
+                    target_y_c.push_back(utility::compress_height(y));
+                };
+
+                constexpr bool trim_duplicates = true;
+                if constexpr (trim_duplicates) {
+                    if (current_traj_length < 2 ||
+                        (target_x[current_traj_length - 1] != x &&
+                         target_y[current_traj_length - 1] != y)) {
+                        add_point();
+                    }
+                } else {
+                    add_point();
+                }
             }
         };
 
