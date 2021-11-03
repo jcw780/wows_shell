@@ -217,7 +217,7 @@ emscripten::val getTrajectoryPointArrays(shell &s, const std::size_t target) {
             point_compressed.set("x", std::get<0>(targeted_trajectory)[i]);
             point_compressed.set("y", std::get<2>(targeted_trajectory)[i]);
 
-            points_compressed.call<void>("push", point);
+            points_compressed.call<void>("push", point_compressed);
         }
 
         trajectory_original_compressed.set("original", points);
