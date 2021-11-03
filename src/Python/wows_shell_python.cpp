@@ -188,6 +188,48 @@ class shellPython {
             throw std::runtime_error("PostPen data not generated");
         }
     }
+
+    pybind11::array_t<double> getTrajectory(const std::size_t target) {
+        if (s.completedTrajectory) {
+            if (target < s.impactSize) {
+                const auto acquired_targets = s.get_trajectory(target);
+                const std::vector<double> &a_x = std::get<0>(acquired_targets);
+                const std::vector<double> &a_y = std::get<1>(acquired_targets);
+                const std::vector<double> &a_y_c =
+                    std::get<2>(acquired_targets);
+
+                const std::size_t target_size = a_x.size();
+
+                std::vector<double> temporary_buffer(target_size * 3);
+                std::cout << "temp size: " << temporary_buffer.size() << "\n";
+                assert(a_x.size() == a_y.size() && a_y.size() == a_y_c.size());
+                std::copy(a_x.begin(), a_x.end(), temporary_buffer.begin());
+                std::copy(a_y.begin(), a_y.end(),
+                          temporary_buffer.begin() + target_size);
+                std::copy(a_y_c.begin(), a_y_c.end(),
+                          temporary_buffer.begin() + target_size * 2);
+
+                std::cout << "Copied\n";
+
+                constexpr std::size_t sT = sizeof(double);
+                std::array<size_t, 2> shape = {3, target_size},
+                                      stride = {target_size * sT, sT};
+
+                auto result = pybind11::array_t<double>(pybind11::buffer_info(
+                    temporary_buffer.data(), sT,
+                    pybind11::format_descriptor<double>::value, 2, shape,
+                    stride));
+
+                return result;
+            } else {
+                throw std::runtime_error(
+                    "Invalid target, must be between 0 and impact size - 1 "
+                    "inclusive.");
+            }
+        } else {
+            throw std::runtime_error("Trajectory data not generated");
+        }
+    }
 };
 
 std::string generateShellPythonHash(const shellPython &s) {
@@ -210,7 +252,7 @@ class shellCalcPython : public shellCalc {
 
     template <numerical Numerical>
     void calcImpact(shellPython &sp) {
-        calculateImpact<false, Numerical, false>(sp.s);
+        calculateImpact<true, Numerical, false>(sp.s);
     }
 
     void calcAngles(shellPython &sp, const double thickness,
@@ -384,6 +426,7 @@ PYBIND11_MODULE(wows_shell, m) {
              pybind11::arg("owned") = true)
         .def("getPostPen", &shellPython::getPostPen,
              pybind11::arg("owned") = true)
+        .def("getTrajectory", &shellPython::getTrajectory)
         .def("printImpact", &shellPython::printImpact)
         .def("printAngles", &shellPython::printAngles)
         .def("printDispersion", &shellPython::printDispersion)
