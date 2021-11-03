@@ -1,6 +1,6 @@
 let Module, calculator;
 const chartIds = [
-    'chart0', 'chart1', 'chart2', 'chart3', 'chart4', 'chart5', 'chart6', 'chart7', 'chart8'
+    'chart0', 'chart1', 'chart2', 'chart3', 'chart4', 'chart5', 'chart6', 'chart7', 'chart8', 'chart9'
 ];
 let charts = chartIds.map(v => {
     let ctx = document.getElementById(v).getContext('2d'); 
@@ -490,6 +490,25 @@ const testFunction = () => {
         );
         charts[8].data.datasets = datasets;
         charts[8].update();
+        
+        let trajectories = Module.getTrajectoryPointArrays(shell, shell.getImpactSize()-1);
+        console.log(trajectories);
+        datasets = [];
+        datasets.push(
+            {
+                label: 'Trajectory Original',
+                yAxisID: 'A',
+                data:  trajectories['original']
+            },
+            {
+                label: 'Trajectory Compressed',
+                yAxisID: 'A',
+                data:  trajectories['compressed']
+            }
+        )
+
+        charts[9].data.datasets = datasets;
+        charts[9].update();
     })
 }
 
