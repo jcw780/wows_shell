@@ -886,9 +886,9 @@ class shellCalc {
         shell &s,
         std::size_t nThreads = std::thread::hardware_concurrency()) const {
         if (s.enableNonAP) {
-            calculateImpact<true, Numerical, Hybrid, true>(s, nThreads);
+            calculateImpact<AddTraj, Numerical, Hybrid, true>(s, nThreads);
         } else {
-            calculateImpact<true, Numerical, Hybrid, false>(s, nThreads);
+            calculateImpact<AddTraj, Numerical, Hybrid, false>(s, nThreads);
         }
     }
 
@@ -915,6 +915,11 @@ class shellCalc {
             });
 
         s.completedImpact = true;
+        if constexpr (AddTraj) {
+            s.completedTrajectory = true;
+        } else {
+            s.completedTrajectory = false;
+        }
     }
 
     template <auto Numerical>

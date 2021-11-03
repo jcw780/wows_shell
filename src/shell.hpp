@@ -192,8 +192,9 @@ class shell {
     }
 
     // Not 100% necessary - sizes adjusted to fulfill alignment
-    bool completedImpact = false, completedAngles = false,
-         completedDispersion = false, completedPostPen = false;
+    bool completedImpact = false, completedTrajectory = false,
+         completedAngles = false, completedDispersion = false,
+         completedPostPen = false;
 
     /*trajectories output
     [0       ]trajx 0        [1       ]trajy 1        [2       ]trajy_c 2
@@ -528,21 +529,27 @@ class shell {
         std::cout << "Completed Standard Data" << std::endl;
     }
     void printTrajectory(std::size_t target) {
-        if (target >= impactSize) {
-            std::cout << "Target Not Within Range of: " << impactSize
-                      << std::endl;
-        } else {
-            std::cout << "Index:[" << target << "] X Y\n";
-            auto acquired_trajectories = get_trajectory(target);
-            const std::vector<double> &a_x = std::get<0>(acquired_trajectories);
-            const std::vector<double> &a_y = std::get<1>(acquired_trajectories);
-            const std::vector<double> &a_y_c =
-                std::get<2>(acquired_trajectories);
-
-            for (std::size_t i = 0; i < a_x.size(); ++i) {
-                std::cout << a_x[i] << " " << a_y[i] << " " << a_y_c[i]
+        if (completedTrajectory) {
+            if (target >= impactSize) {
+                std::cout << "Target Not Within Range of: " << impactSize
                           << std::endl;
+            } else {
+                std::cout << "Index:[" << target << "] X Y\n";
+                auto acquired_trajectories = get_trajectory(target);
+                const std::vector<double> &a_x =
+                    std::get<0>(acquired_trajectories);
+                const std::vector<double> &a_y =
+                    std::get<1>(acquired_trajectories);
+                const std::vector<double> &a_y_c =
+                    std::get<2>(acquired_trajectories);
+
+                for (std::size_t i = 0; i < a_x.size(); ++i) {
+                    std::cout << a_x[i] << " " << a_y[i] << " " << a_y_c[i]
+                              << std::endl;
+                }
             }
+        } else {
+            std::cout << "Trajectory not calculated\n";
         }
     }
 };
