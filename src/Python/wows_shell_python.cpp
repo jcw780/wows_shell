@@ -201,15 +201,12 @@ class shellPython {
                 const std::size_t target_size = a_x.size();
 
                 std::vector<double> temporary_buffer(target_size * 3);
-                std::cout << "temp size: " << temporary_buffer.size() << "\n";
                 assert(a_x.size() == a_y.size() && a_y.size() == a_y_c.size());
                 std::copy(a_x.begin(), a_x.end(), temporary_buffer.begin());
                 std::copy(a_y.begin(), a_y.end(),
                           temporary_buffer.begin() + target_size);
                 std::copy(a_y_c.begin(), a_y_c.end(),
                           temporary_buffer.begin() + target_size * 2);
-
-                std::cout << "Copied\n";
 
                 constexpr std::size_t sT = sizeof(double);
                 std::array<size_t, 2> shape = {3, target_size},
