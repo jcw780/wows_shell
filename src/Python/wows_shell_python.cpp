@@ -200,22 +200,31 @@ class shellPython {
 
                 const std::size_t target_size = a_x.size();
 
-                std::vector<double> temporary_buffer(target_size * 3);
+                /*std::vector<double> temporary_buffer(target_size * 3);
                 assert(a_x.size() == a_y.size() && a_y.size() == a_y_c.size());
                 std::copy(a_x.begin(), a_x.end(), temporary_buffer.begin());
                 std::copy(a_y.begin(), a_y.end(),
                           temporary_buffer.begin() + target_size);
                 std::copy(a_y_c.begin(), a_y_c.end(),
-                          temporary_buffer.begin() + target_size * 2);
+                          temporary_buffer.begin() + target_size * 2);*/
 
                 constexpr std::size_t sT = sizeof(double);
                 std::array<size_t, 2> shape = {3, target_size},
                                       stride = {target_size * sT, sT};
 
-                auto result = pybind11::array_t<double>(pybind11::buffer_info(
-                    temporary_buffer.data(), sT,
-                    pybind11::format_descriptor<double>::value, 2, shape,
-                    stride));
+                auto result = pybind11::array_t<double>(shape, stride, nullptr);
+
+                /*pybind11::array_t<double>(pybind11::buffer_info(
+                    nullptr, sT, pybind11::format_descriptor<double>::value, 2,
+                    shape, stride));*/
+
+                pybind11::buffer_info res_buffer_info = result.request();
+                double *res_buffer_ptr =
+                    static_cast<double *>(res_buffer_info.ptr);
+                std::copy(a_x.begin(), a_x.end(), res_buffer_ptr);
+                std::copy(a_y.begin(), a_y.end(), res_buffer_ptr + target_size);
+                std::copy(a_y_c.begin(), a_y_c.end(),
+                          res_buffer_ptr + target_size * 2);
 
                 return result;
             } else {
