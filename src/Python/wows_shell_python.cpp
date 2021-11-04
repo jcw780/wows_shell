@@ -257,8 +257,8 @@ class shellCalcPython : public shellCalc {
     void setDtf(const double dtf) { calc.set_dtf(dtf); }*/
 
     template <numerical Numerical>
-    void calcImpact(shellPython &sp) {
-        calculateImpact<true, Numerical, false>(sp.s);
+    void calcImpact(shellPython &sp, bool addTraj = false) {
+        calculateImpact<Numerical, false>(sp.s, addTraj);
     }
 
     void calcAngles(shellPython &sp, const double thickness,
@@ -451,13 +451,17 @@ PYBIND11_MODULE(wows_shell, m) {
         .def("setYf0", &shellCalcPython::set_yf0)
         .def("setDtf", &shellCalcPython::set_dtf)
         .def("calcImpactForwardEuler",
-             &shellCalcPython::calcImpact<numerical::forwardEuler>)
+             &shellCalcPython::calcImpact<numerical::forwardEuler>,
+             pybind11::arg("shell"), pybind11::arg("addTraj") = false)
         .def("calcImpactAdamsBashforth5",
-             &shellCalcPython::calcImpact<numerical::adamsBashforth5>)
+             &shellCalcPython::calcImpact<numerical::adamsBashforth5>,
+             pybind11::arg("shell"), pybind11::arg("addTraj") = false)
         .def("calcImpactRungeKutta2",
-             &shellCalcPython::calcImpact<numerical::rungeKutta2>)
+             &shellCalcPython::calcImpact<numerical::rungeKutta2>,
+             pybind11::arg("shell"), pybind11::arg("addTraj") = false)
         .def("calcImpactRungeKutta4",
-             &shellCalcPython::calcImpact<numerical::rungeKutta4>)
+             &shellCalcPython::calcImpact<numerical::rungeKutta4>,
+             pybind11::arg("shell"), pybind11::arg("addTraj") = false)
         .def("calcAngles", &shellCalcPython::calcAngles)
         .def("calcDispersion", &shellCalcPython::calcDispersion)
         .def("calcPostPen", &shellCalcPython::calcPostPen);

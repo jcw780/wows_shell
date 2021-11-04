@@ -8,7 +8,7 @@ c = shellCalc()
 c.setDtMin(.01)
 c.setMax(90)
 
-c.calcImpactForwardEuler(s)
+c.calcImpactForwardEuler(s, addTraj=True)
 
 impactData = s.getImpact()
 print(impactData.shape)
