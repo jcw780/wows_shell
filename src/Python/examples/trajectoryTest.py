@@ -6,11 +6,14 @@ s = shell(shellParams(.460, 780, .292, 1460,
 
 c = shellCalc()
 c.setDtMin(.01)
-c.calcImpactForwardEuler(s)
-print(s)
+c.setMax(90)
 
-print(s.getImpact())
-traj = s.getTrajectory(100)
+c.calcImpactForwardEuler(s)
+
+impactData = s.getImpact()
+print(impactData.shape)
+
+traj = s.getTrajectory(400)
 print(traj)
 
 plt.plot(traj[0,:], traj[1,:])
