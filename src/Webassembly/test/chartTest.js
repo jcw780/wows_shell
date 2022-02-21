@@ -55,6 +55,13 @@ const testFunction = () => {
     })
 
     shells.forEach(shell => {
+        calculator.calcImpactNoTrajectory(shell);
+        try{
+            Module.getTrajectoryPointArrays(shell, 0);
+        }catch(e){
+            console.log(e);
+        }
+
         calculator.calcImpact(shell);
         calculator.calcDispersion(shell, Module.verticalTypes.horizontal.value);
         calculator.calcAngles(shell, armor, inclination);

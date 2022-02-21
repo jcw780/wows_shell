@@ -203,7 +203,8 @@ emscripten::val getTrajectoryPointArrays(shell &s, const std::size_t target) {
 
     emscripten::val trajectory_original_compressed = emscripten::val::object();
 
-    if (s.completedImpact && target < s.impactSize) {
+    if (s.completedTrajectory && target < s.impactSize) {
+        std::cout<< "Target: " << target << "\n";
         auto targeted_trajectory = s.get_trajectory(target);
         for (std::size_t i = 0; i < std::get<0>(targeted_trajectory).size();
              i++) {
@@ -222,6 +223,8 @@ emscripten::val getTrajectoryPointArrays(shell &s, const std::size_t target) {
 
         trajectory_original_compressed.set("original", points);
         trajectory_original_compressed.set("compressed", points_compressed);
+    } else {
+        throw std::runtime_error("Invalid index or trajectory not completed");
     }
     return trajectory_original_compressed;
 }
@@ -422,6 +425,11 @@ class shellCalcWasm : public shellCalc {
     template <numerical Numerical>
     void calcImpact(shellWasm &sp) {
         calculateImpact<true, Numerical, false>(sp.s);
+    }
+
+    template <numerical Numerical>
+    void calcImpactNoTrajectory(shellWasm &sp) {
+        calculateImpact<false, Numerical, false>(sp.s);
     }
 
     void calcAngles(shellWasm &sp, const double thickness,
@@ -643,6 +651,16 @@ EMSCRIPTEN_BINDINGS(shellWasm) {
                   &shellCalcWasm::calcImpact<numerical::rungeKutta2>)
         .function("calcImpactRungeKutta4",
                   &shellCalcWasm::calcImpact<numerical::rungeKutta4>)
+        .function("calcImpactNoTrajectory",
+                  &shellCalcWasm::calcImpactNoTrajectory<numerical::forwardEuler>)
+        .function("calcImpactNoTrajectoryAdamsBashforth5",
+                  &shellCalcWasm::calcImpactNoTrajectory<numerical::adamsBashforth5>)
+        .function("calcImpactNoTrajectoryForwardEuler",
+                  &shellCalcWasm::calcImpactNoTrajectory<numerical::forwardEuler>)
+        .function("calcImpactNoTrajectoryRungeKutta2",
+                  &shellCalcWasm::calcImpactNoTrajectory<numerical::rungeKutta2>)
+        .function("calcImpactNoTrajectoryRungeKutta4",
+                  &shellCalcWasm::calcImpactNoTrajectory<numerical::rungeKutta4>)        
         .function("calcAngles", &shellCalcWasm::calcAngles)
         .function("calcDispersion", &shellCalcWasm::calcDispersion)
         .function("calcPostPen", &shellCalcWasm::calcPostPen);
