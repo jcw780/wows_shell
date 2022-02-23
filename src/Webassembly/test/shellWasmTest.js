@@ -122,6 +122,12 @@ const runFunc = () => {
             [Module.calcIndices.impact.value, Module.impactIndices.distance.value],
             [Module.calcIndices.dispersion.value, Module.dispersionIndices.maxHorizontal.value]
         ));
+        
+        console.log(Module.getImpactSizedPointArray(shell,
+            [Module.calcIndices.impact.value, Module.impactIndices.distance.value], 
+            [Module.calcIndices.impact.value, Module.impactIndices.launchA.value],
+        ));
+        console.log(Module.getTrajectoryPointArrays(shell, 50));
     }
 
     for (const shell of shells) {

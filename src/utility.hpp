@@ -132,6 +132,17 @@ double MBG_erfinv(double x) {
 
 double invCDF(double x) { return sqrt(2) * MBG_erfinv(2 * x - 1); }
 
+double compress_height(const double& y) {
+    const double ballistic_flattening = 1.0;
+    const double ballistic_scale = 60.0;
+    if (y > 0) {
+        return ballistic_scale *
+               log(ballistic_flattening * (y / ballistic_scale) + 1.0) /
+               ballistic_flattening;
+    }
+    return y;
+}
+
 class threadPool {
    private:
     std::vector<std::thread> threads;
