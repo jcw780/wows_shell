@@ -424,12 +424,12 @@ class shellCalcWasm : public shellCalc {
 
     template <numerical Numerical>
     void calcImpact(shellWasm &sp) {
-        calculateImpact<true, Numerical, false>(sp.s);
+        calculateImpact<true, Numerical>(sp.s);
     }
 
     template <numerical Numerical>
     void calcImpactNoTrajectory(shellWasm &sp) {
-        calculateImpact<false, Numerical, false>(sp.s);
+        calculateImpact<false, Numerical>(sp.s);
     }
 
     void calcAngles(shellWasm &sp, const double thickness,

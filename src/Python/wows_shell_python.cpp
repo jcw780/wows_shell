@@ -258,7 +258,7 @@ class shellCalcPython : public shellCalc {
 
     template <numerical Numerical>
     void calcImpact(shellPython &sp, bool addTraj = false) {
-        calculateImpact<Numerical, false>(sp.s, addTraj);
+        calculateImpact<Numerical>(sp.s, addTraj);
     }
 
     void calcAngles(shellPython &sp, const double thickness,

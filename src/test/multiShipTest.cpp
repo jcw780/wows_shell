@@ -51,7 +51,7 @@ int main() {
     for (wows_shell::shell &s : ships) {
         std::cout << "Ship Hash String: " << wows_shell::generateHash(s) << "\n";
         calculator
-            .calculateImpact<false, wows_shell::numerical::forwardEuler, false>(s);
+            .calculateImpact<false, wows_shell::numerical::forwardEuler>(s);
         std::cout << s.name << "\n";
         for (double dist : dists) {
             /*std::cout << s.interpolateDistanceImpact(

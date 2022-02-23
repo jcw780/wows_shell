@@ -870,29 +870,29 @@ class shellCalc {
         return vSize - (processedSize % vSize) + processedSize;
     }
     // Templates to reduce branching
-    template <auto Numerical, bool Hybrid>
+    template <auto Numerical>
     void calculateImpact(
         shell &s, bool addTraj,
         std::size_t nThreads = std::thread::hardware_concurrency()) const {
         if (addTraj) {
-            calculateImpact<true, Numerical, Hybrid>(s, nThreads);
+            calculateImpact<true, Numerical>(s, nThreads);
         } else {
-            calculateImpact<false, Numerical, Hybrid>(s, nThreads);
+            calculateImpact<false, Numerical>(s, nThreads);
         }
     }
 
-    template <bool AddTraj, auto Numerical, bool Hybrid>
+    template <bool AddTraj, auto Numerical>
     void calculateImpact(
         shell &s,
         std::size_t nThreads = std::thread::hardware_concurrency()) const {
         if (s.enableNonAP) {
-            calculateImpact<AddTraj, Numerical, Hybrid, true>(s, nThreads);
+            calculateImpact<AddTraj, Numerical, true>(s, nThreads);
         } else {
-            calculateImpact<AddTraj, Numerical, Hybrid, false>(s, nThreads);
+            calculateImpact<AddTraj, Numerical, false>(s, nThreads);
         }
     }
 
-    template <bool AddTraj, auto Numerical, bool Hybrid, bool nonAP>
+    template <bool AddTraj, auto Numerical, bool nonAP>
     void calculateImpact(
         shell &s,
         std::size_t nThreads = std::thread::hardware_concurrency()) const {

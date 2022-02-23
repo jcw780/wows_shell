@@ -41,7 +41,7 @@ function_runtimes runtime() {
     function_runtimes r;
 
     r.impact = get_runtime([&] {
-        sc.calculateImpact<wows_shell::numerical::forwardEuler, false>(*test,
+        sc.calculateImpact<wows_shell::numerical::forwardEuler>(*test,
                                                                        true);
     });
 
