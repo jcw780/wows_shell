@@ -23,11 +23,13 @@ impact = s.getImpact()
 velocity = impact[int(impactIndices.impactVelocity), :]
 
 updatedPenetration = krupp * (((velocity ) ** 2 * mass) ** 0.69) * (caliber ** -1.07) * 0.0000001
+originalPenetration = krupp / 2400 * velocity  ** 1.4822064892953855 * mass ** 0.5506 * caliber ** -0.6521 * 0.00046905491615181766 
 
 plt.title(f'{name} Regression vs. RE')
 plt.plot(impact[int(impactIndices.distance), :],
-         impact[int(impactIndices.rawPenetration), :], label='Regression')
-
+         impact[int(impactIndices.rawPenetration), :], label='Current')
+plt.plot(impact[int(impactIndices.distance), :],
+         originalPenetration, label='Original')
 plt.plot(impact[int(impactIndices.distance), :],
          updatedPenetration, label='RE')
 plt.legend()
