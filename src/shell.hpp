@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdlib>
 #define _USE_MATH_DEFINES
 #include <algorithm>
 #include <array>
@@ -190,14 +191,16 @@ class shell {
     }
 
     // Not 100% necessary - sizes adjusted to fulfill alignment
-    bool completedImpact = false, completedAngles = false,
-         completedDispersion = false, completedPostPen = false;
+    bool completedImpact = false, completedTrajectory = false,
+         completedAngles = false, completedDispersion = false,
+         completedPostPen = false;
 
     /*trajectories output
-    [0           ]trajx 0        [1           ]trajy 1
+    [0       ]trajx 0        [1       ]trajy 1        [2       ]trajy_c 2
     ...
-    [size * 2 - 2]trajx size - 1 [size * 2 - 1]trajy size - 1
+    [size*2-3]trajx size - 1 [size*3-2]trajy size - 1 [size*3-1]trajy_c size = 1
     */
+    static constexpr std::size_t trajectories_width = 3;
     std::vector<std::vector<double>> trajectories;
 
     // Refer to stdDataIndex enums defined above
@@ -406,6 +409,13 @@ class shell {
         return postPenData.data() + row + angle * postPenSize +
                impact * impactSize;
     }
+    const std::tuple<const std::vector<double> &, const std::vector<double> &,
+                     const std::vector<double> &>
+    get_trajectory(std::size_t target) {
+        return {trajectories[trajectories_width * target],
+                trajectories[trajectories_width * target + 1],
+                trajectories[trajectories_width * target + 2]};
+    }
 
     std::tuple<std::size_t, double> maxDist() {
         std::size_t errorCode = std::numeric_limits<std::size_t>::max();
@@ -518,16 +528,27 @@ class shell {
         std::cout << "Completed Standard Data" << std::endl;
     }
     void printTrajectory(std::size_t target) {
-        if (target >= impactSize) {
-            std::cout << "Target Not Within Range of: " << impactSize
-                      << std::endl;
-        } else {
-            std::cout << "Index:[" << target << "] X Y\n";
-            for (std::vector<double>::size_type i = 0;
-                 i < trajectories[target * 2].size(); i++) {
-                std::cout << trajectories[target * 2][i] << " "
-                          << trajectories[target * 2 + 1][i] << std::endl;
+        if (completedTrajectory) {
+            if (target >= impactSize) {
+                std::cout << "Target Not Within Range of: " << impactSize
+                          << std::endl;
+            } else {
+                std::cout << "Index:[" << target << "] X Y\n";
+                auto acquired_trajectories = get_trajectory(target);
+                const std::vector<double> &a_x =
+                    std::get<0>(acquired_trajectories);
+                const std::vector<double> &a_y =
+                    std::get<1>(acquired_trajectories);
+                const std::vector<double> &a_y_c =
+                    std::get<2>(acquired_trajectories);
+
+                for (std::size_t i = 0; i < a_x.size(); ++i) {
+                    std::cout << a_x[i] << " " << a_y[i] << " " << a_y_c[i]
+                              << std::endl;
+                }
             }
+        } else {
+            std::cout << "Trajectory not calculated\n";
         }
     }
 };

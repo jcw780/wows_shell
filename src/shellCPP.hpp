@@ -206,10 +206,14 @@ class shellCalc {
         if constexpr (AddTraj) {
             for (uint32_t i = 0, j = start; i < vSize; ++i, ++j) {
                 if (j < s.impactSize) {
-                    s.trajectories[2 * (j)].clear();
-                    s.trajectories[2 * (j) + 1].clear();
-                    s.trajectories[2 * (j)].push_back(x0);
-                    s.trajectories[2 * (j) + 1].push_back(y0);
+                    s.trajectories[s.trajectories_width * (j)].clear();
+                    s.trajectories[s.trajectories_width * (j) + 1].clear();
+                    s.trajectories[s.trajectories_width * (j) + 2].clear();
+                    s.trajectories[s.trajectories_width * (j)].push_back(x0);
+                    s.trajectories[s.trajectories_width * (j) + 1].push_back(
+                        y0);
+                    s.trajectories[s.trajectories_width * (j) + 2].push_back(
+                        utility::compress_height(y0));
                 }
             }
         }
@@ -251,13 +255,37 @@ class shellCalc {
             const uint32_t loopSize =
                 std::min<uint32_t>(vSize, s.impactSize - start);
             for (uint32_t i = 0, j = start; i < loopSize; ++i, ++j) {
+                double x, y;
 #if defined(__SSE4_1__) || defined(__AVX__)
-                s.trajectories[2 * (j)].push_back(xR[i]);
-                s.trajectories[2 * (j) + 1].push_back(yR[i]);
+                x = xR[i], y = yR[i];
 #else
-                s.trajectories[2 * (j)].push_back(xy[i]);
-                s.trajectories[2 * (j) + 1].push_back(xy[i + vSize]);
+                x = xy[i], y = xy[i + vSize];
 #endif
+                std::vector<double> &target_x =
+                    s.trajectories[s.trajectories_width * (j)];
+                std::vector<double> &target_y =
+                    s.trajectories[s.trajectories_width * (j) + 1];
+                std::vector<double> &target_y_c =
+                    s.trajectories[s.trajectories_width * (j) + 2];
+                std::size_t current_traj_length = target_x.size();
+                // All targeted trajectory vectors should have the same length
+
+                const auto add_point = [&]() {
+                    target_x.push_back(x);
+                    target_y.push_back(y);
+                    target_y_c.push_back(utility::compress_height(y));
+                };
+
+                constexpr bool trim_duplicates = true;
+                if constexpr (trim_duplicates) {
+                    if (current_traj_length < 2 ||
+                        (target_x[current_traj_length - 1] != x &&
+                         target_y[current_traj_length - 1] != y)) {
+                        add_point();
+                    }
+                } else {
+                    add_point();
+                }
             }
         };
 
@@ -842,29 +870,29 @@ class shellCalc {
         return vSize - (processedSize % vSize) + processedSize;
     }
     // Templates to reduce branching
-    template <auto Numerical, bool Hybrid>
+    template <auto Numerical>
     void calculateImpact(
         shell &s, bool addTraj,
         std::size_t nThreads = std::thread::hardware_concurrency()) const {
         if (addTraj) {
-            calculateImpact<true, Numerical, Hybrid>(s, nThreads);
+            calculateImpact<true, Numerical>(s, nThreads);
         } else {
-            calculateImpact<false, Numerical, Hybrid>(s, nThreads);
+            calculateImpact<false, Numerical>(s, nThreads);
         }
     }
 
-    template <bool AddTraj, auto Numerical, bool Hybrid>
+    template <bool AddTraj, auto Numerical>
     void calculateImpact(
         shell &s,
         std::size_t nThreads = std::thread::hardware_concurrency()) const {
         if (s.enableNonAP) {
-            calculateImpact<true, Numerical, Hybrid, true>(s, nThreads);
+            calculateImpact<AddTraj, Numerical, true>(s, nThreads);
         } else {
-            calculateImpact<true, Numerical, Hybrid, false>(s, nThreads);
+            calculateImpact<AddTraj, Numerical, false>(s, nThreads);
         }
     }
 
-    template <bool AddTraj, auto Numerical, bool Hybrid, bool nonAP>
+    template <bool AddTraj, auto Numerical, bool nonAP>
     void calculateImpact(
         shell &s,
         std::size_t nThreads = std::thread::hardware_concurrency()) const {
@@ -872,7 +900,7 @@ class shellCalc {
             static_cast<std::size_t>(maxA / precision - minA / precision) + 1;
         s.impactSizeAligned = calculateAlignmentSize(s.impactSize);
         if constexpr (AddTraj) {
-            s.trajectories.resize(2 * s.impactSize);
+            s.trajectories.resize(s.trajectories_width * s.impactSize);
         }
         s.impactData.resize(impact::maxColumns * s.impactSizeAligned);
 
@@ -887,6 +915,11 @@ class shellCalc {
             });
 
         s.completedImpact = true;
+        if constexpr (AddTraj) {
+            s.completedTrajectory = true;
+        } else {
+            s.completedTrajectory = false;
+        }
     }
 
     template <auto Numerical>
