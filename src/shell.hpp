@@ -104,8 +104,7 @@ double combinedAirDrag(double cD, double caliber, double mass) {
 }
 
 double combinedPenetration(double krupp, double mass, double caliber) {
-    return 0.00046905491615181766 * krupp / 2400 * pow(mass, 0.5506) *
-           pow(caliber, -0.6521);
+    return 0.0000001 * krupp * pow(mass, 0.69) * pow(caliber, -1.07); 
 }
 
 class shell {
