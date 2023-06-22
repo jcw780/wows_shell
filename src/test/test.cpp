@@ -41,8 +41,7 @@ function_runtimes runtime() {
     function_runtimes r;
 
     r.impact = get_runtime([&] {
-        sc.calculateImpact<wows_shell::numerical::forwardEuler>(*test,
-                                                                       true);
+        sc.calculateImpact<wows_shell::numerical::forwardEuler>(*test, true);
     });
 
     std::vector<double> angle = {0, 5, 10};
