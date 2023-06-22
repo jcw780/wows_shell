@@ -35,7 +35,7 @@ class shellCalc {
     static constexpr double L = 0.0065;   // Atmospheric Lapse Rate       | C/m
     static constexpr double p0 = 101325;  // Pressure at Sea Level        | Pa
     static constexpr double R =
-        8.31447;  // Ideal Gas Constant           | J/(mol K)
+        8.31447;    // Ideal Gas Constant           | J/(mol K)
     static constexpr double M =
         0.0289644;  // Molarity of Air at Sea Level | kg/mol
     static constexpr double cw_1 = 1;
@@ -51,7 +51,7 @@ class shellCalc {
     static constexpr double timeMultiplier = 2.75;
     // For some reason the game has a different shell multiplier than the
     // global speed multiplier of 2.61 used for everything else.
-    static constexpr double velocityPower = 2*0.69;
+    static constexpr double velocityPower = 2 * 0.69;
     // Effect of impact velocity on penetration: P = K * v ^ velocity power
 
     // delta t (dtf) for fusing needs to be smaller than the delta t (dt) used
@@ -90,8 +90,9 @@ class shellCalc {
     VT calcNormalizationR(
         const VT angle,
         const double normalizationR) const noexcept {  // Input in radians
-        auto gt = angle > VT(normalizationR);
-        return select(gt, angle - VT(normalizationR), VT(0));
+        auto abs_angle = abs(angle);
+        auto gt = abs_angle > VT(normalizationR);
+        return select(gt, abs_angle - VT(normalizationR), VT(0));
         // Don't worry this branch goes away
     }
 #endif
@@ -1567,7 +1568,7 @@ class shellCalc {
 
         for (uint32_t l = 0; l < vSize; l++) {
             const double HA_R =
-                hAngleV[l] * M_PI / 180;  // lateral  angle radians
+                hAngleV[l] * M_PI / 180;     // lateral  angle radians
             const double VA_R =
                 vAngleV[l] + inclination_R;  // vertical angle radians
             const double cAngle = acos(cos(HA_R) * cos(VA_R));
@@ -1599,7 +1600,7 @@ class shellCalc {
         }
 #endif
 
-        //#pragma clang loop vectorize(enable)
+        // #pragma clang loop vectorize(enable)
         const std::size_t loopSize =
             std::min<std::size_t>(vSize, s.postPenSize - i);
         for (std::size_t j = 0; j < loopSize; j++) {
