@@ -3,9 +3,9 @@ import pandas as pd
 import generate_data
 from validation_files_util import read_reference_csvs
 
-impact_dataframe, angles_dataframe, dispersion_dataframe, post_penetration_dataframe = generate_data.get_dataframes()
+impact_dataframe, angles_dataframe, dispersion_dataframe, post_penetration_dataframe, trajectory_dataframe = generate_data.get_dataframes()
 
-impact_dataframe_reference, angles_dataframe_reference, dispersion_dataframe_reference, post_penetration_dataframe_reference = read_reference_csvs()
+impact_dataframe_reference, angles_dataframe_reference, dispersion_dataframe_reference, post_penetration_dataframe_reference, trajectory_dataframe_reference = read_reference_csvs()
 
 def check_columns(test_dataframe, reference_dataframe):
     if len(test_dataframe.columns) != len(reference_dataframe.columns):
@@ -62,4 +62,5 @@ validate_dataframe(impact_dataframe, impact_dataframe_reference)
 validate_dataframe(angles_dataframe, angles_dataframe_reference)
 validate_dataframe(dispersion_dataframe, dispersion_dataframe_reference)
 validate_dataframe(post_penetration_dataframe, post_penetration_dataframe_reference)
+validate_dataframe(trajectory_dataframe, trajectory_dataframe_reference)
 

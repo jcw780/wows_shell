@@ -33,6 +33,7 @@ def get_dataframes():
     angles_data = test_shell.getAngles()
     dispersion_data = test_shell.getDispersion()
     post_penetration_data = test_shell.getPostPen()
+    trajectory_data = test_shell.getTrajectory(250)
 
     impact_dataframe = pd.DataFrame(impact_data.transpose(), 
         columns=generate_ordered_enum_list(wows_shell.impactIndices.__members__))
@@ -52,4 +53,9 @@ def get_dataframes():
             .transpose(),
         columns=generate_ordered_enum_list(wows_shell.postPenIndices.__members__))
     
-    return (impact_dataframe, angles_dataframe, dispersion_dataframe, post_penetration_dataframe)
+    trajectory_dataframe = pd.DataFrame(
+        trajectory_data.transpose(),
+        columns=['x', 'y', 'y compressed']
+    )
+    
+    return (impact_dataframe, angles_dataframe, dispersion_dataframe, post_penetration_dataframe, trajectory_dataframe)
